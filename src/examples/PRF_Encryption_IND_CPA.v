@@ -18,7 +18,7 @@ Local Open Scope list_scope.
 Section PRF_Encryption_concrete.
   
   Variable eta : nat.
-  
+
   Definition Key := Bvector eta.
   Definition Plaintext := Bvector eta.
   Definition Ciphertext := Bvector eta * Bvector eta.
