@@ -1,0 +1,56 @@
+DIGEST 1f8113f22ccebd68485255fbb43ca788
+FAdmissibility
+R122:125 Comp <> <> lib
+def 140:153 <> DataTypeFamily
+R158:160 Coq.Init.Datatypes <> nat ind
+def 182:198 <> FunctionCostModel
+R236:238 Coq.Init.Datatypes <> nat ind
+R230:230 Admissibility <> B var
+R225:225 Admissibility <> A var
+def 260:272 <> CompCostModel
+R305:307 Coq.Init.Datatypes <> nat ind
+R295:298 Comp <> Comp ind
+R300:300 Admissibility <> A var
+def 329:340 <> OC_CostModel
+R395:397 Coq.Init.Datatypes <> nat ind
+R388:390 Coq.Init.Datatypes <> nat ind
+R367:376 Comp <> OracleComp ind
+R382:382 Admissibility <> C var
+R380:380 Admissibility <> B var
+R378:378 Admissibility <> A var
+def 421:433 <> pred_comp_fam
+R450:452 Coq.Init.Datatypes <> nat ind
+R474:477 Comp <> Comp ind
+R480:480 Admissibility <> A var
+R482:482 Admissibility <> n var
+def 506:525 <> pred_comp_func_2_fam
+R546:548 Coq.Init.Datatypes <> nat ind
+R584:587 Comp <> Comp ind
+R590:590 Admissibility <> C var
+R592:592 Admissibility <> n var
+R577:577 Admissibility <> B var
+R579:579 Admissibility <> n var
+R570:570 Admissibility <> A var
+R572:572 Admissibility <> n var
+def 617:627 <> pred_oc_fam
+R648:650 Coq.Init.Datatypes <> nat ind
+R672:681 Comp <> OracleComp ind
+R696:696 Admissibility <> C var
+R698:698 Admissibility <> n var
+R690:690 Admissibility <> B var
+R692:692 Admissibility <> n var
+R684:684 Admissibility <> A var
+R686:686 Admissibility <> n var
+def 722:739 <> pred_oc_func_2_fam
+R764:766 Coq.Init.Datatypes <> nat ind
+R802:811 Comp <> OracleComp ind
+R826:826 Admissibility <> E var
+R828:828 Admissibility <> n var
+R820:820 Admissibility <> D var
+R822:822 Admissibility <> n var
+R814:814 Admissibility <> C var
+R816:816 Admissibility <> n var
+R795:795 Admissibility <> B var
+R797:797 Admissibility <> n var
+R788:788 Admissibility <> A var
+R790:790 Admissibility <> n var

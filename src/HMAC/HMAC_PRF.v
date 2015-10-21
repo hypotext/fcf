@@ -72,6 +72,7 @@ Section HMAC_PRF.
       simpl in *.
       subst.
       comp_simp.
+Print Ltac comp_simp.
       simpl.
       comp_simp.
       inline_first.

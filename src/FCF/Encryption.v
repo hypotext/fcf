@@ -1,6 +1,5 @@
 
 (* indistinguishability-based security definitions for encryption schemes. *)
-
 Set Implicit Arguments.
 Unset Strict Implicit.
 Require Import FCF.
@@ -67,6 +66,9 @@ Section Encryption_SecretKey_concrete.
       )
       _ _ (EncryptOracle key) tt;
       ret b.
+
+    Check IND_CPA_SecretKey_G.
+    (* : Comp bool *)
     
     Definition IND_CPA_SecretKey_Advantage := | Pr[IND_CPA_SecretKey_G] - 1 / 2 |.
      

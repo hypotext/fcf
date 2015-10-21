@@ -1,0 +1,10 @@
+DIGEST 04b99e602e601bc00a81a957187e4fdf
+FCrypto
+R101:109 DistRules <> <> lib
+R127:130 Comp <> <> lib
+R148:152 Coq.Arith.Arith <> <> lib
+R170:173 Fold <> <> lib
+R191:193 Rat <> <> lib
+R211:217 DistSem <> <> lib
+R235:240 StdNat <> <> lib
+R258:265 DistTacs <> <> lib

@@ -1,0 +1,804 @@
+DIGEST eb8bb57474ff7fe85343375287c55a19
+FEncryption
+R142:144 FCF <> <> lib
+R162:169 CompFold <> <> lib
+def 298:307 <> oc_compMap
+R331:335 EqDec <> EqDec class
+R337:337 Encryption <> B var
+R349:358 Comp <> OracleComp ind
+R364:364 Encryption <> B var
+R362:362 Encryption <> D var
+R360:360 Encryption <> C var
+R344:344 Encryption <> A var
+R372:375 Coq.Init.Datatypes <> list ind
+R377:377 Encryption <> A var
+R382:391 Comp <> OracleComp ind
+R398:401 Coq.Init.Datatypes <> list ind
+R403:403 Encryption <> B var
+R395:395 Encryption <> D var
+R393:393 Encryption <> C var
+R417:418 Encryption <> ls var
+R431:433 Coq.Init.Datatypes <> nil constr
+R439:440 Comp <> :comp_scope:'$'_x not
+R448:448 Comp <> :comp_scope:'$'_x not
+R441:444 Comp <> ::'ret'_x not
+R445:447 Coq.Init.Datatypes <> nil constr
+R457:460 Coq.Init.Datatypes <> :list_scope:x_'::'_x not
+R475:480 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R484:491 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R481:481 Encryption <> c var
+R496:501 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R520:528 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R502:511 Encryption <> oc_compMap def
+R515:515 Encryption <> c var
+R529:530 Comp <> :comp_scope:'$'_x not
+R546:546 Comp <> :comp_scope:'$'_x not
+R531:535 Comp <> ::'ret'_x not
+R545:545 Comp <> ::'ret'_x not
+R537:540 Coq.Init.Datatypes <> :list_scope:x_'::'_x not
+sec 565:593 <> Encryption_SecretKey_concrete
+var 608:616 Encryption_SecretKey_concrete Plaintext
+var 618:627 Encryption_SecretKey_concrete Ciphertext
+var 629:631 Encryption_SecretKey_concrete Key
+var 651:656 Encryption_SecretKey_concrete KeyGen
+R660:663 Comp <> Comp ind
+R665:667 Encryption <> Encryption_SecretKey_concrete.Key var
+var 681:687 Encryption_SecretKey_concrete Encrypt
+R711:714 Comp <> Comp ind
+R716:725 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R698:706 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R691:693 Encryption <> Encryption_SecretKey_concrete.Key var
+var 739:745 Encryption_SecretKey_concrete Decrypt
+R770:778 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R756:765 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R749:751 Encryption <> Encryption_SecretKey_concrete.Key var
+sec 792:817 Encryption_SecretKey_concrete IND_CPA_SecretKey_concrete
+var 838:842 Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete State
+var 864:865 Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete A1
+R869:878 Comp <> OracleComp ind
+R923:925 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R911:913 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R902:910 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R914:922 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R926:930 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete.State var
+R890:899 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R880:888 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+var 947:948 Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete A2
+R975:984 Comp <> OracleComp ind
+R1007:1010 Coq.Init.Datatypes <> bool ind
+R996:1005 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R986:994 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R961:970 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R952:956 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete.State var
+var 1029:1044 Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete Ciphertext_EqDec
+R1048:1052 EqDec <> EqDec class
+R1054:1063 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+var 1081:1095 Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete Plaintext_EqDec
+R1099:1103 EqDec <> EqDec class
+R1105:1113 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+def 1132:1144 <> EncryptOracle
+R1150:1152 Encryption <> Encryption_SecretKey_concrete.Key var
+R1159:1162 Coq.Init.Datatypes <> unit ind
+R1169:1177 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R1190:1194 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R1206:1213 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R1195:1201 Encryption <> Encryption_SecretKey_concrete.Encrypt var
+R1205:1205 Encryption <> p var
+R1203:1203 Encryption <> k var
+R1214:1217 Comp <> ::'ret'_x not
+R1218:1218 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1220:1221 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1224:1224 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R1222:1223 Coq.Init.Datatypes <> tt constr
+var 1243:1252 Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete Encrypt_wf
+R1283:1298 Comp <> well_formed_comp ind
+R1301:1307 Encryption <> Encryption_SecretKey_concrete.Encrypt var
+R1311:1311 Encryption <> p var
+R1309:1309 Encryption <> k var
+prf 1328:1343 <> EncryptOracle_wf
+R1376:1391 Comp <> well_formed_comp ind
+R1394:1406 Encryption <> EncryptOracle def
+R1412:1412 Encryption <> p var
+R1410:1410 Encryption <> x var
+R1408:1408 Encryption <> k var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R1447:1459 Encryption <> EncryptOracle def
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+def 1502:1520 <> IND_CPA_SecretKey_G
+R1534:1538 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R1545:1553 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R1539:1544 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R1554:1554 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R1556:1557 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R1559:1572 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R1794:1801 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R1583:1583 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<--$3'_x_';'_x not
+R1586:1587 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<--$3'_x_';'_x not
+R1590:1591 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<--$3'_x_';'_x not
+R1595:1602 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<--$3'_x_';'_x not
+R1605:1614 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<--$3'_x_';'_x not
+R1603:1604 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete.A1 var
+R1616:1621 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R1629:1638 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R1622:1622 Comp <> :comp_scope:'$'_x not
+R1623:1628 Comp <> :comp_scope:'{'_'0'_','_'1'_'}' not
+R1641:1644 Comp <> :comp_scope:x_'<-'_x_';'_x not
+R1665:1676 Comp <> :comp_scope:x_'<-'_x_';'_x not
+R1678:1683 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R1699:1710 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R1684:1684 Comp <> :comp_scope:'$'_x not
+R1685:1691 Encryption <> Encryption_SecretKey_concrete.Encrypt var
+R1713:1718 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R1727:1739 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R1719:1720 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete.A2 var
+R1740:1740 Comp <> :comp_scope:'$'_x not
+R1741:1744 Comp <> ::'ret'_x not
+R1745:1747 EqDec <> eqb meth
+R1792:1793 Coq.Init.Datatypes <> tt constr
+R1773:1785 Encryption <> EncryptOracle def
+R1802:1805 Comp <> ::'ret'_x not
+def 1829:1855 <> IND_CPA_SecretKey_Advantage
+R1860:1861 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R1885:1887 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R1893:1894 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R1862:1864 DistSem <> ::'Pr'_'['_x_']' not
+R1884:1884 DistSem <> ::'Pr'_'['_x_']' not
+R1865:1883 Encryption <> IND_CPA_SecretKey_G def
+R1889:1891 Rat <> :rat_scope:x_'/'_x not
+R1909:1934 Encryption Encryption_SecretKey_concrete.IND_CPA_SecretKey_concrete <> sec
+sec 1948:1975 Encryption_SecretKey_concrete IND_CPA_SecretKey_O_concrete
+var 1996:1996 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete A
+R2000:2009 Comp <> OracleComp ind
+R2032:2035 Coq.Init.Datatypes <> bool ind
+R2021:2030 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R2011:2019 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+var 2054:2069 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete Ciphertext_EqDec
+R2073:2077 EqDec <> EqDec class
+R2079:2088 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+var 2104:2112 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete ptDefault
+R2116:2124 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+def 2143:2162 <> EncryptNothingOracle
+R2169:2171 Encryption <> Encryption_SecretKey_concrete.Key var
+R2178:2181 Coq.Init.Datatypes <> unit ind
+R2188:2196 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R2211:2215 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2235:2242 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2216:2222 Encryption <> Encryption_SecretKey_concrete.Encrypt var
+R2226:2234 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete.ptDefault var
+R2224:2224 Encryption <> k var
+R2243:2246 Comp <> ::'ret'_x not
+R2247:2247 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R2249:2250 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R2253:2253 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R2251:2252 Coq.Init.Datatypes <> tt constr
+def 2272:2293 <> IND_CPA_SecretKey_O_G0
+R2307:2311 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2318:2326 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2312:2317 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R2327:2327 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2329:2330 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2332:2338 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2369:2376 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2339:2339 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete.A var
+R2367:2368 Coq.Init.Datatypes <> tt constr
+R2346:2358 Encryption <> EncryptOracle def
+R2377:2380 Comp <> ::'ret'_x not
+def 2400:2421 <> IND_CPA_SecretKey_O_G1
+R2435:2439 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2446:2454 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2440:2445 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R2455:2455 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2457:2458 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2460:2466 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2502:2509 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R2467:2467 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete.A var
+R2500:2501 Coq.Init.Datatypes <> tt constr
+R2474:2493 Encryption <> EncryptNothingOracle def
+R2510:2513 Comp <> ::'ret'_x not
+def 2533:2561 <> IND_CPA_SecretKey_O_Advantage
+R2566:2567 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R2594:2596 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R2623:2625 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R2568:2570 DistSem <> ::'Pr'_'['_x_']' not
+R2593:2593 DistSem <> ::'Pr'_'['_x_']' not
+R2571:2592 Encryption <> IND_CPA_SecretKey_O_G0 def
+R2597:2599 DistSem <> ::'Pr'_'['_x_']' not
+R2622:2622 DistSem <> ::'Pr'_'['_x_']' not
+R2600:2621 Encryption <> IND_CPA_SecretKey_O_G1 def
+R2640:2667 Encryption Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete <> sec
+sec 2838:2871 Encryption_SecretKey_concrete IND_CPA_SecretKey_O_concrete_3Proc
+var 2892:2892 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc A
+var 2894:2894 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc B
+var 2896:2900 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc State
+var 2924:2930 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc B_EqDec
+R2934:2938 EqDec <> EqDec class
+R2940:2940 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.B var
+var 2956:2957 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc A1
+R2961:2964 Comp <> Comp ind
+R2968:2970 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R2967:2967 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A var
+R2971:2975 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.State var
+var 2992:2993 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc A2
+R3002:3011 Comp <> OracleComp ind
+R3034:3034 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.B var
+R3023:3032 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R3013:3021 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R2997:2997 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A var
+var 3050:3051 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc A3
+R3069:3072 Comp <> Comp ind
+R3074:3077 Coq.Init.Datatypes <> bool ind
+R3064:3064 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.B var
+R3055:3059 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.State var
+var 3096:3111 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc Ciphertext_EqDec
+R3115:3119 EqDec <> EqDec class
+R3121:3130 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+var 3146:3154 Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc ptDefault
+R3158:3166 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+def 3185:3212 <> IND_CPA_SecretKey_O_3Proc_G0
+R3223:3223 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3225:3226 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3230:3236 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3239:3246 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3237:3238 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A1 var
+R3250:3254 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R3261:3269 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R3255:3260 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R3270:3270 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3272:3273 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3275:3281 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3317:3324 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3283:3284 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A2 var
+R3315:3316 Coq.Init.Datatypes <> tt constr
+R3294:3306 Encryption <> EncryptOracle def
+R3325:3326 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A3 var
+def 3351:3378 <> IND_CPA_SecretKey_O_3Proc_G1
+R3389:3389 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3391:3392 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3396:3402 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3405:3412 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3403:3404 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A1 var
+R3416:3420 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R3427:3435 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R3421:3426 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R3436:3436 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3438:3439 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3441:3447 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3500:3507 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R3449:3450 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A2 var
+R3498:3499 Coq.Init.Datatypes <> tt constr
+R3460:3479 Encryption <> EncryptNothingOracle def
+R3483:3491 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.ptDefault var
+R3508:3509 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A3 var
+def 3534:3568 <> IND_CPA_SecretKey_O_3Proc_Advantage
+R3573:3574 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R3607:3609 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R3642:3644 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R3575:3577 DistSem <> ::'Pr'_'['_x_']' not
+R3606:3606 DistSem <> ::'Pr'_'['_x_']' not
+R3578:3605 Encryption <> IND_CPA_SecretKey_O_3Proc_G0 def
+R3610:3612 DistSem <> ::'Pr'_'['_x_']' not
+R3641:3641 DistSem <> ::'Pr'_'['_x_']' not
+R3613:3640 Encryption <> IND_CPA_SecretKey_O_3Proc_G1 def
+def 3663:3665 <> A_c
+R3676:3676 Comp <> :comp_scope:'['_x_','_x_']'_'<--$2'_x_';'_x not
+R3678:3679 Comp <> :comp_scope:'['_x_','_x_']'_'<--$2'_x_';'_x not
+R3683:3690 Comp <> :comp_scope:'['_x_','_x_']'_'<--$2'_x_';'_x not
+R3694:3701 Comp <> :comp_scope:'['_x_','_x_']'_'<--$2'_x_';'_x not
+R3691:3691 Comp <> :comp_scope:'$'_x not
+R3692:3693 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A1 var
+R3703:3708 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R3713:3721 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R3709:3710 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A2 var
+R3722:3722 Comp <> :comp_scope:'$'_x not
+R3723:3724 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.A3 var
+prf 3746:3775 <> IND_CPA_SecretKey_2Proc_impl_O
+R3821:3824 Rat <> :rat_scope:x_'=='_x not
+R3786:3820 Encryption <> IND_CPA_SecretKey_O_3Proc_Advantage def
+R3825:3853 Encryption <> IND_CPA_SecretKey_O_Advantage def
+R3861:3869 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc.ptDefault var
+R3855:3857 Encryption <> A_c def
+R3888:3922 Encryption <> IND_CPA_SecretKey_O_3Proc_Advantage def
+R3925:3953 Encryption <> IND_CPA_SecretKey_O_Advantage def
+R3969:3996 Encryption <> IND_CPA_SecretKey_O_3Proc_G0 def
+R3999:4026 Encryption <> IND_CPA_SecretKey_O_3Proc_G1 def
+R4042:4063 Encryption <> IND_CPA_SecretKey_O_G0 def
+R4066:4087 Encryption <> IND_CPA_SecretKey_O_G1 def
+R4103:4105 Encryption <> A_c def
+R4128:4135 DistSem <> evalDist def
+R4164:4187 Rat <> ratDistance_eqRat_compat thm
+R4164:4187 Rat <> ratDistance_eqRat_compat thm
+R4216:4221 DistTacs <> rightc def
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R4424:4443 DistRules <> evalDist_right_ident thm
+R4424:4443 DistRules <> evalDist_right_ident thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R4524:4529 DistTacs <> rightc def
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R4732:4751 DistRules <> evalDist_right_ident thm
+R4732:4751 DistRules <> evalDist_right_ident thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R4879:4912 Encryption Encryption_SecretKey_concrete.IND_CPA_SecretKey_O_concrete_3Proc <> sec
+sec 4926:4954 Encryption_SecretKey_concrete IND_CPA_SecretKey_OI_concrete
+var 4975:4975 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete A
+var 4977:4977 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete B
+var 4979:4981 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete S_A
+var 5002:5005 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete defA
+R5009:5009 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A var
+var 5025:5026 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete A1
+R5030:5033 Comp <> Comp ind
+R5042:5044 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R5036:5039 Coq.Init.Datatypes <> list ind
+R5041:5041 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A var
+R5045:5047 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.S_A var
+var 5064:5065 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete A2
+R5074:5083 Comp <> OracleComp ind
+R5106:5106 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.B var
+R5095:5104 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+R5085:5093 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+R5069:5069 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A var
+var 5122:5123 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete A3
+R5144:5147 Comp <> Comp ind
+R5149:5152 Coq.Init.Datatypes <> bool ind
+R5134:5137 Coq.Init.Datatypes <> list ind
+R5139:5139 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.B var
+R5127:5129 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.S_A var
+var 5171:5186 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete Ciphertext_EqDec
+R5190:5194 EqDec <> EqDec class
+R5196:5205 Encryption <> Encryption_SecretKey_concrete.Ciphertext var
+var 5223:5229 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete A_EqDec
+R5233:5237 EqDec <> EqDec class
+R5239:5239 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A var
+var 5257:5263 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete B_EqDec
+R5267:5271 EqDec <> EqDec class
+R5273:5273 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.B var
+var 5291:5299 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete S_A_EqDec
+R5303:5307 EqDec <> EqDec class
+R5309:5311 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.S_A var
+var 5327:5335 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete ptDefault
+R5339:5347 Encryption <> Encryption_SecretKey_concrete.Plaintext var
+def 5366:5388 <> IND_CPA_SecretKey_OI_G0
+R5399:5399 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5403:5404 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5408:5414 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5417:5424 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5415:5416 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A1 var
+R5428:5432 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5614:5621 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5433:5439 CompFold <> compMap def
+R5490:5494 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5501:5520 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5495:5500 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R5521:5521 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5523:5524 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5526:5532 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5568:5587 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5534:5535 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R5537:5537 Encryption <> x var
+R5566:5567 Coq.Init.Datatypes <> tt constr
+R5545:5557 Encryption <> EncryptOracle def
+R5588:5591 Comp <> ::'ret'_x not
+R5622:5623 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A3 var
+def 5651:5673 <> IND_CPA_SecretKey_OI_G1
+R5684:5684 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5688:5689 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5693:5699 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5702:5709 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5700:5701 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A1 var
+R5713:5717 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5916:5923 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5718:5724 CompFold <> compMap def
+R5775:5779 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5786:5805 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R5780:5785 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R5806:5806 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5808:5809 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5811:5817 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5870:5889 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R5819:5820 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R5822:5822 Encryption <> x var
+R5868:5869 Coq.Init.Datatypes <> tt constr
+R5830:5849 Encryption <> EncryptNothingOracle def
+R5853:5861 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.ptDefault var
+R5890:5893 Comp <> ::'ret'_x not
+R5924:5925 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A3 var
+def 5952:5981 <> IND_CPA_SecretKey_OI_Advantage
+R5991:5992 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R6020:6022 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R6050:6052 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R5993:5995 DistSem <> ::'Pr'_'['_x_']' not
+R6019:6019 DistSem <> ::'Pr'_'['_x_']' not
+R5996:6018 Encryption <> IND_CPA_SecretKey_OI_G0 def
+R6023:6025 DistSem <> ::'Pr'_'['_x_']' not
+R6049:6049 DistSem <> ::'Pr'_'['_x_']' not
+R6026:6048 Encryption <> IND_CPA_SecretKey_OI_G1 def
+R6077:6082 Hybrid <> <> lib
+sec 6096:6122 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete IND_CPA_SecretKey_OI_impl_O
+var 6141:6149 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O KeyGen_wf
+R6160:6175 Comp <> well_formed_comp ind
+R6177:6182 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+var 6200:6204 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O A2_wf
+R6233:6246 DistSem <> well_formed_oc ind
+R6249:6250 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R6252:6252 Encryption <> a var
+var 6270:6273 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O maxA
+R6277:6279 Coq.Init.Datatypes <> nat ind
+var 6297:6308 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O maxA_correct
+R6391:6394 Coq.Init.Peano <> :nat_scope:x_'<='_x not
+R6382:6387 Coq.Init.Datatypes <> length def
+R6389:6390 Encryption <> ls var
+R6395:6398 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O.maxA var
+R6342:6343 Coq.Lists.List <> In def
+R6356:6365 Comp <> getSupport def
+R6367:6368 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A1 var
+R6345:6345 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R6348:6349 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R6353:6353 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R6346:6347 Encryption <> ls var
+R6350:6352 Encryption <> s_A var
+var 6415:6425 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O IND_CPA_Adv
+R6429:6431 Rat <> Rat ind
+var 6454:6472 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O IND_CPA_Adv_correct
+R7019:7028 Rat <> :rat_scope:x_'<='_x not
+R6500:6528 Encryption <> IND_CPA_SecretKey_O_Advantage def
+R7010:7018 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.ptDefault var
+R6531:6533 Encryption <> A_c def
+R6585:6586 Hybrid <> B2 def
+R6974:6975 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A3 var
+R6966:6972 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.B_EqDec var
+R6781:6781 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A var
+R6800:6804 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6811:6823 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6805:6810 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R6825:6840 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6933:6945 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6842:6843 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R6845:6845 Encryption <> x var
+R6931:6932 Coq.Init.Datatypes <> tt constr
+R6878:6897 Encryption <> EncryptNothingOracle def
+R6916:6924 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.ptDefault var
+R6899:6914 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.Ciphertext_EqDec var
+R6853:6862 EqDec <> unit_EqDec inst
+R6848:6851 Coq.Init.Datatypes <> unit ind
+R6946:6946 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6948:6949 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6951:6955 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6957:6958 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6959:6962 Comp <> ::'ret'_x not
+R6607:6607 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A var
+R6626:6630 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6637:6649 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6631:6636 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R6651:6666 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6729:6741 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R6668:6669 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R6671:6671 Encryption <> x var
+R6727:6728 Coq.Init.Datatypes <> tt constr
+R6691:6703 Encryption <> EncryptOracle def
+R6705:6720 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.Ciphertext_EqDec var
+R6679:6688 EqDec <> unit_EqDec inst
+R6674:6677 Coq.Init.Datatypes <> unit ind
+R6742:6742 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6744:6745 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6747:6751 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6753:6754 Comp <> :comp_scope:'['_x_','_x_']'_'<-2'_x_';'_x not
+R6755:6758 Comp <> ::'ret'_x not
+R6572:6573 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R6545:6546 Hybrid <> B1 def
+R6560:6560 Encryption <> i var
+R6557:6558 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A1 var
+R6548:6551 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.defA var
+R7029:7039 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O.IND_CPA_Adv var
+prf 7066:7095 <> IND_CPA_SecretKey_OI_G0_Hybrid
+R7133:7136 Rat <> :rat_scope:x_'=='_x not
+R7106:7108 DistSem <> ::'Pr'_'['_x_']' not
+R7132:7132 DistSem <> ::'Pr'_'['_x_']' not
+R7109:7131 Encryption <> IND_CPA_SecretKey_OI_G0 def
+R7137:7139 DistSem <> ::'Pr'_'['_x_']' not
+R7351:7351 DistSem <> ::'Pr'_'['_x_']' not
+R7140:7151 Hybrid <> ListHybrid_G def
+R7231:7235 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R7242:7261 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R7236:7241 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R7262:7262 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7264:7265 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7267:7273 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7309:7328 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7275:7276 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R7278:7278 Encryption <> x var
+R7307:7308 Coq.Init.Datatypes <> tt constr
+R7286:7298 Encryption <> EncryptOracle def
+R7329:7332 Comp <> ::'ret'_x not
+R7158:7159 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A3 var
+R7155:7156 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A1 var
+prf 7396:7425 <> IND_CPA_SecretKey_OI_G1_Hybrid
+R7463:7466 Rat <> :rat_scope:x_'=='_x not
+R7436:7438 DistSem <> ::'Pr'_'['_x_']' not
+R7462:7462 DistSem <> ::'Pr'_'['_x_']' not
+R7439:7461 Encryption <> IND_CPA_SecretKey_OI_G1 def
+R7467:7469 DistSem <> ::'Pr'_'['_x_']' not
+R7698:7698 DistSem <> ::'Pr'_'['_x_']' not
+R7470:7481 Hybrid <> ListHybrid_G def
+R7561:7565 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R7572:7591 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R7566:7571 Encryption <> Encryption_SecretKey_concrete.KeyGen var
+R7592:7592 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7594:7595 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7597:7603 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7656:7675 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R7605:7606 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A2 var
+R7608:7608 Encryption <> x var
+R7654:7655 Coq.Init.Datatypes <> tt constr
+R7616:7635 Encryption <> EncryptNothingOracle def
+R7639:7647 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.ptDefault var
+R7676:7679 Comp <> ::'ret'_x not
+R7488:7489 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A3 var
+R7485:7486 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.A1 var
+var 7746:7755 Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O Encrypt_wf
+R7786:7801 Comp <> well_formed_comp ind
+R7804:7810 Encryption <> Encryption_SecretKey_concrete.Encrypt var
+R7814:7814 Encryption <> p var
+R7812:7812 Encryption <> k var
+prf 7831:7847 <> IND_CPA_OI_impl_O
+R7889:7892 Rat <> :rat_scope:x_'<='_x not
+R7859:7888 Encryption <> IND_CPA_SecretKey_OI_Advantage def
+R7901:7903 Rat <> :rat_scope:x_'*'_x not
+R7897:7899 Rat <> :rat_scope:x_'/'_x not
+R7893:7896 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O.maxA var
+R7904:7914 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O.IND_CPA_Adv var
+R7936:7965 Encryption <> IND_CPA_SecretKey_OI_Advantage def
+R7982:8011 Encryption <> IND_CPA_SecretKey_OI_G0_Hybrid thm
+R7982:8011 Encryption <> IND_CPA_SecretKey_OI_G0_Hybrid thm
+R8028:8057 Encryption <> IND_CPA_SecretKey_OI_G1_Hybrid thm
+R8028:8057 Encryption <> IND_CPA_SecretKey_OI_G1_Hybrid thm
+R8073:8083 Rat <> leRat_trans thm
+R8073:8083 Rat <> leRat_trans thm
+R8099:8120 Hybrid <> Single_impl_ListHybrid thm
+R8099:8120 Hybrid <> Single_impl_ListHybrid thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R8166:8179 ProgramLogic <> oc_comp_wf_inv thm
+R8166:8179 ProgramLogic <> oc_comp_wf_inv thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R8225:8240 Encryption <> EncryptOracle_wf thm
+R8225:8240 Encryption <> EncryptOracle_wf thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R8301:8304 Coq.Init.Logic <> True ind
+R8301:8304 Coq.Init.Logic <> True ind
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R8422:8441 Encryption <> EncryptNothingOracle def
+R8457:8470 ProgramLogic <> oc_comp_wf_inv thm
+R8457:8470 ProgramLogic <> oc_comp_wf_inv thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R8559:8562 Coq.Init.Logic <> True ind
+R8559:8562 Coq.Init.Logic <> True ind
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R8690:8700 Rat <> leRat_trans thm
+R8690:8700 Rat <> leRat_trans thm
+R8731:8749 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O.IND_CPA_Adv_correct var
+R8731:8749 Encryption <> Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O.IND_CPA_Adv_correct var
+R8765:8778 Hybrid <> DistSingle_Adv def
+R8794:8804 Rat <> leRat_trans thm
+R8794:8804 Rat <> leRat_trans thm
+R8835:8850 Rat <> eqRat_impl_leRat thm
+R8835:8850 Rat <> eqRat_impl_leRat thm
+R8865:8894 Encryption <> IND_CPA_SecretKey_2Proc_impl_O thm
+R8865:8894 Encryption <> IND_CPA_SecretKey_2Proc_impl_O thm
+R8910:8944 Encryption <> IND_CPA_SecretKey_O_3Proc_Advantage def
+R8960:8975 Rat <> eqRat_impl_leRat thm
+R8960:8975 Rat <> eqRat_impl_leRat thm
+R8992:9003 Hybrid <> DistSingle_G def
+R9019:9046 Encryption <> IND_CPA_SecretKey_O_3Proc_G0 def
+R9062:9085 Rat <> ratDistance_eqRat_compat thm
+R9062:9085 Rat <> ratDistance_eqRat_compat thm
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R0:-1 Encryption <> y var
+R9205:9231 Encryption Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete.IND_CPA_SecretKey_OI_impl_O <> sec
+R9241:9269 Encryption Encryption_SecretKey_concrete.IND_CPA_SecretKey_OI_concrete <> sec
+R9277:9305 Encryption Encryption_SecretKey_concrete <> sec
+R9324:9333 Asymptotic <> <> lib
+R9351:9363 Admissibility <> <> lib
+sec 9375:9394 <> Encryption_SecretKey
+var 9409:9417 Encryption_SecretKey Plaintext
+var 9419:9428 Encryption_SecretKey Ciphertext
+var 9430:9432 Encryption_SecretKey Key
+R9436:9449 Admissibility <> DataTypeFamily def
+var 9466:9481 Encryption_SecretKey Ciphertext_EqDec
+R9495:9499 EqDec <> EqDec class
+R9502:9511 Encryption <> Encryption_SecretKey.Ciphertext var
+R9513:9513 Encryption <> n var
+var 9529:9534 Encryption_SecretKey KeyGen
+R9548:9551 Comp <> Comp ind
+R9554:9556 Encryption <> Encryption_SecretKey.Key var
+R9558:9558 Encryption <> n var
+var 9573:9579 Encryption_SecretKey Encrypt
+R9617:9620 Comp <> Comp ind
+R9623:9632 Encryption <> Encryption_SecretKey.Ciphertext var
+R9634:9634 Encryption <> n var
+R9602:9610 Encryption <> Encryption_SecretKey.Plaintext var
+R9612:9612 Encryption <> n var
+R9593:9595 Encryption <> Encryption_SecretKey.Key var
+R9597:9597 Encryption <> n var
+var 9649:9655 Encryption_SecretKey Decrypt
+R9694:9702 Encryption <> Encryption_SecretKey.Plaintext var
+R9704:9704 Encryption <> n var
+R9678:9687 Encryption <> Encryption_SecretKey.Ciphertext var
+R9689:9689 Encryption <> n var
+R9669:9671 Encryption <> Encryption_SecretKey.Key var
+R9673:9673 Encryption <> n var
+var 9719:9731 Encryption_SecretKey admissible_A1
+R9735:9745 Admissibility <> pred_oc_fam def
+var 9759:9771 Encryption_SecretKey admissible_A2
+R9775:9792 Admissibility <> pred_oc_func_2_fam def
+def 9809:9825 <> IND_CPA_SecretKey
+R9850:9852 Coq.Init.Datatypes <> nat ind
+R9884:9893 Comp <> OracleComp ind
+R9950:9952 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R9936:9938 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R9925:9933 Encryption <> Encryption_SecretKey.Plaintext var
+R9935:9935 Encryption <> n var
+R9939:9947 Encryption <> Encryption_SecretKey.Plaintext var
+R9949:9949 Encryption <> n var
+R9953:9957 Encryption <> State var
+R9959:9959 Encryption <> n var
+R9910:9919 Encryption <> Encryption_SecretKey.Ciphertext var
+R9921:9921 Encryption <> n var
+R9896:9904 Encryption <> Encryption_SecretKey.Plaintext var
+R9906:9906 Encryption <> n var
+R10014:10023 Comp <> OracleComp ind
+R10054:10057 Coq.Init.Datatypes <> bool ind
+R10040:10049 Encryption <> Encryption_SecretKey.Ciphertext var
+R10051:10051 Encryption <> n var
+R10026:10034 Encryption <> Encryption_SecretKey.Plaintext var
+R10036:10036 Encryption <> n var
+R9998:10007 Encryption <> Encryption_SecretKey.Ciphertext var
+R10009:10009 Encryption <> n var
+R9987:9991 Encryption <> State var
+R9993:9993 Encryption <> n var
+R10162:10171 Asymptotic <> negligible def
+R10190:10216 Encryption <> IND_CPA_SecretKey_Advantage def
+R10250:10251 Encryption <> A2 var
+R10253:10253 Encryption <> n var
+R10243:10244 Encryption <> A1 var
+R10246:10246 Encryption <> n var
+R10231:10237 Encryption <> Encryption_SecretKey.Encrypt var
+R10239:10239 Encryption <> n var
+R10219:10224 Encryption <> Encryption_SecretKey.KeyGen var
+R10226:10226 Encryption <> n var
+R10136:10140 EqDec <> EqDec class
+R10143:10147 Encryption <> State var
+R10149:10149 Encryption <> n var
+R10097:10109 Encryption <> Encryption_SecretKey.admissible_A2 var
+R10111:10112 Encryption <> A2 var
+R10069:10081 Encryption <> Encryption_SecretKey.admissible_A1 var
+R10083:10084 Encryption <> A1 var
+R10265:10284 Encryption Encryption_SecretKey <> sec

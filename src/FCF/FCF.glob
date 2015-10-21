@@ -1,0 +1,7 @@
+DIGEST b1262c6198df757206bf01c8cb434032
+FFCF
+R15:20 Crypto <> <> lib
+R38:49 ProgramLogic <> <> lib
+R67:74 ProgTacs <> <> lib
+R92:97 RndNat <> <> lib
+R115:121 GenTacs <> <> lib
