@@ -1,5 +1,5 @@
 
-(* Definitions related to pseudoradom functions.  This file copies some items from ConstructedFunc.v, so we probably need to refactor this in the future. *)
+(* Definitions related to pseudorandom functions.  This file copies some items from ConstructedFunc.v, so we probably need to refactor this in the future. *)
 
 Set Implicit Arguments.
 Require Import FCF.
@@ -41,6 +41,8 @@ Section RandomFunc.
   Hypothesis RndR_wf : well_formed_comp RndR.
   
     (* A random function *)
+  (* Note that it uses arrayLookup and follows the definition closely *)
+  (* RndR : Comp R <-- it's sufficient to sample uniformly at random from this? *)
   Definition randomFunc (f : (list (D * R))) (d : D) : Comp (R * list (D * R)) :=
       match (arrayLookup _ f d) with
         | None => (r <-$ RndR; ret (r, (d, r) :: f))

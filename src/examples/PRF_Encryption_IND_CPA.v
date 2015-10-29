@@ -75,7 +75,7 @@ Section PRF_Encryption_concrete.
     (* Step 1: Inline some definitions and simplify. *)
     Definition G1 :=
       key <-$ PRFE_KeyGen;
-      [b, _] <-$2
+      [THING, _] <-$2
       (
         [p0, p1, s_A] <--$3 A1;
         b <--$$ {0, 1};
@@ -86,17 +86,68 @@ Section PRF_Encryption_concrete.
       )
       _ _
       (PRFE_EncryptOracle key) tt;
-      ret b.
+      ret THING.
 
+    Variable key_test : Bvector eta.
+    Check G1.                   (* Comp bool *)
+    (* Set Printing All. Print G1. *)
+
+    (* guess: <-$2 : bool * unit -> comp bool? *)
+    Check PRFE_EncryptOracle.
+    (* PRFE_EncryptOracle
+     : Key ->
+       unit -> Plaintext -> Comp (Bvector eta * Vector.t bool eta * unit) *)
+    Check       (
+        [p0, p1, s_A] <--$3 A1; $ ret true). (* ??? maybe <--$3 is OracleComp *)
+    Check       (
+        [p0, p1, s_A] <--$3 A1;
+        b <--$$ {0, 1};
+        pb <- if b then p1 else p0;
+        c <--$$ PRFE_Encrypt key_test pb;
+        b' <--$ (A2 s_A c);
+        $ ret (eqb b b')
+      ).
+    (* : OracleComp Plaintext Ciphertext bool *)
+    Check       (
+        [p0, p1, s_A] <--$3 A1;
+        b <--$$ {0, 1};
+        pb <- if b then p1 else p0;
+        c <--$$ PRFE_Encrypt key_test pb;
+        b' <--$ (A2 s_A c);
+        $ ret (eqb b b')
+      )
+      _ _.                      (* ??? *)
+    (*  ... State State_EqDec
+     : (State -> Plaintext -> Comp (Ciphertext * State)) -> // <-- why can this be _?
+       State -> Comp (bool * State) *)
+    (* that State gets thrown away by [THING, _] *)
+    Check       (
+        [p0, p1, s_A] <--$3 A1;
+        b <--$$ {0, 1};
+        pb <- if b then p1 else p0;
+        c <--$$ PRFE_Encrypt key_test pb;
+        b' <--$ (A2 s_A c);
+        $ ret (eqb b b')
+      )
+      _ _
+      (PRFE_EncryptOracle key_test) tt.
+    (* : Comp (bool * unit) *)
+    
     Theorem G1_equiv : 
       Pr[IND_CPA_SecretKey_G PRFE_KeyGen PRFE_Encrypt A1 A2 _] == Pr[G1].
+    Proof.
+      (* unfold G1. *)
+      (* unfold IND_CPA_SecretKey_G. *)
+      (* simpl. *)
       reflexivity.
-    
     Qed.
 
     (* Step 2 : Replace the PRF with a random function. *)
 
     Definition PRFE_RandomFunc := @randomFunc (Bvector eta) (Bvector eta) ({0,1}^eta) _.
+    Check randomFunc.
+    Locate randomFunc.
+    Print randomFunc.
 
     Definition RF_Encrypt s p :=
       r <-$ {0, 1} ^ eta;
@@ -421,6 +472,7 @@ Section PRF_Encryption_concrete.
     Definition G2_2 :=
       r <-$ {0, 1}^eta;
       [a, o] <-$2 A1 _ _ (RF_Encrypt) nil;
+      (* TODO *)
       bad <- if (arrayLookup _ o r) then true else false;
       [p0, p1, s_A] <-3 a;
       b <-$ {0, 1};
@@ -448,9 +500,9 @@ Section PRF_Encryption_concrete.
       [p0, p1, s_A] <-3 a;
       b <-$ {0, 1};
       pb <- if b then p1 else p0;
-        pad <-$ {0, 1}^ eta;
+        pad <-$ {0, 1}^ eta;    (* this line changed *)
         c <- (r, pb xor pad);
-        [b', o] <-$2 (A2 s_A c) _ _ RF_Encrypt ((r, pad) :: o);
+        [b', o] <-$2 (A2 s_A c) _ _ RF_Encrypt ((r, pad) :: o); (* this one too *)
         ret (eqb b b', bad).
 
     Local Open Scope rat_scope.
@@ -651,6 +703,7 @@ Section PRF_Encryption_concrete.
       trivial.
     Qed.
 
+    (* TODO *)
     Theorem G2_2_3_close : 
       forall z, 
       | evalDist (x <-$ G2_2; ret fst x) z - evalDist (x <-$ G2_3; ret fst x) z | <=
@@ -667,6 +720,7 @@ Section PRF_Encryption_concrete.
     (* Now switch the the second adversary call *)
     
     (* for this part we need an oracle that makes the bad event visible *)
+    (* TODO *)
     Definition RF_Encrypt_bad (x : Bvector eta)(z : list (Bvector eta * Bvector eta) * bool) (p : Bvector eta):=
       [s, bad] <-2 z;
       r <-$ { 0 , 1 }^eta;
@@ -1084,7 +1138,9 @@ Section PRF_Encryption_concrete.
       eapply comp_spec_ret; simpl in *; intuition.
   
     Qed.    
-  
+
+    (* Final *)
+    (* TODO: what's the bad event for HMAC? collision? *)
    Theorem G2_G3_close : 
     | Pr[G2] - Pr[G3] | <= q1 / (2 ^ eta) + q2 / (2 ^ eta).
 

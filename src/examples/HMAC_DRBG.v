@@ -129,6 +129,6 @@ Definition Generate n :=
 
 (* TODO: natively with vectors and not converting them to lists? *)
 
-(* Dependent type iteration?? *)
+(* Dependent type iteration?? pass length of vector around *)
 
 End HMAC_DRBG_spec.
