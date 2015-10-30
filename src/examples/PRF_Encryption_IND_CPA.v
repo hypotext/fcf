@@ -613,6 +613,7 @@ Check (A1 _ _ (RF_Encrypt) nil).
       induction ls; intuition; simpl in *.
       discriminate.
       case_eq (eqb a a0); intuition.
+      (* TODO build broken *)
       rewrite H0 in H.
       inversion H; clear H; subst.
       

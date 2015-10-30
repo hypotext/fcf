@@ -211,6 +211,30 @@ Section PRF_concrete.
 
   End PRF_NAI_concrete.
 
+  (* TODO: what's the difference between the various PRF definitions? which one should I use? which one does Adam use? *)
+  (* Does this section depend on previous sections? *)
+  (* Game-based definition:
+Let F : K x X -> Y
+Let Funs be set of all functions from X to Y
+
+b = 0: k <- K, f <- F(K, .)
+b = 1: f <- Funs[X,Y]
+
+adversary picks x (plaintext)
+we send f(x)
+adversary outputs 0 if PRF, 1 if rand
+
+https://crypto.stanford.edu/~dabo/cs255/lectures/PRP-PRF.pdf *)
+  (* Problem: How to define all (F : X -> Y)? How to uniformly sample? *)
+
+  Section PRF_concrete_game.
+    
+    Variable X Y : Type.
+    (* Variable Funs : Comp (X -> Y). *)
+  (* TODO: X -> Y : Type, but Comp : Set -> Type *)
+
+  End PRF_concrete_game.
+
   Section PRF_Full_concrete.
     
     Variable A : OracleComp D R bool.
@@ -231,6 +255,9 @@ Section PRF_concrete.
     | Pr[PRF_G_A] - Pr[PRF_G_B] |.  
     
   End PRF_Full_concrete.
+
+Print PRF_Advantage.
+Print RndR_func.
 
   Section PRF_Finite_concrete.
 

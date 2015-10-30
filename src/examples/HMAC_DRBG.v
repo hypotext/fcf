@@ -94,10 +94,46 @@ Variable V : Bvector outlen.
 (* TODO or, given that HMAC is a PRF, use the PRF proof? or just use a PRF for now 
 (using PRF advantage etc.) *)
 (* TODO look at Adam's HMAC proof *)
+
+(* Definition once_PRF : Bvector outlen := *)
+
+(* Assuming HMAC_k is a PRF, want to show `once` is indistinguishable from random bits *)
+(* Does this require actually looking at the HMAC security proof? *)
+(* Would it be easier to do this asymptotically first? *)
+(* Maybe this is indistinguishable from random by assumption, and can't be proved? That is, should we assume one-block indistinguishable? *)
 Definition once : Bvector outlen :=
   HMAC_k (Vector.to_list V).
+(* 2 plaintexts, can't tell which is encrypted by PRF and which is random? or encrypted by RF? or is this just assumed? V is hardcoded and the adversary can't choose it -- there isn't really a plaintext analogue.  *)
+(* PRF def: +eps probability of distinguishing from random function. Has Adam included a way to say that something is a PRF? *)
 
+(* What security definition do we use? IND-CPA? *)
 
+(* What are the concrete HMAC bounds? *)
+
+(* ---------------------------------------------------- *)
+
+(* Recall what we talked about last time: the "bad event" (see HMAC-DRBG paper) 
+Bad event in one call of HMAC = can distinguish from random function
+  (OR? HMAC v0 = v1)
+
+Bad event in 2 calls of HMAC = can distinguish from random function, OR
+  (the v from the entropy is such that)
+  HMAC v0 = v1?
+  or HMAC v1 = v2?
+  or HMAC v1 = v0?
+
+(the output equals any of the previous outputs)
+
+some other collision besides these fixpoints?
+
+(Does the attacker have any input here?)  
+ *)
+(* TODO: where is the q(q-1)/2^{n+1} figure coming from? birthday attack? expression doesn't match up
+If we assume HMAC output is random, probability is 1/2^{HMAC output size}. Where is q from
+Is it weaker because of the way we use the key? *)
+
+(* What calculation does Adam use to get (q1/(2^eta) + q2/(2^eta))?
+Is his "bad event" the same as ours? *)
 
 (* remove last n elements *)
 Definition once_truncate (n : nat) (pf : n < outlen) : Bvector (outlen - n) :=
@@ -110,6 +146,51 @@ Definition twice : Bvector (outlen + outlen) :=
   let temp' := Vector.append temp v' in
   let v'' := HMAC_k (Vector.to_list v') in
   Vector.append temp' v''.
+
+(* Game outline:
+
+(Very similar to Adam's, but without IND-CPA or attacker input)
+
+n bits desired
+
+Game 1: distinguish bits using HMAC
+k <- K
+b <- [0, 1]
+out <- if b then prbg(k) else [0,1]^n
+guess <- adv(out, state)
+ret (b = guess)
+
+|Pr[G2] - Pr[G1]| = PRF_Advantage = (unsure) q(q-1)/2^{HMAC output size + 1}? 
+   birthday attacks on HMAC? it's at least 1/2^{HMAC output size}
+
+Game 2: replace HMAC with RF
+k <- K
+b <- [0, 1]
+out <- if b then rf(k) else [0,1]^n
+guess <- adv(out, state)
+ret (b = guess)
+
+|Pr[G3] - Pr[G2]| = Pr[RF bad event] = q1/(2^eta) + q2/(2^eta)
+(Adam's game 3 and 2)
+
+Game 3: replace RF with random bits
+k <- K
+b <- [0, 1]
+out <- if b then [0,1]^n else [0,1]^n
+guess <- adv(out, state)
+ret (b = guess)
+
+|Pr[G4] - Pr[G3]| = 0 
+
+Game 4: collapse if-statement, remove prbg info
+b <- [0, 1]
+rand <- [0,1]^n
+guess <- adv(out, state)
+ret (b = guess)
+
+Pr[G4] = 1/2
+
+Total: 1/2 + RF_Advantage + PRF_Advantage *)
 
 (* Slightly more complicated:
 Core 'Generate' process (p48)
