@@ -76,9 +76,43 @@ Generate : (Section 9.3, p32) *)
 
 Section HMAC_DRBG_spec.
 
-(* Can use variables, hypotheses, vectors *)
+Definition blist := list bool.
 
-(* Core 'Generate' process (p48)
+(* HMAC defs *)
+Variable keylen : nat.
+Variable key : Bvector keylen.
+Variable outlen : nat.
+(* TODO check sizes + constraints on sizes *)
+(* TODO other inputs like the hash function *)
+Variable HMAC : Bvector keylen -> blist -> Bvector outlen.
+Definition HMAC_k := HMAC key.
+Definition HMAC_kl m := Vector.to_list (HMAC_k m).
+(* Definition HMAC_kl' (m : Bvector n := HMAC_k (Vector.to_list m). *)
+Variable V : Bvector outlen. 
+
+(* Simplest version: running HMAC once will be indistinguishable from random *)
+(* TODO or, given that HMAC is a PRF, use the PRF proof? or just use a PRF for now 
+(using PRF advantage etc.) *)
+(* TODO look at Adam's HMAC proof *)
+Definition once : Bvector outlen :=
+  HMAC_k (Vector.to_list V).
+
+
+
+(* remove last n elements *)
+Definition once_truncate (n : nat) (pf : n < outlen) : Bvector (outlen - n) :=
+  Vector.trunc n pf (HMAC_k (Vector.to_list V)).
+
+(* Twice *)
+Definition twice : Bvector (outlen + outlen) :=
+  let temp := [] in
+  let v' := HMAC_k (Vector.to_list V) in
+  let temp' := Vector.append temp v' in
+  let v'' := HMAC_k (Vector.to_list v') in
+  Vector.append temp' v''.
+
+(* Slightly more complicated:
+Core 'Generate' process (p48)
 leaving out: reseeding, additional input, updating the state (key and V), reseed counter, 
   requested number of bits, HMAC as a parameter? HMAC's # bits?
 
@@ -94,41 +128,63 @@ While (len(temp) < requested_number_of_bits) do:
 
 return leftmost requested_number_of_bits of temp *)
 
+(* LIST VERSION *)
+(* Applies f n times to the input *)
 Fixpoint iterateN {A : Type} (f : A -> A) (a : A) (n : nat) : A :=
   match n with
   | O => a
   | S n' => iterateN f (f a) n'
   end.
 
-Definition blist := list bool.
-
-(* HMAC defs *)
-Variable keysize : nat.
-Variable key : Bvector keysize.
-Variable outputsize : nat.
-(* TODO check sizes + constraints on sizes *)
-(* TODO other inputs like the hash function *)
-Variable HMAC : Bvector keysize -> blist -> Bvector outputsize.
-Definition HMAC_k := HMAC key.
-Definition HMAC_kl m := Vector.to_list (HMAC_k m).
-
-(* PRG defs *)
+(* Generates one more HMAC-output-length list of pseudorandom bits *)
 Definition loop (tup : blist * blist) : blist * blist :=
   let (v, temp) := tup in
   let v' := HMAC_kl v in
   let temp' := temp ++ v' in
   (v', temp').
 
-Variable outlen : nat.
-Variable V : Bvector outlen. 
-
+(* Generate a list of (n * HMAC-output-length) pseudorandom bits  *)
 Definition Generate n :=
   let V_init := Vector.to_list V in
   let temp_init := nil in
   iterateN loop (V_init, temp_init) n.
 
-(* TODO: natively with vectors and not converting them to lists? *)
-
+(* VECTOR VERSION *)
 (* Dependent type iteration?? pass length of vector around *)
+(* Applies f n times to the input *)
+(* Problem: f takes a nat which can't be named, but needs to be named
+Problem: the output size might be either inlen or (inlen + outlen) 
+Problem: do we need to return the output size? *)
+
+Inductive Either (A : Type) : Type := 
+  | Left : A -> Either A
+  | Right : A -> Either A.
+
+(* TODO: iterateN' does not check *)
+Fixpoint iterateN' {A : Type} (inlen : nat) f
+         (* (f : nat -> Bvector nat -> Bvector (nat + outlen)) *)
+         (a : Bvector inlen) (n : nat) := Either Bvec
+  (* : Bvector inlen or Bvector (inlen + outlen) := *)
+  match n with
+  | O => a
+  | S n' =>
+    let inlen' := inlen + outlen in a
+    (* iterateN' bool inlen' (f inlen') (f inlen' a) n' *)
+  end.
+
+(* Generates one more HMAC-output-length list of pseudorandom bits *)
+(* Question: should temp be a list or a Bvector whose size is passed around? *)
+Definition loop' (n : nat) (tup : Bvector outlen * Bvector n) :
+  Bvector outlen * Bvector (n + outlen) :=
+  let (v, temp) := tup in
+  let v' := HMAC_k (Vector.to_list v) in
+  let temp' := Vector.append temp v' in
+  (v', temp').
+
+(* Generate a list of (n * HMAC-output-length) pseudorandom bits  *)
+Definition Generate' (n : nat) : Bvector (n * outlen) :=
+  (* let V_init := Vector.to_list V in *)
+  let temp_init := nil in
+  iterateN' loop' (V, temp_init) n.
 
 End HMAC_DRBG_spec.

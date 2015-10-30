@@ -214,6 +214,7 @@ Print Ltac comp_simp.
 
   Qed.
 
+  (* TODO: what is this in words? look at USENIX paper *)
   Theorem HMAC_PRF: 
     PRF_Advantage (Rnd b) (Rnd c) HMAC _ _ A <= 
     RKA_Advantage _ _ _  ({ 0 , 1 }^b)

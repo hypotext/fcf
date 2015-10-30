@@ -429,7 +429,8 @@ Section PRF_Encryption_concrete.
       reflexivity.
     Qed.
 
-
+    (* ---------------------------------------------------------------- *)
+    (* lines 432 to ~1157 *)
     (* Step 3 : replace the PRF output with random value *)
     (* This is identical to G2 as long as the adversary does not encounter the encryption nonce during a query. *)
 
@@ -438,7 +439,7 @@ Section PRF_Encryption_concrete.
     [p0, p1, s_A] <-3 a;
     b <-$ {0, 1};
     pb <- if b then p1 else p0;
-      r <-$ {0, 1}^eta;
+      r <-$ {0, 1}^eta;         (* what is this used for? *)
       pad <-$ {0, 1}^eta;
       c <- (r, pb xor pad);
       [b', o] <-$2 (A2 s_A c) _ _ RF_Encrypt o;
@@ -446,7 +447,7 @@ Section PRF_Encryption_concrete.
 
     (* start with G2 and move the challenge encryption sampling to the front. *)
     Definition G2_1 :=
-      r <-$ {0, 1}^eta;
+      r <-$ {0, 1}^eta;         (* moved to front *)
       [a, o] <-$2 A1 _ _ (RF_Encrypt) nil;
       [p0, p1, s_A] <-3 a;
       b <-$ {0, 1};
@@ -469,10 +470,21 @@ Section PRF_Encryption_concrete.
 
     (* We will modify the procedure one adversary call at a time.  Start with the first one. *)
     (* make the bad event visible. *)
+
+Check arrayLookup.
+(* : forall D R : Set, EqDec D -> list (D * R) -> D -> option R *)
+Check A1.
+Check RF_Encrypt.
+(* What is the type of o (list (bvector eta * bvector eta))? why is that its type? *)
+Check (A1 _ _ (RF_Encrypt) nil).
+(* : Comp
+         (Plaintext * Plaintext * State * list (Bvector eta * Bvector eta)) *)
+
     Definition G2_2 :=
       r <-$ {0, 1}^eta;
       [a, o] <-$2 A1 _ _ (RF_Encrypt) nil;
-      (* TODO *)
+      (* line added: bad is not used anywhere but is returned *)
+      (* bad event: r is already in o (meaning the random function had already been called with r?)*)
       bad <- if (arrayLookup _ o r) then true else false;
       [p0, p1, s_A] <-3 a;
       b <-$ {0, 1};
@@ -513,6 +525,9 @@ Section PRF_Encryption_concrete.
       
       intuition.
       unfold RF_Encrypt.
+      (* TODO look through this *)
+      (* unfold PRFE_RandomFunc. *)
+      (* unfold randomFunc. *)
       wftac.
       eapply randomFunc_wf.
       wftac.
@@ -520,11 +535,13 @@ Section PRF_Encryption_concrete.
 
     Hint Resolve RF_Encrypt_wf : wftac.
 
-      
+    (* saying that they are equal if NOT BAD. and the bad case? *)
+    Check evalDist.             (* Comp A -> Distribution A *)
     Theorem G2_2_3_eq_until_bad : 
       forall z,
         evalDist G2_2 (z, false) == evalDist G2_3 (z, false).
 
+    Proof.                      (* TODO *)
       intuition.
       unfold G2_2, G2_3.
 
@@ -552,6 +569,7 @@ Section PRF_Encryption_concrete.
 
     Qed.
 
+    (* TODO: ask Adam for tactic documentation *)
     Theorem G2_2_3_badness_same : 
       Pr[x <-$ G2_2; ret (snd x)] == Pr[x <-$ G2_3; ret (snd x)].
 
@@ -578,7 +596,6 @@ Section PRF_Encryption_concrete.
       comp_simp.
       simpl.
       intuition.
-
     Qed.
 
     (* provide a simplified form of the same with the same probability of badness. *)
@@ -717,6 +734,7 @@ Section PRF_Encryption_concrete.
       eapply G2_2_bad_small.
     Qed.    
 
+    (* --------------------------------- *)
     (* Now switch the the second adversary call *)
     
     (* for this part we need an oracle that makes the bad event visible *)
@@ -1153,6 +1171,7 @@ Section PRF_Encryption_concrete.
      eapply G2_4_5_close.
    Qed.
 
+   (* ---------------------------------------------------------------- *)
    (* Step 4 : apply one-time pad argument to replace ciphertext with random values *)
    Require Import OTP.
 
@@ -1168,6 +1187,7 @@ Section PRF_Encryption_concrete.
       ret (eqb b b').
 
     (* Put the game into the form expected by the argument. *)
+   (* TODO: automated intermediate game discovery could be fun/useful *)
     Definition G3_1 :=
     [a, o] <-$2 A1 _ _ (RF_Encrypt) nil;
     [p0, p1, s_A] <-3 a;
