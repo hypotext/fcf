@@ -93,7 +93,6 @@ Variable V : Bvector outlen.
 (* Simplest version: running HMAC once will be indistinguishable from random *)
 (* TODO or, given that HMAC is a PRF, use the PRF proof? or just use a PRF for now 
 (using PRF advantage etc.) *)
-(* TODO look at Adam's HMAC proof *)
 
   (* Game-based PRF definition:
 Let F : K x X -> Y
@@ -108,17 +107,11 @@ adversary outputs 0 if PRF, 1 if rand *)
 (* Definition once_PRF : Bvector outlen := *)
 
 (* Assuming HMAC_k is a PRF, want to show `once` is indistinguishable from random bits *)
-(* Does this require actually looking at the HMAC security proof? *)
-(* Would it be easier to do this asymptotically first? *)
-(* Maybe this is indistinguishable from random by assumption, and can't be proved? That is, should we assume one-block indistinguishable? *)
+(* PRF def: +eps probability of distinguishing from random function. Has Adam included a way to say that something is a PRF? *)
+(* What are the concrete HMAC bounds? *)
+
 Definition once : Bvector outlen :=
   HMAC_k (Vector.to_list V).
-(* 2 plaintexts, can't tell which is encrypted by PRF and which is random? or encrypted by RF? or is this just assumed? V is hardcoded and the adversary can't choose it -- there isn't really a plaintext analogue.  *)
-(* PRF def: +eps probability of distinguishing from random function. Has Adam included a way to say that something is a PRF? *)
-
-(* What security definition do we use? IND-CPA? *)
-
-(* What are the concrete HMAC bounds? *)
 
 (* Recall what we talked about last time: the "bad event" (see HMAC-DRBG paper) 
 Bad event in one call of HMAC = can distinguish from random function
@@ -134,8 +127,7 @@ Bad event in 2 calls of HMAC = can distinguish from random function, OR
 
 some other collision besides these fixpoints?
 
-(Does the attacker have any input here?)  
- *)
+(Does the attacker have any input here? No, right?) *)
 (* TODO: where is the q(q-1)/2^{n+1} figure coming from? birthday attack? expression doesn't match up
 If we assume HMAC output is random, probability is 1/2^{HMAC output size}. Where is q from
 Is it weaker because of the way we use the key? *)
