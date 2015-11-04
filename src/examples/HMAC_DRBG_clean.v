@@ -153,20 +153,24 @@ Definition twice : Bvector (outlen + outlen) :=
 
 n bits desired, where n = output length of prbg and of random function
 
-Game 1: distinguish bits using HMAC
+TODO: add randomly-sampled V
+
+Game 1: distinguish bits from HMAC (assumed PRF)
 k <- K
+v <- V
 b <- [0, 1]
-out <- if b then prbg_using_HMAC(k) else [0,1]^n
+out <- if b then HMAC(k, v) else [0,1]^n
 guess <- adv(out, state)
 ret (b = guess)
 
 |Pr[G2] - Pr[G1]| = PRF_Advantage = (unsure) q(q-1)/2^{HMAC output size + 1}? 
    birthday attacks on HMAC? it's at least 1/2^{HMAC output size}
+   Adam gives (q1/2^eta + q2/2^eta) where qi is the number of queries made by adversary i
 
-Game 2: replace HMAC with RF
-k <- K
+Game 2: replace HMAC (assumed PRF) with RF
+v <- V
 b <- [0, 1]
-out <- if b then rf(k) else [0,1]^n
+out <- if b then rf(v) else [0,1]^n
 guess <- adv(out, state)
 ret (b = guess)
 
@@ -174,7 +178,6 @@ ret (b = guess)
 (Adam's game 3 and 2)
 
 Game 3: replace RF with random bits
-k <- K
 b <- [0, 1]
 out <- if b then [0,1]^n else [0,1]^n
 guess <- adv(out, state)
