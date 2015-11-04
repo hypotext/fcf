@@ -151,12 +151,12 @@ Definition twice : Bvector (outlen + outlen) :=
 
 (Very similar to Adam's, but without IND-CPA or attacker input)
 
-n bits desired
+n bits desired, where n = output length of prbg and of random function
 
 Game 1: distinguish bits using HMAC
 k <- K
 b <- [0, 1]
-out <- if b then prbg(k) else [0,1]^n
+out <- if b then prbg_using_HMAC(k) else [0,1]^n
 guess <- adv(out, state)
 ret (b = guess)
 
@@ -170,7 +170,7 @@ out <- if b then rf(k) else [0,1]^n
 guess <- adv(out, state)
 ret (b = guess)
 
-|Pr[G3] - Pr[G2]| = Pr[RF bad event] = q1/(2^eta) + q2/(2^eta)
+|Pr[G3] - Pr[G2]| = RF_Advantage = Pr[RF bad event] = q1/(2^eta) + q2/(2^eta) = 
 (Adam's game 3 and 2)
 
 Game 3: replace RF with random bits
@@ -180,15 +180,16 @@ out <- if b then [0,1]^n else [0,1]^n
 guess <- adv(out, state)
 ret (b = guess)
 
+There's obviously no way to distinguish between random and random
+
 |Pr[G4] - Pr[G3]| = 0 
 
-Game 4: collapse if-statement, remove prbg info
+Game 4: collapse if-statement, remove prbg info, reduces to guessing b since out is independent
 b <- [0, 1]
-rand <- [0,1]^n
 guess <- adv(out, state)
 ret (b = guess)
 
-Pr[G4] = 1/2
+Pr[G4] = 1/2 since b is chosen uniformly at random
 
 Total: 1/2 + RF_Advantage + PRF_Advantage *)
 
