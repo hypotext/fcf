@@ -365,7 +365,7 @@ Infix "xor" := (BVxor _) (at level 30).
 
 Inductive OracleComp : Set -> Set -> Set -> Type :=
 | OC_Query : forall (A B : Set), A -> OracleComp A B B
-| OC_Run : forall (A B C A' B' S : Set), 
+| OC_Run : forall (A B C A' B' S : Set), (* necessary to construct adversary *) (* have one, run it under a different oracle *) (* encryption oracle, random function oracle *)
   EqDec S ->
   EqDec B ->
   EqDec A ->

@@ -1,3 +1,7 @@
+(* TODO: what is the paper proof for El Gamal security? 
+How do we "assume hardness" of a problem?
+*)
+
 (* The El Gamal encryption scheme and a proof that it is IND-CPA-secure. *)
 
 Set Implicit Arguments.
@@ -23,7 +27,6 @@ Section ElGamal.
 
   (* FiniteCyclicGroup is from a generic group theory library.  To use any type in FCF, equality must be decidable for that type.  Assume that equality is decidable for group elements. This fact will be located automatically when needed. *)
   Hypothesis GroupElement_EqDec : EqDec GroupElement.
-
   (* The ElGamal key generation procedure.  The notation [ .. order) is from the RndNat library, and it produces a uniformly-random natural number in the specified interval.  *)
   Definition ElGamalKeygen :=
     m <-$ [0 .. order);
@@ -80,6 +83,7 @@ Section ElGamal.
       ret (b ?= b').
 
   (* Specialize the DDH games to our group.  Note that definitions can also used modules or classes to make these explicit specializations unnecessary. *)
+  (* TODO what are these? *)
   Definition DDH0 := (@DDH0 _ _ _ _ _ g order).
   Definition DDH1 := (@DDH1 _ _ _ _ _ g order).
   Definition DDH_Advantage := (@DDH_Advantage _ _ _ _ _ g order).
@@ -93,6 +97,8 @@ Section ElGamal.
     (* The goal is an equality on distances.  We will prove the equality of each pair of terms, which implies equality of the distances. *)
 
   Abort.
+
+Print DiffieHellman.DDH0.
 
   (* We can directly prove the equivalence of the IND_CPA game with DDH0. *)
   Theorem ElGamal_IND_CPA0 :
@@ -112,6 +118,7 @@ Section ElGamal.
     comp_swap rightc.
     comp_skip.
 
+    (* TODO review this *)
     destruct x0.
     destruct p.
 
@@ -134,14 +141,15 @@ Section ElGamal.
   Qed.
 
   (* The next equality is proved using a short sequence involving two intermediate games.  RndG produces a random group element as described in the RndGrpElem module.  *)
+  (* TODO understand these games *)
   Definition G1 :=
     gx <-$ RndG;
     gy <-$ RndG;
     [p0, p1, s] <-$3 (A1 gx);
     b <-$ {0, 1};
     gz' <-$ (
-    pb <- if b then p0 else p1;
-    gz <-$ RndG ; ret (gz * pb));
+          pb <- if b then p0 else p1;
+          gz <-$ RndG ; ret (gz * pb));
     b' <-$ (A2 (gy, gz', s));
     ret (b ?= b').
 
@@ -149,7 +157,7 @@ Section ElGamal.
     gx <-$ RndG;
     gy <-$ RndG;
     [p0, p1, s] <-$3 (A1 gx);
-    gz <-$ RndG ;
+    gz <-$ RndG ;               (* no plaintexts *)
     b' <-$ (A2 (gy, gz, s));
     b <-$ {0, 1};
     ret (b ?= b').
@@ -184,7 +192,6 @@ Section ElGamal.
 
     comp_simp.
     intuition.
-    
   Qed.   
 
   Theorem ElGamal_G1_G2 :
@@ -192,6 +199,7 @@ Section ElGamal.
     
     unfold G1, G2, B.
 
+    (* TODO *)
     (* We do this step in the program logic.  The following theorem produces a goal in the program logic from a probabilistic goal. *)
     eapply comp_spec_eq_impl_eq.
 
@@ -208,6 +216,7 @@ Section ElGamal.
     eapply comp_spec_symm.
     comp_skip.
     (* Apply a one-time pad argument in the program logic. *)
+    Check group_OTP_r.
     eapply group_OTP_r.
     subst.
     eapply comp_spec_consequence.

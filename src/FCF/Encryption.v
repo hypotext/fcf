@@ -52,19 +52,29 @@ Section Encryption_SecretKey_concrete.
       wftac.
 
     Qed.
- 
+
+    (* The key is secret?? closed over that particular plaintext. how do oracles work again?? TODO (supply a proof that the plaintext is different) *)
+    (* multiple/finite queries: prf_enc_ind_cpa *)
+    (*     Hypothesis A1_qam : queries_at_most A1 q1.
+    Hypothesis A2_qam : forall s c, queries_at_most (A2 s c) q2.
+     see queries_at_most
+     more for adaptive security *)
+    (* do we care about adaptive security? oracle for generate -- doesn't feel like this is what we want. what we would use if adv could give an input value, get blocks, do it again.
+hybrid argument for non-adaptive security *)
     Definition IND_CPA_SecretKey_G :=
       key <-$ KeyGen ;
-      [b, _] <-$2 
+      [b, _] <-$2 (* Whole thing is an OracleComp *)
       (
-        [p0, p1, s_A] <--$3 A1;
+        (* Double arrow: OracleComp *)
+        [p0, p1, s_A] <--$3 A1; (* A1 is an oraclecomp -- at any time it could query orac *)
+        (* anything in the parens can query the oracle *)
         b <--$$ {0, 1};
         pb <- if b then p1 else p0;
-          c <--$$ Encrypt key pb;
-          b' <--$ A2 s_A c;
+          c <--$$ Encrypt key pb; (* could have done Query key pb *)
+          b' <--$ A2 s_A c;     (* produces another oraclecomp *)
           $ ret eqb b b'
-      )
-      _ _ (EncryptOracle key) tt;
+      )                           (* not encrypting p0, p1 *)
+      _ _ (EncryptOracle key) tt; (* tt is the state of the oracle -- none b/c just enc *)
       ret b.
 
     Check IND_CPA_SecretKey_G.
