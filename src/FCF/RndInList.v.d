@@ -1,1 +1,1 @@
-RndInList.vo RndInList.glob RndInList.v.beautified: RndInList.v ./FCF.vo
+RndInList.vo RndInList.glob RndInList.v.beautified: RndInList.v ./FCF.vo ./CompFold.vo
