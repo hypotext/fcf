@@ -856,8 +856,7 @@ Print comp_spec.
      rewrite H.
      clear H.
 
-     eapply leRat_trans.
-     apply evalDist_orb_le.
+     rewrite evalDist_orb_le.
 
      (* Use a theorem from the library to determine the probability that v is present in the random list. *)
      rewrite FixedInRndList_prob.
@@ -868,11 +867,7 @@ Print comp_spec.
      simpl.
      rewrite mult_1_r.
      cutrewrite ( S (length ls + length ls * S (length ls)) =  (S (length ls) + length ls * S (length ls)))%nat.
-     eapply leRat_trans.
-     Focus 2.
-     eapply eqRat_impl_leRat.
-     symmetry.
-     eapply ratAdd_num.
+     rewrite ratAdd_num.
      eapply ratAdd_leRat_compat.
      eapply leRat_terms;
      omega.
