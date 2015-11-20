@@ -20,17 +20,14 @@ Section DRBG.
   Variable RndR : Comp R.
 
   (* The DRBG *)
-  (* well, one iteration of it, with no state? *)
   Variable f : S -> R.
 
   Variable A : R -> Comp bool.
 
-  (* Pseudorandom *)
   Definition DRBG_G0 :=
     s <-$ RndS ;
     A (f s).
 
-  (* Random *)
   Definition DRBG_G1 :=
     r <-$ RndR;
     A r.
@@ -42,7 +39,6 @@ End DRBG.
 Require Import PRF.
 
 (* To keep things simple, we will assume that PRF outputs are bit vectors, and the DRBG output is a list of these bit vectors.  This setup can be generalized, if necessary.  *)
-(* NOTE: a list of bit vectors, not a bvector or blist *)
 
 (* We need an adaptively-secure PRF because we use the PRF output to produce the next input, and therefore this input is unpredictable. *)
 
@@ -58,13 +54,10 @@ Section PRF_DRBG.
 
   Variable RndKey : Comp Key.
 
-  (* f is an adaptively-secure PRF. (note: not PRG) *)
+  (* f is an adaptively-secure PRF. *)
   Variable f : Key -> D -> Bvector eta.
 
   (* For this construction, we need an injection from the range of the PRF to the domain.  This allows us to use the previous PRF output to compute the next one. *)
-
-  (* TODO: how do I say that "HMAC is" a PRF? *)
-  (* In general, is the domain of the PRF not `Bvector eta`? *)
   Variable injD : Bvector eta -> D.
   Hypothesis injD_correct : 
     forall r1 r2, (injD r1) = (injD r2) -> r1 = r2.
@@ -78,89 +71,53 @@ Section PRF_DRBG.
   Definition v_init := injD r_init.
   
   (* The computation used to obtain uniform random values in the range of the DRBG.  This computation is used only in the security definition. *)
-(* Get a comp list of l blocks of {0,1}^eta (so they're each random?) *)
   Definition RndOut := compMap _ (fun _ => {0, 1}^eta) (forNats l).
   
   (* We model the DRBG using a function that uses the previous output value (injected into the domain) as the current input value of the PRF. *)
-  (* f k would be a bit better as f_k *)
-
-  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) : list (Bvector eta) :=
+  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) :=
     match n with
         | O => nil
         | S n' => 
           r <- (f k v);
             r :: (PRF_DRBG_f (injD r) n' k)
     end.
-
-  (* This works, so no need to do it in Comp if it's not probabilistic *)
-  Fixpoint PRG_f (v : D) (n : nat) (key : Key) : list (Bvector eta) :=
-    match n with
-    | O => nil
-    | S n' => let r := f key v in
-              r :: PRG_f (injD r) n' key
-    end.
-
+  
   Definition PRF_DRBG (k : Key) :=
     PRF_DRBG_f v_init l k.
   
   (* The adversary against the DRBG. *)
-  Variable A : list (Bvector eta) -> Comp bool. (* no OracleComp *)
+  Variable A : list (Bvector eta) -> Comp bool.
   Hypothesis A_wf : forall c, well_formed_comp (A c).
 
   (* Step 1: inline definitions and simplify. *)
   Definition PRF_DRBG_G1 :=
     s <-$ RndKey ;
-    A (PRF_DRBG_f v_init l s).  (* or just A (PRF_DRBG k)? *)
+    A (PRF_DRBG_f v_init l s).
 
-  (* this game is equivalent to the first game in the DRBG security definition. *)
+  (* This game is equivalent to the first game in the DRBG security definition. *)
   Theorem PRF_DRBG_G1_equiv : 
     Pr[DRBG_G0 RndKey PRF_DRBG A] == Pr[PRF_DRBG_G1].
 
-      unfold DRBG_G0.
-      unfold PRF_DRBG_G1.
-      unfold PRF_DRBG.
-      
     reflexivity.
 
   Qed.
 
   (* Step 2: use the PRF as an oracle.  This will allow us to apply the security definition and replace it in the next step.*)
-  (* TODO why do we need to do this? Why can't we directly replace it with a RF? What's the difference? To hide info from the adversary, give it info, retain state? But a PRF has no state  *)
-
-  Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) 
-    (* has access to (D -> Bvector eta) (PRF), returns (list (Bvector eta)) (PRG output) *)
-    : OracleComp D (Bvector eta) (list (Bvector eta)):=
+  Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :=
     match n with
         | O => $ ret nil
         | S n' => 
-          r <--$ (OC_Query _ v); 
-            (* TODO: how does (f k v) turn into this? how does OC_Query know about (f k) *)
+          r <--$ (OC_Query _ v);
             ls' <--$ (PRF_DRBG_f_G2 (injD r) n');
                 $ ret (r :: ls')
     end.
 
-  Print OC_Query.
-  
-    (*   Definition PRF_DRBG_G3 :=
-    [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
-    ret b. 
-Note PRF_A, not A anymore *)
-  
   (* The constructed adversary against the PRF. *)
-  (* TODO: why do we need a new adversary? it also uses the old adversary A.
-   runs A within the OracleComp -- TODO understand this syntax *)
-
-  Definition PRF_A : OracleComp D (Bvector eta) bool := 
-    (ls <--$ PRF_DRBG_f_G2 v_init l; 
-     $ A ls). (* $ syntax? *)
-
-  Check PRF_A.
-  Check A.                      (* : list (Bvector eta) -> Comp bool *)
+  Definition PRF_A := (ls <--$ PRF_DRBG_f_G2 v_init l; $ A ls).
 
   Theorem PRF_DRBG_f_G2_wf : 
     forall n v,
-      well_formed_oc (PRF_DRBG_f_G2 v n). 
-        (* TODO well-formed proofs + this could be easily automated*)
+      well_formed_oc (PRF_DRBG_f_G2 v n).
 
     induction n; intuition; simpl in *.
     econstructor.
@@ -183,55 +140,33 @@ Note PRF_A, not A anymore *)
     intuition.
     econstructor.
     apply A_wf.
+
   Qed.
 
-  Locate f_oracle.              (* in PRF.f_oracle *)
-  Check f_oracle.
-  
-  (* Game before this: directly gives it to A and returns the result. Now we have to explicitly get the bit the PRF-oracle-adversary guesses b/c it's in the oraclecomp monad *)
-Check PRF_A.
-  (*   Definition PRF_DRBG_G1 :=
-    s <-$ RndKey ;
-    A (PRF_DRBG_f v_init l s). *) (* gets a block, returns a bit *)
   Definition PRF_DRBG_G2 :=
     s <-$ RndKey ;
-    (* TODO: PRF_A : OracleComp D (Bvector eta) bool <-- needs to take something of type (D -> Bvector eta) (that is an oracle) as a parameter! *)
-    [b, _] <-$2 PRF_A unit _ (f_oracle f _ s) tt; (* TODO what are these parameters? *)
+    [b, _] <-$2 PRF_A unit _ (f_oracle f _ s) tt;
     ret b.
 
-  Check PRF_DRBG_G2.            (* : Comp bool *)
-
-  Variable testKey : Key.
-  Check (f_oracle f _ testKey).
-  (* : unit -> D -> Comp (Bvector eta * unit) *)
-
   (* In an intermediate step, put the construction in the form of a (deterministic) computation.  Then we can more easily change it to an oracle interaction in the following step. *)
-  (* that is, put it in the comp monad, but not yet the oraclecomp monad *)
-  Fixpoint PRF_DRBG_f_G1_1 (v : D)(n : nat)(k : Key) : Comp (list (Bvector eta)) :=
+  Fixpoint PRF_DRBG_f_G1_1 (v : D)(n : nat)(k : Key) :=
     match n with
         | O => ret nil
         | S n' => 
-          r <-$ ret (f k v);    (* not using OC_Query *)
+          r <-$ ret (f k v);
           ls <-$ (PRF_DRBG_f_G1_1 (injD r) n' k);
             ret (r :: ls)
     end.
 
-  (* <-$ vs <- ? *)
-  Check PRF_DRBG_f_G1_1.
-
-   (* again, comp but not yet oracle. can we find these intermediate games automatically? *)
-   Definition PRF_DRBG_G1_1 :=  
+   Definition PRF_DRBG_G1_1 :=
     s <-$ RndKey ;
-     (* key not hidden, not using PRF oracle yet *)
     ls <-$ PRF_DRBG_f_G1_1 v_init l s;
     A ls.
 
    Theorem  PRF_DRBG_f_G1_1_eq_ret : 
      forall k n v,
-       comp_spec eq (PRF_DRBG_f_G1_1 v n k) (ret (PRF_DRBG_f v n k)). (* TODO *)
-         
-         Print comp_spec.
-         Check comp_spec.
+       comp_spec eq (PRF_DRBG_f_G1_1 v n k) (ret (PRF_DRBG_f v n k)).
+
      induction n; intuition; simpl in *.
 
      eapply comp_spec_eq_refl.
@@ -245,33 +180,26 @@ Check PRF_A.
      eapply comp_spec_eq_refl.
    Qed.
 
-   (* TODO first actual proof! *)
    Theorem PRF_DRBG_G1_1_equiv :
-     Pr[PRF_DRBG_G1] == Pr[PRF_DRBG_G1_1]. 
-       (* normal = comp monad? (we were already in probability monad) *)
+     Pr[PRF_DRBG_G1] == Pr[PRF_DRBG_G1_1].
 
-   Proof.
-     (* here both still have the keys; only difference is wrapping PRF_DRBG to make it look oracley *)
      unfold PRF_DRBG_G1, PRF_DRBG_G1_1.
      comp_skip.
-     (* TODO *)
-Print comp_spec.
-
      eapply comp_spec_eq_impl_eq.
      eapply comp_spec_eq_symm.
-     eapply comp_spec_eq_trans.      (* middle step *)
+     eapply comp_spec_eq_trans.
      eapply comp_spec_seq_eq; eauto with inhabited.
-     Check PRF_DRBG_f_G1_1_eq_ret. (* important *)
-     eapply PRF_DRBG_f_G1_1_eq_ret.
+     eapply  PRF_DRBG_f_G1_1_eq_ret.
      intuition.
      eapply comp_spec_eq_refl.
-     comp_simp.                 (* monad laws on first comp *)
+     comp_simp.
      eapply comp_spec_eq_refl.
+
    Qed.
 
    Theorem PRF_DRBG_f_G1_1_G2_equiv :
      forall k n v,
-     comp_spec (fun x1 x2 => x1 = fst x2) (PRF_DRBG_f_G1_1 v n k) (* TODO *)
+     comp_spec (fun x1 x2 => x1 = fst x2) (PRF_DRBG_f_G1_1 v n k)
      ((PRF_DRBG_f_G2 v n) unit unit_EqDec
         (f_oracle f (Bvector_EqDec eta) k) tt).
 
@@ -296,15 +224,14 @@ Print comp_spec.
   Theorem PRF_DRBG_G1_G2_equiv : 
     Pr[ PRF_DRBG_G1 ] == Pr[ PRF_DRBG_G2 ].
 
-    rewrite PRF_DRBG_G1_1_equiv. (* G1 is closer *)
+    rewrite PRF_DRBG_G1_1_equiv.
     unfold  PRF_DRBG_G1_1,  PRF_DRBG_G2.
-    (* comp and oraclecomp? *)
     unfold PRF_A.
     simpl.
     comp_skip.
     inline_first.
 
-    eapply comp_spec_eq_impl_eq. (* ** *)
+    eapply comp_spec_eq_impl_eq.
     comp_skip.
     eapply PRF_DRBG_f_G1_1_G2_equiv.
     simpl in *.
@@ -315,39 +242,82 @@ Print comp_spec.
     eapply eq_impl_comp_spec_eq.
     intuition.
     rewrite <- evalDist_right_ident.
-    comp_skip. 
-    comp_simp.                  (* ! *)
+    comp_skip.
+    comp_simp.
     reflexivity.
   Qed.
 
+  (* ---------------- *)
+  
   (* Step 3: replace the PRF with a random function *)
   Definition PRF_DRBG_G3 :=
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b.
 
-  (* Definition PRF_DRBG_G2 :=
-    s <-$ RndKey ;
-    [b, _] <-$2 PRF_A unit _ (f_oracle f _ s) tt; (* TODO what are these parameters? *)
-    ret b. *)
-
-  (* TODO why was this so easy? *)
   Theorem PRF_DRBG_G2_G3_close : 
     | Pr[PRF_DRBG_G2] - Pr[PRF_DRBG_G3] | <= PRF_Advantage RndKey ({0,1}^eta) f _ _ PRF_A.
 
-    unfold PRF_Advantage.
-    Print PRF_G_A.
-    Print PRF_G_B.
     reflexivity.
   Qed.
+
+  (* ----------------- *)
+
+  (* Backtracking resistance:
+
+key
+
+PRF-DRBG oracle (hidden key)
+
+adversary (construct?)
+
+adversary can call the oracle as many times as it wants
+
+can adversary choose n (the number of blocks output) after it's compromised, or should it be able to do it for arbitrary n? probably the former
+
+adversary is given the key and output after n blocks (w/o key changing)
+
+randomly choose either the list of n pseudorandom blocks or a list of n rand blocks
+
+adversary needs to guess which is pseudorandom *)
+
+  Parameter max : nat.            (* max number of blocks *) (* TODO *)
+  Parameter numBlocks : Comp nat.        (* you can randomly sample a nat? (in range?) *)
+  Parameter A_br : Key -> option (Bvector eta) -> list (Bvector eta) -> Comp bool.
+
+  (*  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) := *)
+  (*   Definition RndOut := compMap _ (fun _ => {0, 1}^eta) (forNats l). *)
+  Definition RndOut' n := compMap _ (fun _ => {0, 1}^eta) (forNats n).
+  Check RndOut'.
+
+  Fixpoint lastE {A : Type} (l:list A) : option A :=
+  match l with
+    | nil => None
+    | a :: nil => Some a
+    | a :: l => lastE l
+  end.
   
-  (* Step 4 : Replace the random function with random values.  This is the same as long as there are no duplicates in the list of random function inputs. (otherwise, same output!) *)
+  Eval compute in (lastE (O :: O :: nil)).
+  
+  Definition BacktrackingResistance := 
+    (* randomly sample # blocks (< max TODO) and key *)
+    n <-$ numBlocks;
+    k <-$ RndKey;
+    (* not using the oracle version (not monadic) *)
+    (* output an extra block (ending state) *)
+    let pseudorandom := PRF_DRBG_f v_init (n + 1) k in
+    let (hiddenPseudo, endState) := (removelast pseudorandom, lastE pseudorandom) in
+    random <-$ (RndOut' n); 
+    b <-$ {0, 1};
+    res <- if b then hiddenPseudo else random;
+    A_br k endState res.
+
+  (* ------------------ *)
+  (* Step 4 : Replace the random function with random values.  This is the same as long as there are no duplicates in the list of random function inputs. *)
   Definition PRF_DRBG_G4 :=
     [b, _] <-$2 PRF_A _ _ (fun _ _ => x <-$ {0, 1}^eta; ret (x, tt)) tt;
     ret b.
 
-  (* TODO *)
   (* Step 3.1: Preserve duplicate inputs using an oracle that keeps track of all the queries. *)
-  (* where is the oracle component? *)
   Definition randomFunc_withDups ls x :=
     y <-$ 
       (match (arrayLookup _ ls x) with 
@@ -601,8 +571,6 @@ Print comp_spec.
     eapply comp_spec_eq_refl.
     
   Qed.
-
-  (* --------------------------------------------------- *)
   
   (* Now we need to compute the probability of the "bad" event.  First we will simplify the game defining this event.*)
 
@@ -866,6 +834,7 @@ Print comp_spec.
      (* The rest is just arithmetic. *)
      simpl.
      rewrite mult_1_r.
+     (* TODO build broken *)
      cutrewrite ( S (length ls + length ls * S (length ls)) =  (S (length ls) + length ls * S (length ls)))%nat.
      rewrite ratAdd_num.
      eapply ratAdd_leRat_compat.
@@ -952,9 +921,6 @@ Print comp_spec.
     PRF_Advantage RndKey ({ 0 , 1 }^eta) f D_EqDec (Bvector_EqDec eta) PRF_A
     + l ^ 2 / 2 ^ eta.
 
-      Check DRBG_Advantage.
-      Check PRF_Advantage.
-      
     intuition.
     unfold DRBG_Advantage.
     rewrite PRF_DRBG_G1_equiv.
@@ -967,32 +933,6 @@ Print comp_spec.
   Qed.
 
   Print Assumptions PRF_DRBG_Adv_small.
-
-  (* --------------------------------- *)
-  
-(* Backtracking resistance:
-
-key
-
-PRF-DRBG oracle (hidden key)
-
-adversary (construct?)
-
-adversary can call the oracle as many times as it wants
-
-can adversary choose n (the number of blocks output) after it's compromised, or should it be able to do it for arbitrary n? probably the former
-
-adversary is given the key and output after n blocks (w/o key changing)
-
-randomly choose either the list of n pseudorandom blocks or a list of n rand blocks
-
-adversary needs to guess which is pseudorandom *)
-
-  Parameter max : nat.            (* max number of blocks *)
-
-  Definition test := 
-    x <-$ RndKey;
-    ret x.
 
 End PRF_DRBG.
 
