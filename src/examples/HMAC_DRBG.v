@@ -200,6 +200,24 @@ Pr[G4] = 1/2
 
 Total: 1/2 + RF_Advantage + PRF_Advantage *)
 
+(* Backtracking resistance:
+
+key
+
+PRF-DRBG oracle (hidden key)
+
+adversary (construct?)
+
+adversary can call the oracle as many times as it wants
+
+can adversary choose n (the number of blocks output) after it's compromised, or should it be able to do it for arbitrary n? probably the former
+
+adversary is given the key and output after n blocks (w/o key changing)
+
+randomly choose either the list of n pseudorandom blocks or a list of n rand blocks
+
+adversary needs to guess which is pseudorandom *)
+
 (* Slightly more complicated:
 Core 'Generate' process (p48)
 leaving out: reseeding, additional input, updating the state (key and V), reseed counter, 
