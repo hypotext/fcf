@@ -167,7 +167,7 @@ Theorem PRF_DRBG_G1_equiv :
       end.
 
 (* Variable v : nat. *)
-Check (r <--$ OC_Query _ v; $ ret r).
+(* Check (r <--$ OC_Query _ v; $ ret r). *)
 Print OC_Query.
 Check OC_Query.
 Check f.

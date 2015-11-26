@@ -74,7 +74,7 @@ Section PRF_DRBG.
   Definition RndOut := compMap _ (fun _ => {0, 1}^eta) (forNats l).
   
   (* We model the DRBG using a function that uses the previous output value (injected into the domain) as the current input value of the PRF. *)
-  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) :=
+  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) : list (Bvector eta) :=
     match n with
         | O => nil
         | S n' => 
@@ -97,12 +97,12 @@ Section PRF_DRBG.
   (* This game is equivalent to the first game in the DRBG security definition. *)
   Theorem PRF_DRBG_G1_equiv : 
     Pr[DRBG_G0 RndKey PRF_DRBG A] == Pr[PRF_DRBG_G1].
-
+  Proof.
     reflexivity.
-
   Qed.
 
   (* Step 2: use the PRF as an oracle.  This will allow us to apply the security definition and replace it in the next step.*)
+
   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :=
     match n with
         | O => $ ret nil
@@ -111,6 +111,8 @@ Section PRF_DRBG.
             ls' <--$ (PRF_DRBG_f_G2 (injD r) n');
                 $ ret (r :: ls')
     end.
+
+  Check PRF_DRBG_f_G2.
 
   (* The constructed adversary against the PRF. *)
   Definition PRF_A := (ls <--$ PRF_DRBG_f_G2 v_init l; $ A ls).
@@ -248,15 +250,27 @@ Section PRF_DRBG.
   Qed.
 
   (* ---------------- *)
+
+  (*   Definition PRF_DRBG_G2 :=
+    s <-$ RndKey ;
+    [b, _] <-$2 PRF_A unit _ (f_oracle f _ s) tt;
+    ret b. *)
   
   (* Step 3: replace the PRF with a random function *)
   Definition PRF_DRBG_G3 :=
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b.
 
+  Print PRF_DRBG_G2.
+  
   Theorem PRF_DRBG_G2_G3_close : 
     | Pr[PRF_DRBG_G2] - Pr[PRF_DRBG_G3] | <= PRF_Advantage RndKey ({0,1}^eta) f _ _ PRF_A.
 
+  Proof.
+Print PRF_Advantage.
+Check PRF_Advantage.
+    unfold PRF_Advantage.                          
+                                            
     reflexivity.
   Qed.
 
