@@ -5,6 +5,7 @@ Require Import FCF.
 Require Import HasDups.
 Require Import RndInList.
 Require Import CompFold.
+(* Require Import Tactics. *)
 
 (* Indistinguishability definition for DRBGs *)
 Section DRBG.
@@ -151,6 +152,7 @@ Section PRF_DRBG.
     s <-$ RndKey ;
     ls <-$ PRF_DRBG_f_G1_1 v_init l s;
     A ls.
+<<<<<<< Updated upstream
   
   Theorem  PRF_DRBG_f_G1_1_eq_ret : 
     forall k n v,
@@ -184,15 +186,65 @@ Section PRF_DRBG.
      fcf_simp.
      fcf_reflexivity.
 
+=======
+
+Locate comp_spec.
+
+Print eq.                       (* postcondition proposition *)
+   
+   Theorem  PRF_DRBG_f_G1_1_eq_ret : 
+     forall k n v,
+       comp_spec eq (PRF_DRBG_f_G1_1 v n k) (ret (PRF_DRBG_f v n k)).
+   Proof.
+     induction n.
+     (* induction n; intuition; simpl in *. *)
+     - intuition. simpl in *. intuition.
+     - intros. simpl in *.      (* note induction *)
+       
+       comp_simp. 
+       eapply comp_spec_eq_trans.
+       (* change PRF_DRBG_f_G1_1 to PRF_DRBG_f *)
+       + Check comp_spec_seq_eq. (* for equality *)
+         (* comp_skip.              (* why doesn't this work? *) *)
+         eapply comp_spec_seq_eq. 
+         eauto with inhabited. eauto with inhabited. eauto with inhabited. (* ?? *)
+         (* pull in the IH -- apply IH *)
+         (* inhabited is a hint database *)
+         intros.                (* no eauto here *)
+         eapply comp_spec_eq_refl.
+       + comp_simp.
+         eapply comp_spec_eq_refl.
    Qed.
 
+   Theorem PRF_DRBG_G1_1_equiv :
+     Pr[PRF_DRBG_G1] == Pr[PRF_DRBG_G1_1].
+   Proof.
+     unfold PRF_DRBG_G1, PRF_DRBG_G1_1.
+     comp_skip.
+     eapply comp_spec_eq_impl_eq.
+     eapply comp_spec_eq_symm.
+     eapply comp_spec_eq_trans.
+     
+     - eapply comp_spec_seq_eq. 
+       eauto with inhabited. eauto with inhabited. 
+       eapply PRF_DRBG_f_G1_1_eq_ret.                (* ? proven above *)
+       intuition.
+       eapply comp_spec_eq_refl.
+     - comp_simp.
+       eapply comp_spec_eq_refl.
+>>>>>>> Stashed changes
+   Qed.
+
+   (* TODO: different predicate for comp_spec *)
+   (* the results of the two computations are related by this predicate, with no precond *)
    Theorem PRF_DRBG_f_G1_1_G2_equiv :
      forall k n v,
      comp_spec (fun x1 x2 => x1 = fst x2) (PRF_DRBG_f_G1_1 v n k)
      ((PRF_DRBG_f_G2 v n) unit unit_EqDec
         (f_oracle f (Bvector_EqDec eta) k) tt).
-
+   Proof.
      induction n; intuition; simpl in *.
+<<<<<<< Updated upstream
 
      fcf_simp.
      fcf_spec_ret.
@@ -211,16 +263,50 @@ Section PRF_DRBG.
      fcf_simp.
      fcf_spec_ret.
 
+=======
+     (* extra nil state? *)
+     comp_simp.
+     eapply comp_spec_ret.
+     trivial.
+
+     (* eapply comp_spec_seq; eauto with inhabited. admit. *)
+
+     comp_skip.
+     unfold f_oracle.
+     eapply (comp_spec_ret _ _ (fun x1 x2 => x1 = fst x2)). (* TODO *)
+     trivial.
+     
+     simpl in *.                (* H1: result of skipping *)
+     intuition; subst.
+
+     (* redo with comp_spec_seq + IHn *)
+     (* eapply comp_spec_seq. admit. admit. *)
+     (* apply IHn.  *)
+     (* intuition. *)
+     (* comp_simp. *)
+     (* eapply comp_spec_ret. simpl. subst. simpl. reflexivity. *)
+     
+     comp_skip.                 (* really aggressive/using induction hypothesis *)
+     (* comp_spec_seq too *)
+     comp_simp.
+     eapply comp_spec_ret; intuition.
+>>>>>>> Stashed changes
    Qed.
 
+   (* TODO *)
   Theorem PRF_DRBG_G1_G2_equiv : 
     Pr[ PRF_DRBG_G1 ] == Pr[ PRF_DRBG_G2 ].
+<<<<<<< Updated upstream
 
     (* equality for rational numbers is a setoid, so we can rewrite with it. *)
+=======
+  Proof.
+>>>>>>> Stashed changes
     rewrite PRF_DRBG_G1_1_equiv.
     unfold  PRF_DRBG_G1_1,  PRF_DRBG_G2.
     unfold PRF_A.
     simpl.
+<<<<<<< Updated upstream
     fcf_skip.
 
     fcf_inline_first.
@@ -237,8 +323,33 @@ Section PRF_DRBG.
     fcf_simp.
     fcf_reflexivity.
 
+=======
+    comp_skip.
+    inline_first.               (* monad associativity *)
+    (* comp_inline_l, comp_inline_r *)
+
+    eapply comp_spec_eq_impl_eq.
+    comp_skip.                  (* sequence rule *)
+    (* preconditions in hypotheses *)
+    eapply PRF_DRBG_f_G1_1_G2_equiv.
+    simpl in *.
+    subst.
+    comp_simp.
+    simpl.
+    inline_first.
+    
+    eapply eq_impl_comp_spec_eq. (* back into probability theory *)
+    (* not really necessary *)
+    intuition.
+    rewrite <- evalDist_right_ident.
+    comp_skip.
+    comp_simp.                  (* TODO *)
+    reflexivity.
+>>>>>>> Stashed changes
   Qed.
 
+  (* should I write out the theorems above? or should I read step 4? *)
+  
   (* ---------------- *)
 
   (*   Definition PRF_DRBG_G2 :=
@@ -877,3 +988,10 @@ adversary needs to guess which is pseudorandom *)
 
 End PRF_DRBG.
 
+(* ---------- *)
+
+(* hard problem, but i spent time solving it years ago
+
+
+
+ *)

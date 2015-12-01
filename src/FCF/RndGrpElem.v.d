@@ -1,1 +1,1 @@
-RndGrpElem.vo RndGrpElem.glob RndGrpElem.v.beautified: RndGrpElem.v ./Crypto.vo ./GroupTheory.vo ./RndNat.vo ./ProgramLogic.vo
+RndGrpElem.vo RndGrpElem.glob RndGrpElem.v.beautified: RndGrpElem.v ./FCF.vo ./GroupTheory.vo

@@ -1,82 +1,82 @@
-DIGEST 0014dbe1c05ebac67c1a2ceb25ecd813
+DIGEST ebe022d01bda47eb1f7fe4a8f6071fe6
 FEncryption_PK
-R85:90 Crypto <> <> lib
-sec 131:137 <> IND_CPA
-var 152:160 IND_CPA Plaintext
-var 180:189 IND_CPA Ciphertext
-var 209:218 IND_CPA PrivateKey
-var 238:246 IND_CPA PublicKey
-var 271:276 IND_CPA KeyGen
-R280:283 Comp <> Comp ind
-R296:298 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
-R286:295 Encryption_PK <> IND_CPA.PrivateKey var
-R299:307 Encryption_PK <> IND_CPA.PublicKey var
-var 322:328 IND_CPA Encrypt
-R358:361 Comp <> Comp ind
-R363:372 Encryption_PK <> IND_CPA.Ciphertext var
-R345:353 Encryption_PK <> IND_CPA.PublicKey var
-R332:340 Encryption_PK <> IND_CPA.Plaintext var
-var 391:397 IND_CPA A_state
-var 417:418 IND_CPA A1
-R435:438 Comp <> Comp ind
-R462:464 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
-R450:452 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
-R441:449 Encryption_PK <> IND_CPA.Plaintext var
-R453:461 Encryption_PK <> IND_CPA.Plaintext var
-R465:471 Encryption_PK <> IND_CPA.A_state var
-R422:430 Encryption_PK <> IND_CPA.PublicKey var
-var 486:487 IND_CPA A2
-R517:520 Comp <> Comp ind
-R522:525 Coq.Init.Datatypes <> bool ind
-R502:504 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
-R492:501 Encryption_PK <> IND_CPA.Ciphertext var
-R505:511 Encryption_PK <> IND_CPA.A_state var
-def 544:552 <> IND_CPA_G
-R561:561 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
-R568:569 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
-R576:582 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
-R589:594 Comp <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
-R583:588 Encryption_PK <> IND_CPA.KeyGen var
-R595:595 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
-R598:599 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
-R602:603 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
-R611:618 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
-R628:634 Comp <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
-R619:620 Encryption_PK <> IND_CPA.A1 var
-R636:640 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R647:652 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R641:646 Comp <> :comp_scope:'{'_'0'_','_'1'_'}' not
-R655:658 Comp <> :comp_scope:x_'<-'_x_';'_x not
-R679:705 Comp <> :comp_scope:x_'<-'_x_';'_x not
-R707:712 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R730:757 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R713:719 Encryption_PK <> IND_CPA.Encrypt var
-R760:765 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R781:808 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R766:767 Encryption_PK <> IND_CPA.A2 var
-R769:769 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
-R771:772 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
-R780:780 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
-R809:813 Comp <> ::'ret'_x not
-R822:822 Comp <> ::'ret'_x not
-R814:816 EqDec <> eqb meth
-def 841:857 <> IND_CPA_Advantage
-R862:863 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
-R877:879 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
-R885:886 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
-R864:866 DistSem <> ::'Pr'_'['_x_']' not
-R876:876 DistSem <> ::'Pr'_'['_x_']' not
-R867:875 Encryption_PK <> IND_CPA_G def
-R881:883 Rat <> :rat_scope:x_'/'_x not
-def 909:915 <> IND_CPA
-R928:930 Rat <> Rat ind
-R965:968 Rat <> :rat_scope:x_'<='_x not
-R940:941 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
-R955:957 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
-R963:964 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
-R942:944 DistSem <> ::'Pr'_'['_x_']' not
-R954:954 DistSem <> ::'Pr'_'['_x_']' not
-R945:953 Encryption_PK <> IND_CPA_G def
-R959:961 Rat <> :rat_scope:x_'/'_x not
-R969:975 Encryption_PK <> epsilon var
-R1083:1089 Encryption_PK IND_CPA <> sec
+R85:87 FCF <> <> lib
+sec 128:134 <> IND_CPA
+var 149:157 IND_CPA Plaintext
+var 177:186 IND_CPA Ciphertext
+var 206:215 IND_CPA PrivateKey
+var 235:243 IND_CPA PublicKey
+var 268:273 IND_CPA KeyGen
+R277:280 Comp <> Comp ind
+R293:295 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R283:292 Encryption_PK <> IND_CPA.PrivateKey var
+R296:304 Encryption_PK <> IND_CPA.PublicKey var
+var 319:325 IND_CPA Encrypt
+R355:358 Comp <> Comp ind
+R360:369 Encryption_PK <> IND_CPA.Ciphertext var
+R342:350 Encryption_PK <> IND_CPA.PublicKey var
+R329:337 Encryption_PK <> IND_CPA.Plaintext var
+var 388:394 IND_CPA A_state
+var 414:415 IND_CPA A1
+R432:435 Comp <> Comp ind
+R459:461 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R447:449 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R438:446 Encryption_PK <> IND_CPA.Plaintext var
+R450:458 Encryption_PK <> IND_CPA.Plaintext var
+R462:468 Encryption_PK <> IND_CPA.A_state var
+R419:427 Encryption_PK <> IND_CPA.PublicKey var
+var 483:484 IND_CPA A2
+R514:517 Comp <> Comp ind
+R519:522 Coq.Init.Datatypes <> bool ind
+R499:501 Coq.Init.Datatypes <> :type_scope:x_'*'_x not
+R489:498 Encryption_PK <> IND_CPA.Ciphertext var
+R502:508 Encryption_PK <> IND_CPA.A_state var
+def 541:549 <> IND_CPA_G
+R558:558 NotationV1 <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R565:566 NotationV1 <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R573:579 NotationV1 <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R586:591 NotationV1 <> :comp_scope:'['_x_','_x_']'_'<-$2'_x_';'_x not
+R580:585 Encryption_PK <> IND_CPA.KeyGen var
+R592:592 NotationV1 <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
+R595:596 NotationV1 <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
+R599:600 NotationV1 <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
+R608:615 NotationV1 <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
+R625:631 NotationV1 <> :comp_scope:'['_x_','_x_','_x_']'_'<-$3'_x_';'_x not
+R616:617 Encryption_PK <> IND_CPA.A1 var
+R633:637 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R644:649 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R638:643 NotationV1 <> :comp_scope:'{'_'0'_','_'1'_'}' not
+R652:655 NotationV1 <> :comp_scope:x_'<-'_x_';'_x not
+R676:702 NotationV1 <> :comp_scope:x_'<-'_x_';'_x not
+R704:709 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R727:754 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R710:716 Encryption_PK <> IND_CPA.Encrypt var
+R757:762 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R778:805 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R763:764 Encryption_PK <> IND_CPA.A2 var
+R766:766 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R768:769 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R777:777 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
+R806:810 NotationV1 <> ::'ret'_x not
+R819:819 NotationV1 <> ::'ret'_x not
+R811:813 EqDec <> eqb meth
+def 838:854 <> IND_CPA_Advantage
+R859:860 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R874:876 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R882:883 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R861:863 DistSem <> ::'Pr'_'['_x_']' not
+R873:873 DistSem <> ::'Pr'_'['_x_']' not
+R864:872 Encryption_PK <> IND_CPA_G def
+R878:880 Rat <> :rat_scope:x_'/'_x not
+def 906:912 <> IND_CPA
+R925:927 Rat <> Rat ind
+R962:965 Rat <> :rat_scope:x_'<='_x not
+R937:938 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R952:954 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R960:961 Rat <> :rat_scope:'|'_x_'-'_x_'|' not
+R939:941 DistSem <> ::'Pr'_'['_x_']' not
+R951:951 DistSem <> ::'Pr'_'['_x_']' not
+R942:950 Encryption_PK <> IND_CPA_G def
+R956:958 Rat <> :rat_scope:x_'/'_x not
+R966:972 Encryption_PK <> epsilon var
+R1080:1086 Encryption_PK IND_CPA <> sec

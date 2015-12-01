@@ -1,1 +1,1 @@
-RndNat.vo RndNat.glob RndNat.v.beautified: RndNat.v ./Crypto.vo
+RndNat.vo RndNat.glob RndNat.v.beautified: RndNat.v ./Crypto.vo ./NotationV1.vo

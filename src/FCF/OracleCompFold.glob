@@ -1,4 +1,4 @@
-DIGEST 441ff92a04d2096ba5ebbbe9a02fa421
+DIGEST be7503bc5fb708005cab53fb903ebbc5
 FOracleCompFold
 R41:43 FCF <> <> lib
 R61:68 CompFold <> <> lib
@@ -21,22 +21,22 @@ R278:278 OracleCompFold <> D var
 R276:276 OracleCompFold <> C var
 R300:301 OracleCompFold <> ls var
 R314:316 Coq.Init.Datatypes <> nil constr
-R322:323 Comp <> :comp_scope:'$'_x not
-R331:331 Comp <> :comp_scope:'$'_x not
-R324:327 Comp <> ::'ret'_x not
+R322:323 NotationV1 <> :comp_scope:'$'_x not
+R331:331 NotationV1 <> :comp_scope:'$'_x not
+R324:327 NotationV1 <> ::'ret'_x not
 R328:330 Coq.Init.Datatypes <> nil constr
 R340:343 Coq.Init.Datatypes <> :list_scope:x_'::'_x not
-R358:363 Comp <> :comp_scope:x_'<--$'_x_';'_x not
-R367:374 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R358:363 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
+R367:374 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
 R364:364 OracleCompFold <> c var
-R379:384 Comp <> :comp_scope:x_'<--$'_x_';'_x not
-R403:411 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R379:384 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
+R403:411 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
 R385:394 OracleCompFold <> oc_compMap def
 R398:398 OracleCompFold <> c var
-R412:413 Comp <> :comp_scope:'$'_x not
-R429:429 Comp <> :comp_scope:'$'_x not
-R414:418 Comp <> ::'ret'_x not
-R428:428 Comp <> ::'ret'_x not
+R412:413 NotationV1 <> :comp_scope:'$'_x not
+R429:429 NotationV1 <> :comp_scope:'$'_x not
+R414:418 NotationV1 <> ::'ret'_x not
+R428:428 NotationV1 <> ::'ret'_x not
 R420:423 Coq.Init.Datatypes <> :list_scope:x_'::'_x not
 prf 448:462 <> compMap_oc_spec
 R498:498 OracleCompFold <> D var
@@ -209,29 +209,29 @@ R1856:1856 OracleCompFold <> B var
 R1938:1946 ProgramLogic <> comp_spec def
 R2073:2082 OracleCompFold <> oc_compMap def
 R2121:2122 OracleCompFold <> ls var
-R2097:2102 Comp <> :comp_scope:x_'<--$'_x_';'_x not
-R2110:2112 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R2097:2102 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
+R2110:2112 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
 R2103:2108 OracleCompFold <> :comp_scope:'query'_x not
 R2109:2109 OracleCompFold <> x var
-R2113:2113 Comp <> :comp_scope:'$'_x not
+R2113:2113 NotationV1 <> :comp_scope:'$'_x not
 R2114:2114 OracleCompFold <> f var
 R2116:2116 OracleCompFold <> x var
 R2165:2166 Coq.Init.Datatypes <> tt constr
-R2142:2146 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R2151:2152 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2142:2146 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R2151:2152 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
 R2147:2150 OracleCompFold <> rndB var
-R2153:2156 Comp <> ::'ret'_x not
+R2153:2156 NotationV1 <> ::'ret'_x not
 R2157:2157 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
 R2159:2160 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
 R2162:2162 Coq.Init.Datatypes <> :core_scope:'('_x_','_x_','_'..'_','_x_')' not
 R2161:2161 OracleCompFold <> s var
 R1981:1990 OracleCompFold <> oc_compMap def
 R2029:2030 OracleCompFold <> ls var
-R2005:2010 Comp <> :comp_scope:x_'<--$'_x_';'_x not
-R2018:2020 Comp <> :comp_scope:x_'<--$'_x_';'_x not
+R2005:2010 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
+R2018:2020 NotationV1 <> :comp_scope:x_'<--$'_x_';'_x not
 R2011:2016 OracleCompFold <> :comp_scope:'query'_x not
 R2017:2017 OracleCompFold <> x var
-R2021:2021 Comp <> :comp_scope:'$'_x not
+R2021:2021 NotationV1 <> :comp_scope:'$'_x not
 R2022:2022 OracleCompFold <> f var
 R2024:2024 OracleCompFold <> x var
 R2062:2064 OracleCompFold <> lsf var
@@ -339,7 +339,6 @@ R2799:2799 OracleCompFold <> a var
 R2770:2771 Coq.Lists.List <> In def
 R2775:2776 OracleCompFold <> ls var
 R2773:2773 OracleCompFold <> a var
-R0:-1 OracleCompFold <> y var
 R0:-1 OracleCompFold <> y var
 R0:-1 OracleCompFold <> y var
 R0:-1 OracleCompFold <> y var

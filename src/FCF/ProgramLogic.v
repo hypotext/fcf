@@ -179,13 +179,18 @@ Theorem in_support_marginal_r :
   
 Qed.
 
+Print marginal_l.
+Check marginal_l.               (* Comp (A * B) -> A -> Rat *)
+Print evalDist.
+Check evalDist.                 (* Comp A -> Distribution A *)
+
 Definition comp_spec (R1 R2 : Set)
   {eqd1 : EqDec R1}{eqd2 : EqDec R2}
   (post : R1 -> R2 -> Prop)(c1 : Comp R1)(c2 : Comp R2) :=
   exists c : Comp (R1 * R2),
-    (forall r1, evalDist c1 r1 == marginal_l c r1) /\
-    (forall r2, evalDist c2 r2 == marginal_r c r2) /\
-    (forall p, In p (getSupport c) -> post (fst p) (snd p)).
+    (forall r1 : R1, evalDist c1 r1 == marginal_l c r1) /\
+    (forall r2 : R2, evalDist c2 r2 == marginal_r c r2) /\
+    (forall p : R1 * R2, In p (getSupport c) -> post (fst p) (snd p)).
 
 Theorem list_choice : 
   forall (A B : Type)(eqd : forall (a1 a2 : A), {a1 = a2} + {a1 <> a2}) P (ls : list A) (b : B),

@@ -176,12 +176,12 @@ R2558:2558 RndPerm <> ShuffleList.A var
 def 2575:2581 <> shuffle
 R2588:2591 Coq.Init.Datatypes <> list ind
 R2593:2593 RndPerm <> ShuffleList.A var
-R2604:2608 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R2646:2651 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R2604:2608 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R2646:2651 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
 R2609:2619 RndListElem <> rndListElem def
 R2624:2641 RndPerm <> getAllPermutations def
 R2643:2644 RndPerm <> ls var
-R2652:2660 Comp <> ::'ret'_x not
+R2652:2660 NotationV1 <> ::'ret'_x not
 R2682:2685 Coq.Init.Datatypes <> None constr
 R2690:2692 Coq.Init.Datatypes <> nil constr
 R2702:2705 Coq.Init.Datatypes <> Some constr
@@ -758,12 +758,12 @@ R9711:9711 RndPerm <> A var
 R9719:9722 Coq.Init.Datatypes <> list ind
 R9724:9724 RndPerm <> A var
 R9732:9740 ProgramLogic <> comp_spec def
-R9772:9776 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R9796:9797 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R9772:9776 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R9796:9797 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
 R9777:9783 RndPerm <> RndPerm def
 R9786:9791 Coq.Init.Datatypes <> length def
 R9793:9794 RndPerm <> ls var
-R9798:9801 Comp <> ::'ret'_x not
+R9798:9801 NotationV1 <> ::'ret'_x not
 R9802:9808 RndPerm <> permute def
 R9810:9811 RndPerm <> ls var
 R9750:9756 RndPerm <> shuffle def

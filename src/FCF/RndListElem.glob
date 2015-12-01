@@ -15,17 +15,17 @@ R289:289 RndListElem <> RndListElem.A var
 R306:311 Coq.Init.Datatypes <> length def
 R313:314 RndListElem <> ls var
 R330:330 Coq.Init.Datatypes <> O constr
-R335:338 Comp <> ::'ret'_x not
+R335:338 NotationV1 <> ::'ret'_x not
 R339:342 Coq.Init.Datatypes <> None constr
 R352:352 Coq.Init.Datatypes <> S constr
-R368:372 Comp <> :comp_scope:x_'<-$'_x_';'_x not
-R391:402 Comp <> :comp_scope:x_'<-$'_x_';'_x not
+R368:372 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
+R391:402 NotationV1 <> :comp_scope:x_'<-$'_x_';'_x not
 R373:379 RndNat <> :comp_scope:'['_'0'_'..'_x_')' not
 R389:390 RndNat <> :comp_scope:'['_'0'_'..'_x_')' not
 R380:385 Coq.Init.Datatypes <> length def
 R387:388 RndListElem <> ls var
-R403:407 Comp <> ::'ret'_x not
-R423:423 Comp <> ::'ret'_x not
+R403:407 NotationV1 <> ::'ret'_x not
+R423:423 NotationV1 <> ::'ret'_x not
 R408:417 Fold <> nth_option def
 R419:420 RndListElem <> ls var
 prf 445:458 <> rndListElem_wf

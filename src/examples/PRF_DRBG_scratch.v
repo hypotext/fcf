@@ -226,26 +226,58 @@ OC D (Bvector eta) bool -- $ might invisibly take a comp and slot it into the OC
   Locate f_oracle.              (* in PRF.f_oracle *)
   Check f_oracle.
   
+Check PRF_A.                    (* TODO how to fill in these params?? *)
+Check f_oracle.
+
   Definition PRF_DRBG_G2 :=
-    ret O.
+    s <-$ RndKey;
+    [b, _] <-$2 PRF_A _ _ (f_oracle f _ s) tt;
+    ret b.
 
-  Definition PRF_DRBG_f_G1_1 :=
-    ret O.
+  (* a function *)
+  Fixpoint PRF_DRBG_f_G1_1 (v : D) (n : nat) (k : Key) : Comp (list (Bvector eta)):=
+    match n with
+      | O => ret nil
+      | S n' =>
+        r <-$ ret (f k v);
+        ls <-$ PRF_DRBG_f_G1_1 (injD r) n' k;
+        ret (r :: ls)
+    end.
 
+  (* another game using the new function *)
   Definition PRF_DRBG_G1_1 :=
-    ret O.
+    s <-$ RndKey;
+    ls <-$ PRF_DRBG_f_G1_1 v_init l s;
+    A ls.
+
+  Print PRF_A.
+  Print PRF_DRBG_f_G2.          (* using OC_Query *)
+      (* note difference between G2 and G1_1:
+G2 passes f_oracle to PRF_A which passes it to the oracle-query PRF_DRBG function, and gives the result to A
+
+G1_1 is basically the same as G but just with another monad *)
+
+  (* Definition PRF_DRBG_G1 := *)
+  (*   k <-$ RndKey; *)
+  (*   A (PRF_DRBG k). *)
 
   Theorem PRF_DRBG_G1_1_equiv :
     Pr[PRF_DRBG_G1] == Pr[PRF_DRBG_G1_1].
   Proof.
+    unfold PRF_DRBG_G1.
+    unfold PRF_DRBG_G1_1.
+    
     
   Admitted.
 
   (* Goal *)
-  Theorem PRF_DRBG_G1_G2 equiv :
+  Theorem PRF_DRBG_G1_G2_equiv :
     Pr[ PRF_DRBG_G1 ] == Pr[ PRF_DRBG_G2 ].
   Proof.
-
+    rewrite PRF_DRBG_G1_1_equiv.
+    unfold PRF_DRBG_G1_1.
+    unfold PRF_DRBG_G2.
+    
   Admitted.
 
     
