@@ -5,7 +5,6 @@ Require Import FCF.
 Require Import HasDups.
 Require Import RndInList.
 Require Import CompFold.
-(* Require Import Tactics. *)
 
 (* Indistinguishability definition for DRBGs *)
 Section DRBG.
@@ -75,7 +74,7 @@ Section PRF_DRBG.
   Definition RndOut := compMap _ (fun _ => {0, 1}^eta) (forNats l).
   
   (* We model the DRBG using a function that uses the previous output value (injected into the domain) as the current input value of the PRF. *)
-  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) : list (Bvector eta) :=
+  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) :=
     match n with
         | O => nil
         | S n' => 
@@ -98,12 +97,12 @@ Section PRF_DRBG.
   (* This game is equivalent to the first game in the DRBG security definition. *)
   Theorem PRF_DRBG_G1_equiv : 
     Pr[DRBG_G0 RndKey PRF_DRBG A] == Pr[PRF_DRBG_G1].
-  Proof.
+
     reflexivity.
+
   Qed.
 
   (* Step 2: use the PRF as an oracle.  This will allow us to apply the security definition and replace it in the next step.*)
-
   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :=
     match n with
         | O => $ ret nil
@@ -112,8 +111,6 @@ Section PRF_DRBG.
             ls' <--$ (PRF_DRBG_f_G2 (injD r) n');
                 $ ret (r :: ls')
     end.
-
-  Check PRF_DRBG_f_G2.
 
   (* The constructed adversary against the PRF. *)
   Definition PRF_A := (ls <--$ PRF_DRBG_f_G2 v_init l; $ A ls).
@@ -152,8 +149,8 @@ Section PRF_DRBG.
     s <-$ RndKey ;
     ls <-$ PRF_DRBG_f_G1_1 v_init l s;
     A ls.
-<<<<<<< Updated upstream
-  
+
+  (* only difference: PRF_DRBG_f_G1_1 wraps everything in ret/comp *)
   Theorem  PRF_DRBG_f_G1_1_eq_ret : 
     forall k n v,
        comp_spec eq (PRF_DRBG_f_G1_1 v n k) (ret (PRF_DRBG_f v n k)).
@@ -164,8 +161,9 @@ Section PRF_DRBG.
     fcf_reflexivity.
     
     fcf_simp.
+    (* rewrite IHn. *)
     fcf_transitivity.
-    fcf_skip_eq.
+    fcf_skip_eq.                (* this pulls in IHn, note it turns into PRF_DRBG_f *)
     fcf_reflexivity.
     fcf_simp.
     fcf_reflexivity.
@@ -186,132 +184,55 @@ Section PRF_DRBG.
      fcf_simp.
      fcf_reflexivity.
 
-=======
-
-Locate comp_spec.
-
-Print eq.                       (* postcondition proposition *)
-   
-   Theorem  PRF_DRBG_f_G1_1_eq_ret : 
-     forall k n v,
-       comp_spec eq (PRF_DRBG_f_G1_1 v n k) (ret (PRF_DRBG_f v n k)).
-   Proof.
-     induction n.
-     (* induction n; intuition; simpl in *. *)
-     - intuition. simpl in *. intuition.
-     - intros. simpl in *.      (* note induction *)
-       
-       comp_simp. 
-       eapply comp_spec_eq_trans.
-       (* change PRF_DRBG_f_G1_1 to PRF_DRBG_f *)
-       + Check comp_spec_seq_eq. (* for equality *)
-         (* comp_skip.              (* why doesn't this work? *) *)
-         eapply comp_spec_seq_eq. 
-         eauto with inhabited. eauto with inhabited. eauto with inhabited. (* ?? *)
-         (* pull in the IH -- apply IH *)
-         (* inhabited is a hint database *)
-         intros.                (* no eauto here *)
-         eapply comp_spec_eq_refl.
-       + comp_simp.
-         eapply comp_spec_eq_refl.
    Qed.
 
-   Theorem PRF_DRBG_G1_1_equiv :
-     Pr[PRF_DRBG_G1] == Pr[PRF_DRBG_G1_1].
-   Proof.
-     unfold PRF_DRBG_G1, PRF_DRBG_G1_1.
-     comp_skip.
-     eapply comp_spec_eq_impl_eq.
-     eapply comp_spec_eq_symm.
-     eapply comp_spec_eq_trans.
-     
-     - eapply comp_spec_seq_eq. 
-       eauto with inhabited. eauto with inhabited. 
-       eapply PRF_DRBG_f_G1_1_eq_ret.                (* ? proven above *)
-       intuition.
-       eapply comp_spec_eq_refl.
-     - comp_simp.
-       eapply comp_spec_eq_refl.
->>>>>>> Stashed changes
-   Qed.
-
-   (* TODO: different predicate for comp_spec *)
-   (* the results of the two computations are related by this predicate, with no precond *)
    Theorem PRF_DRBG_f_G1_1_G2_equiv :
      forall k n v,
      comp_spec (fun x1 x2 => x1 = fst x2) (PRF_DRBG_f_G1_1 v n k)
      ((PRF_DRBG_f_G2 v n) unit unit_EqDec
         (f_oracle f (Bvector_EqDec eta) k) tt).
-   Proof.
+       (* throw away snd tuple elem, also f oracle *)
+
      induction n; intuition; simpl in *.
-<<<<<<< Updated upstream
 
      fcf_simp.
+     (* Print Ltac comp_spec_ret. *) (* ? *)
      fcf_spec_ret.
 
-     fcf_skip.
-     unfold f_oracle.
+     fcf_skip.                  (* they are equiv to what specification? *)
+     unfold f_oracle.           (* * *)
 
      (* we are left with a unification variable for the specification, we can supply a value for it by specializing the appropriate theorem. *)
      eapply (comp_spec_ret _ _ (fun x1 x2 => x1 = fst x2)).
      trivial.
 
-     simpl in *.
-     intuition; subst.
+     (* rest of proof *)
+     simpl in *.                (* why do the hypotheses simplify like that? *)
+     intuition.
+     subst.
 
-     fcf_skip.
+     fcf_skip.                  (* uses induction hypothesis *)
      fcf_simp.
      fcf_spec_ret.
-
-=======
-     (* extra nil state? *)
-     comp_simp.
-     eapply comp_spec_ret.
-     trivial.
-
-     (* eapply comp_spec_seq; eauto with inhabited. admit. *)
-
-     comp_skip.
-     unfold f_oracle.
-     eapply (comp_spec_ret _ _ (fun x1 x2 => x1 = fst x2)). (* TODO *)
-     trivial.
-     
-     simpl in *.                (* H1: result of skipping *)
-     intuition; subst.
-
-     (* redo with comp_spec_seq + IHn *)
-     (* eapply comp_spec_seq. admit. admit. *)
-     (* apply IHn.  *)
-     (* intuition. *)
-     (* comp_simp. *)
-     (* eapply comp_spec_ret. simpl. subst. simpl. reflexivity. *)
-     
-     comp_skip.                 (* really aggressive/using induction hypothesis *)
-     (* comp_spec_seq too *)
-     comp_simp.
-     eapply comp_spec_ret; intuition.
->>>>>>> Stashed changes
    Qed.
 
-   (* TODO *)
   Theorem PRF_DRBG_G1_G2_equiv : 
     Pr[ PRF_DRBG_G1 ] == Pr[ PRF_DRBG_G2 ].
-<<<<<<< Updated upstream
 
     (* equality for rational numbers is a setoid, so we can rewrite with it. *)
-=======
-  Proof.
->>>>>>> Stashed changes
     rewrite PRF_DRBG_G1_1_equiv.
     unfold  PRF_DRBG_G1_1,  PRF_DRBG_G2.
     unfold PRF_A.
     simpl.
-<<<<<<< Updated upstream
     fcf_skip.
 
     fcf_inline_first.
     fcf_to_prhl_eq.
-    
+
+    (* unfold PRF_DRBG_f_G2. *)
+
+    (* it showed the first two lines were equivalent, then skipped them *)
+    (* rewrite PRF_DRBG_f_G1_1_G2_equiv. *)
     fcf_with PRF_DRBG_f_G1_1_G2_equiv fcf_skip.
 
     fcf_simp.
@@ -323,110 +244,26 @@ Print eq.                       (* postcondition proposition *)
     fcf_simp.
     fcf_reflexivity.
 
-=======
-    comp_skip.
-    inline_first.               (* monad associativity *)
-    (* comp_inline_l, comp_inline_r *)
-
-    eapply comp_spec_eq_impl_eq.
-    comp_skip.                  (* sequence rule *)
-    (* preconditions in hypotheses *)
-    eapply PRF_DRBG_f_G1_1_G2_equiv.
-    simpl in *.
-    subst.
-    comp_simp.
-    simpl.
-    inline_first.
-    
-    eapply eq_impl_comp_spec_eq. (* back into probability theory *)
-    (* not really necessary *)
-    intuition.
-    rewrite <- evalDist_right_ident.
-    comp_skip.
-    comp_simp.                  (* TODO *)
-    reflexivity.
->>>>>>> Stashed changes
   Qed.
 
-  (* should I write out the theorems above? or should I read step 4? *)
-  
-  (* ---------------- *)
+  Print Ltac fcf_skip.
+  Print Ltac dist_skip.
+  Print Ltac prog_skip.
 
-  (*   Definition PRF_DRBG_G2 :=
-    s <-$ RndKey ;
-    [b, _] <-$2 PRF_A unit _ (f_oracle f _ s) tt;
-    ret b. *)
-  
   (* Step 3: replace the PRF with a random function *)
   Definition PRF_DRBG_G3 :=
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b.
+Check (randomFunc ({0,1}^eta)).
 
-  Print PRF_DRBG_G2.
-  
   Theorem PRF_DRBG_G2_G3_close : 
     | Pr[PRF_DRBG_G2] - Pr[PRF_DRBG_G3] | <= PRF_Advantage RndKey ({0,1}^eta) f _ _ PRF_A.
-
   Proof.
-Print PRF_Advantage.
-Check PRF_Advantage.
-    unfold PRF_Advantage.                          
-                                            
+    (* all the work was done in getting game 1 to look like game 2 with f_oracle (oracle b/c randomfunc is an oracle b/c it has state). so now this proof is easy *)
     reflexivity.
   Qed.
 
-  (* ----------------- *)
-
-  (* Backtracking resistance:
-
-key
-
-PRF-DRBG oracle (hidden key)
-
-adversary (construct?)
-
-adversary can call the oracle as many times as it wants
-
-can adversary choose n (the number of blocks output) after it's compromised, or should it be able to do it for arbitrary n? probably the former
-
-adversary is given the key and output after n blocks (w/o key changing)
-
-randomly choose either the list of n pseudorandom blocks or a list of n rand blocks
-
-adversary needs to guess which is pseudorandom *)
-
-  Parameter max : nat.            (* max number of blocks *) (* TODO *)
-  Parameter numBlocks : Comp nat.        (* you can randomly sample a nat? (in range?) *)
-  Parameter A_br : Key -> option (Bvector eta) -> list (Bvector eta) -> Comp bool.
-
-  (*  Fixpoint PRF_DRBG_f (v : D)(n : nat)(k : Key) := *)
-  (*   Definition RndOut := compMap _ (fun _ => {0, 1}^eta) (forNats l). *)
-  Definition RndOut' n := compMap _ (fun _ => {0, 1}^eta) (forNats n).
-  Check RndOut'.
-
-  Fixpoint lastE {A : Type} (l:list A) : option A :=
-  match l with
-    | nil => None
-    | a :: nil => Some a
-    | a :: l => lastE l
-  end.
   
-  Eval compute in (lastE (O :: O :: nil)).
-  
-  Definition BacktrackingResistance := 
-    (* randomly sample # blocks (< max TODO) and key *)
-    n <-$ numBlocks;
-    k <-$ RndKey;
-    (* not using the oracle version (not monadic) *)
-    (* output an extra block (ending state) *)
-    let pseudorandom := PRF_DRBG_f v_init (n + 1) k in
-    let (hiddenPseudo, endState) := (removelast pseudorandom, lastE pseudorandom) in
-    random <-$ (RndOut' n); 
-    b <-$ {0, 1};
-    res <- if b then hiddenPseudo else random;
-    A_br k endState res.
-
-  (* ------------------ *)
   (* Step 4 : Replace the random function with random values.  This is the same as long as there are no duplicates in the list of random function inputs. *)
   Definition PRF_DRBG_G4 :=
     [b, _] <-$2 PRF_A _ _ (fun _ _ => x <-$ {0, 1}^eta; ret (x, tt)) tt;
@@ -519,11 +356,26 @@ adversary needs to guess which is pseudorandom *)
   Definition PRF_DRBG_G3_3 :=
     [b, ls] <-$2 PRF_A _ _  (fun ls a => x <-$ {0, 1}^eta; ret (x, (a, x)::ls)) nil;
     ret (b, hasDups _ (fst (split ls))).
- 
+
   (* The "equal until bad" specification for randomFunc_withDups and the oracle that always produces a new random value.  This specification forms the core of the proofs of the two parts of the fundamental lemma in the following two theorems. *)
   Theorem PRF_A_randomFunc_eq_until_bad : 
-    comp_spec 
-      (fun y1 y2 =>
+    comp_spec
+      (* they are equal when this function is applied to one of the results? both of them?
+       or the function is true on the both of them? *)
+      (* also this isn't computational? *)
+      (fun y1 y2 : bool * (list (D * Bvector eta)) =>
+      (*    let adv1 := fst y1 in *)
+      (*    let adv2 := fst y2 in *)
+      (*    let cache1 := snd y1 in *)
+      (*    let cache2 := snd y2 in *)
+      (*    let inputs1 := fst (split cache1) in *)
+      (*    let inputs2 := fst (split cache2) in *)
+      (*    (* the inputs should be the same anyway *) *)
+      (*    hasDups _ inputs1 = *)
+      (*    hasDups _ inputs2 /\ *)
+      (*    (* randomFunc_withDups has no dups -> exactly same as random bits & adversary cannot distinguish them. TODO how to write these specifications? *) *)
+      (*    (hasDups _ inputs1 = false -> *)
+      (*     cache1 = cache2 /\ adv1 = adv2)) *)
          hasDups _ (fst (split (snd y1))) =
          hasDups _ (fst (split (snd y2))) /\
          (hasDups _ (fst (split (snd y1))) = false ->
@@ -532,7 +384,8 @@ adversary needs to guess which is pseudorandom *)
       (PRF_A _ _ 
              (fun (ls : list (D * Bvector eta)) (x : D) =>
          r <-$ { 0 , 1 }^eta; ret (r, (x, r) :: ls)) nil).
-    
+
+      (* ? *)
     eapply (fcf_oracle_eq_until_bad (fun x => hasDups _ (fst (split x))) (fun x => hasDups _ (fst (split x))) eq); intuition.
     apply PRF_A_wf.
     
@@ -602,23 +455,22 @@ adversary needs to guess which is pseudorandom *)
     destruct z.
     simpl in *.
     destruct (in_dec (EqDec_dec D_EqDec) d l0); intuition.
-
   Qed.
 
   Theorem PRF_DRBG_G3_2_3_badness_same : 
     Pr  [x <-$ PRF_DRBG_G3_2; ret snd x ] ==
     Pr  [x <-$ PRF_DRBG_G3_3; ret snd x ].
-    
+  Proof.    
     unfold PRF_DRBG_G3_2, PRF_DRBG_G3_3.
     fcf_inline fcf_left.
     fcf_inline fcf_right.
     fcf_to_prhl_eq.
     fcf_skip.
-    apply PRF_A_randomFunc_eq_until_bad.
+    apply PRF_A_randomFunc_eq_until_bad. (* identical until bad *)
     
     fcf_simp.
     intuition.
-    simpl in *.
+    (* simpl in *. *)
     fcf_spec_ret.
   Qed.
 
@@ -630,7 +482,7 @@ adversary needs to guess which is pseudorandom *)
     unfold PRF_DRBG_G3_2, PRF_DRBG_G3_3.
     fcf_to_prhl.
     fcf_skip.
-    apply PRF_A_randomFunc_eq_until_bad.
+    apply PRF_A_randomFunc_eq_until_bad. (* identical until bad *)
     fcf_simp.
     fcf_spec_ret.
     simpl in *; pairInv; intuition; subst;
@@ -649,7 +501,7 @@ adversary needs to guess which is pseudorandom *)
   | Pr[x <-$ PRF_DRBG_G3_2; ret (fst x)] - Pr[x <-$ PRF_DRBG_G3_3; ret (fst x)] | <= Pr[x <-$ PRF_DRBG_G3_3; ret (snd x)].
     
     rewrite ratDistance_comm.
-    fcf_fundamental_lemma.
+    fcf_fundamental_lemma.      (* * TODO *)
 
     symmetry.
     apply PRF_DRBG_G3_2_3_badness_same.
@@ -686,14 +538,19 @@ adversary needs to guess which is pseudorandom *)
   (* Now we need to compute the probability of the "bad" event.  First we will simplify the game defining this event.*)
 
   (* The state of the random function is no longer necessary.  We can simplify things by changing the oracle interaction into a standard (recursive) computation. *)
-  Fixpoint PRF_DRBG_f_bad (v : D)(n : nat) :=
+  Fixpoint PRF_DRBG_f_bad (v : D)(n : nat) : Comp (list D) :=
     match n with
       | O =>  ret nil
       | S n' => 
           r <-$ {0,1}^eta;
+          (* this is just a list of n random inputs starting with v; f is removed *)
           ls' <-$ (PRF_DRBG_f_bad (injD r) n');
           ret (v :: ls')
     end.
+
+  Print PRF_DRBG_f.
+
+Check PRF_DRBG_f_bad.
 
   Definition PRF_DRBG_G3_bad_1 :=
     ls <-$ PRF_DRBG_f_bad v_init l;
@@ -702,13 +559,42 @@ adversary needs to guess which is pseudorandom *)
    Require Import Permutation.
    
    (* The relational specification on the new computation that produces the bad event.  We prove that the list of values produced by this computation is a permutation of the list produced by the oracle interaction in game 3.  Perhaps this could be an equality of we adjust the model, but a permutation works fine for our purposes, since the only thing that matters is the presence/absence of duplicates in the list. *)  
+   (* not sure why ls is needed, why not []? needed for induction? *)
+   (* don't we have to reason about injD in the latter? *)
    Theorem PRF_DRBG_f_bad_spec : 
-     forall n v ls,
-     comp_spec (fun x1 x2 => Permutation (fst (split (snd x1))) ((fst (split ls)) ++ x2))
+     forall n v (ls : list (D * Bvector eta)), (* ls is the initial oracle state *)
+
+       (* x1 : outputs * state, where state = inputs * outputs *)
+     comp_spec (fun (x1 : list (Bvector eta) * list (D * Bvector eta)) (x2 : list D) =>
+                  (* Perm (inputs_x1 (implicitly using init state)) (inputs in init oracle state ++ inputs_x2) whatever those are *)
+                  Permutation (fst (split (snd x1))) ((fst (split ls)) ++ x2))
      ((PRF_DRBG_f_G2 v n) _ _
+                          (* don't understand this -- PRF_DRBG_f_G2 returns oraclecomp?
+                           what is this function doing? is it an oracle? *)
+                          (* ok, this is the f oracle that just returns random values but keeps the state *)
         (fun (ls : list (D * Bvector eta)) (a : D) =>
-         x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls)) ls)
+         x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls))
+        ls)
      (PRF_DRBG_f_bad v n).
+
+       Proof.
+Print PRF_DRBG_f_G2.            (* OracleComp D (Bvector eta) (list (Bvector eta)) *)
+Check (PRF_DRBG_f_G2 v_init O) _ _.
+(*  : (D -> D -> Comp (Bvector eta * D)) ->
+       D -> Comp (list (Bvector eta) * D) 
+*)
+Check         (fun (ls : list (D * Bvector eta)) (a : D) =>
+         x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls)).
+(*  : list (D * Bvector eta) ->
+       D -> Comp (Bvector eta * list (D * Bvector eta)) *)
+Variable lsx : list (D * Bvector eta).
+Check      ((PRF_DRBG_f_G2 v_init O) _ _
+                          (* don't understand this -- PRF_DRBG_f_G2 returns oraclecomp?
+                           what is this function doing? is it an oracle? *)
+        (fun (ls : list (D * Bvector eta)) (a : D) =>
+         x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls))
+        nil).
+(*  : Comp (list (Bvector eta) * list (D * Bvector eta)) *)
 
      induction n; intuition; simpl in *.
      fcf_simp.
@@ -719,7 +605,7 @@ adversary needs to guess which is pseudorandom *)
 
      fcf_inline_first.
      fcf_skip.
-     fcf_skip.
+     fcf_skip.                  (* gets rid of the InjD part *)
      fcf_spec_ret.
      simpl in H3.
      simpl.
@@ -731,26 +617,51 @@ adversary needs to guess which is pseudorandom *)
      apply Permutation_refl.
    Qed.
 
+       (*   Definition PRF_DRBG_G3_3 :=
+    [b, ls] <-$2 PRF_A _ _  (fun ls a => x <-$ {0, 1}^eta; ret (x, (a, x)::ls)) nil;
+    ret (b, hasDups _ (fst (split ls))). *)
+       (* ls is the state of the oracle : list (D * Bvector eta), so we are looking for duplicates in the input, not the DRBG's output? *)
 
+Check PRF_A _ _  (fun ls a => x <-$ {0, 1}^eta; ret (x, (a, x)::ls)) nil.
+
+       (*   (* The state of the random function is no longer necessary.  We can simplify things by changing the oracle interaction into a standard (recursive) computation. *)
+  Fixpoint PRF_DRBG_f_bad (v : D)(n : nat) : Comp (list D) :=
+    match n with
+      | O =>  ret nil
+      | S n' => 
+          r <-$ {0,1}^eta;
+          (* this is just a list of n random inputs starting with v; f is removed *)
+          ls' <-$ (PRF_DRBG_f_bad (injD r) n');
+          ret (v :: ls')
+    end.
+
+Check PRF_DRBG_f_bad.
+
+  Definition PRF_DRBG_G3_bad_1 :=
+    ls <-$ PRF_DRBG_f_bad v_init l;
+    ret (hasDups _ ls). *)
+
+   (* transition from game to bad game: show that you can throw away the outputs and just focus on the inputs *)
    Theorem PRF_DRBG_G3_bad_equiv : 
      Pr[x <-$ PRF_DRBG_G3_3; ret (snd x)] == Pr[PRF_DRBG_G3_bad_1].
-
+   Proof.
      unfold PRF_DRBG_G3_3, PRF_DRBG_G3_bad_1.
      simpl.
      fcf_inline_first.
      fcf_to_prhl_eq.
      fcf_skip.
-     apply PRF_DRBG_f_bad_spec.
-     simpl in H1.
-     fcf_inline_first.
-     fcf_irr_l.
-     fcf_simp.
-     simpl.
-     fcf_spec_ret.
+     * apply PRF_DRBG_f_bad_spec. (* inputs equal up to permutation, given some init state *)
+     (* why the evar? *)
 
-     apply Permutation_hasDups.
-     trivial.
+     * simpl in H1.
+       fcf_inline_first.
+       fcf_irr_l.               (* irrelevant, move to hypothesis *)
+       fcf_simp.
+       simpl.
+       fcf_spec_ret.
 
+       apply Permutation_hasDups. (* note permutation *)
+       assumption.                (* where did this come from *)
    Qed.
 
    (* In the next simplification, we remove the v input from the recursive function, and simply put the random values in the list. *)
@@ -762,6 +673,8 @@ adversary needs to guess which is pseudorandom *)
             ls' <-$ (PRF_DRBG_f_bad_2 n');
             ret (r :: ls')
     end.
+
+Check PRF_DRBG_f_bad_2.
 
    Definition PRF_DRBG_G3_bad_2 :=
      ls <-$ PRF_DRBG_f_bad_2 (pred l);
@@ -859,8 +772,10 @@ adversary needs to guess which is pseudorandom *)
    Qed.
 
    (* HasDups.v has a theorem that computes the probability of duplicates in a list of random values.  We need a form of the dupProb theorem that allows the first item in the list to be fixed.  *)
+    (* TODO: this theorem + how it uses RndInList + how it's used *)
    Theorem dupProb_const : 
     forall (X : Set)(ls : list X)(v : Bvector eta),
+      (* why not put PRF_DRBG_G3_bad_4 here? *)
       Pr[x <-$ compMap _ (fun _ => {0, 1}^eta) ls; ret (hasDups _ (v :: x))] <= 
       ((S (length ls)) ^ 2 / 2 ^ eta).
 
@@ -888,7 +803,6 @@ adversary needs to guess which is pseudorandom *)
      (* The rest is just arithmetic. *)
      simpl.
      rewrite mult_1_r.
-     (* TODO build broken *)
      cutrewrite ( S (length ls + length ls * S (length ls)) =  (S (length ls) + length ls * S (length ls)))%nat.
      rewrite ratAdd_num.
      eapply ratAdd_leRat_compat.
@@ -912,7 +826,6 @@ adversary needs to guess which is pseudorandom *)
      rewrite forNats_length.
      rewrite mult_1_r.
      reflexivity.
- 
    Qed.
 
    (* Combine all of the results related to the G3 games to show that G3 and G4 are close. *)
@@ -922,13 +835,12 @@ adversary needs to guess which is pseudorandom *)
      rewrite PRF_DRBG_G3_1_eq.
      rewrite PRF_DRBG_G3_1_2_eq.
      rewrite <- PRF_DRBG_G3_3_G4_eq.
-     rewrite  PRF_DRBG_G3_2_3_close.
-     rewrite PRF_DRBG_G3_bad_equiv.
+     rewrite PRF_DRBG_G3_2_3_close. (* from diff of adv guessing correct bit in 2 games, to just the pr of adv guessing correct bit in 1 game (from fst to snd) *)
+     rewrite PRF_DRBG_G3_bad_equiv. (* identical until bad? transitions from the normal game to the one exposing the bad event *)
      rewrite PRF_DRBG_G3_bad_1_2_equiv.
      rewrite PRF_DRBG_G3_bad_2_3_equiv.
      rewrite PRF_DRBG_G3_bad_3_4_equiv.
-     apply PRF_DRBG_G3_bad_4_small.
-
+     apply PRF_DRBG_G3_bad_4_small. (* bad event bounding? *)
    Qed.
 
    (* Finally, show that G4 is equivalent to the second game in the DRBG security definition. *)
@@ -987,11 +899,3 @@ adversary needs to guess which is pseudorandom *)
   Print Assumptions PRF_DRBG_Adv_small.
 
 End PRF_DRBG.
-
-(* ---------- *)
-
-(* hard problem, but i spent time solving it years ago
-
-
-
- *)
