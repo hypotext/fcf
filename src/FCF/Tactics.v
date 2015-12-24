@@ -18,7 +18,7 @@ Notation fcf_left := leftc.
 
 (** ** fcf_inline *)
 (** The fcf_inline tactic applies monad associativity to replace (x <- (y <- p1; p2); p3) with (y <- p1; x <- p2; p3).  Note that the fcf_inline_first will repeatedly invoke this tactic to inline the first nested program on both sides of the relation. *)
-(** Supporting thoery: evalDist_assoc (probability), comp_spec_assoc (program logic) *)
+(** Supporting theory: evalDist_assoc (probability), comp_spec_assoc (program logic) *)
 Ltac fcf_inline := comp_inline.
 
 (** ** fcf_swap *)
@@ -272,14 +272,3 @@ Theorem fcf_oracle_eq_until_bad :
   eapply oc_comp_spec_eq_until_bad; intuition.
   
 Qed.
-
-
-
-
-
-
-
-
-
-
-

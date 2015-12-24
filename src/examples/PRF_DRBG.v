@@ -113,7 +113,11 @@ Section PRF_DRBG.
     end.
 
   (* The constructed adversary against the PRF. *)
-  Definition PRF_A := (ls <--$ PRF_DRBG_f_G2 v_init l; $ A ls).
+  Definition PRF_A : OracleComp D (Bvector eta) bool :=
+    (ls <--$ PRF_DRBG_f_G2 v_init l; $ A ls).
+
+Check A.                        (* A : list (Bvector eta) -> Comp bool *)
+(* TODO A isn't an OracleComp here but for mine it should probably be an oracle b/c of the hidden K,V state *)
 
   Theorem PRF_DRBG_f_G2_wf : 
     forall n v,
@@ -255,6 +259,8 @@ Section PRF_DRBG.
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b.
 Check (randomFunc ({0,1}^eta)).
+
+Print PRF_A.
 
   Theorem PRF_DRBG_G2_G3_close : 
     | Pr[PRF_DRBG_G2] - Pr[PRF_DRBG_G3] | <= PRF_Advantage RndKey ({0,1}^eta) f _ _ PRF_A.

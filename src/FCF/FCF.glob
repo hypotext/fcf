@@ -6,4 +6,4 @@ R67:74 ProgTacs <> <> lib
 R92:97 RndNat <> <> lib
 R115:121 GenTacs <> <> lib
 R139:148 NotationV1 <> <> lib
-R166:172 Coq.Init.Tactics <> <> lib
+R166:172 Tactics <> <> lib

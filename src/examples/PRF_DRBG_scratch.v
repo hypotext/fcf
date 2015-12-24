@@ -266,6 +266,13 @@ G1_1 is basically the same as G but just with another monad *)
   Proof.
     unfold PRF_DRBG_G1.
     unfold PRF_DRBG_G1_1.
+    comp_skip.
+
+    fcf_to_prhl_eq.
+    
+    
+    unfold PRF_DRBG. unfold PRF_DRBG_f.
+    unfold PRF_DRBG_f_G1_1.
     
     
   Admitted.
