@@ -30,61 +30,6 @@ What's the simplest and best way to incrementally build this up, combining both 
   - Deal with actual Instantiate
 - Add backtracking resistance and prove that *)
 
-Section OracleHybrid.
-
-Variable A B State : Set.       (* Why not Type? *)
-Hypothesis eqdb : EqDec B.
-Hypothesis eqdState : EqDec State.
-
-(* What we actually proved here: 
-given that O1 and O2 are close (that is, Game i and Game i+1 are close)
-then if the adversary can query O1 or O2 q times, the two chains of outputs are indistinguishable
-"adversary attempts to distinguish them with at most q (polynomial) queries"
-proven via hybrid argument *)
-
-(* oracle(s) *)
-Variable O1 O2 : State -> A -> Comp (B * State). (* why Comp? *)
-(* would I have to prove these and the adv. well-formed hypotheses? *)
-Hypothesis O1_wf : forall s a, well_formed_comp (O1 s a).
-Hypothesis O2_wf : forall s a, well_formed_comp (O2 s a).
-
-(* concrete oracle = generate then update *)
-
-(* adversary *)
-Variable A1 : OracleComp A B bool. (* TODO, write out this type *)
-(* is a computation that involves an oracle. the computation can involve runs, rets, and binds. the oracle is of type A -> B with state, and the result of the computation returns bool *)
-Hypothesis A1_wf : well_formed_oc A1.
-
-Variable q : nat.
-Hypothesis A1_qam : queries_at_most A1 q.
-(* queries at most what? anything? *)
-
-Variable s : State.             (* initial state *)
-
-(* game 1 *)
-Definition G1 :=
-  [b, _] <-$2 A1 _ _ O1 s;
-  ret b.
-
-(* game 2 *)
-Definition G2 :=
-  [b, _] <-$2 A1 _ _ O2 s;
-  ret b.
-
-(* oracle i *)
-Definition Oi (i : nat) (sn : nat * State) (a : A) : Comp (B * (nat * State)) :=
-  [numCalls, s] <-2 sn;
-  let O_choose := if ge_dec numCalls i then O2 else O1 in
-  [x, s'] <-$2 O_choose s a;
-  ret (x, (S numCalls, s')).
-
-(* game i *)
-Definition Gi (i : nat) :=
-  [b, _] <-$2 A1 _ _ (Oi i) (O, s);
-  ret b.
-
-End OracleHybrid.
-
 Local Open Scope list_scope.
 Local Opaque evalDist.
 
@@ -126,7 +71,6 @@ Fixpoint PRF_DRBG (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) *
   end.
 
 (* Generate + Update *)
-
 (* This has oracle type:
 state: k, v
 input: n
@@ -152,7 +96,7 @@ Definition GenUpdate (state : KV) (n : nat) :
   v'' <- f k' v';
   ret (bits, (k', Vector.to_list v'')).
 
-(* oracle 2: all PRFs replaced with random bits TODO *)
+(* oracle 2: all PRFs replaced with random bits *)
 (* TODO: intermediate oracles, each with random functions *)
 
 Fixpoint PRF_DRBG_rb (k : Bvector eta) (v : Blist) (n : nat)
@@ -194,12 +138,7 @@ Definition G2_prg : Comp bool :=
   [b, _] <-$2 A _ _ GenUpdate_rb (k, v);
   ret b.
 
-(* (* oracle i *)
-Definition Oi (i : nat) (sn : nat * State) (a : A) : Comp (B * (nat * State)) :=
-  [numCalls, s] <-2 sn;
-  let O_choose := if ge_dec numCalls i then O2 else O1 in
-  [x, s'] <-$2 O_choose s a;
-  ret (x, (S numCalls, s')). *)
+(* oracle i *)
 
 Definition Oi_prg (i : nat) (sn : nat * KV) (n : nat)
   : Comp (list (Bvector eta) * (nat * KV)) :=
@@ -213,9 +152,9 @@ Definition Gi_prg (i : nat) : Comp bool :=
   [b, _] <-$2 A _ _ (Oi_prg i) (O, (k, v));
   ret b.
 
-(* base case (adam's) *)
+(* base case (adam's) TODO *)
 
-(* inductive case (with inductive hypothesis) *)
+(* inductive case (with inductive hypothesis) TODO *)
 
 (* final theorem *)
 Check PRF_Advantage.
@@ -224,6 +163,10 @@ Check PRF_Advantage.
 i guess we just use the adversary we have already 
 also, the PRF_A shows up in almost every subsequent game *)
 
+(* (f k, v) instead of (k, v) *)
+Definition State := ((Blist -> Bvector eta) * Blist)%type.
+
+(* TODO: change these to use new State *)
 Fixpoint PRF_DRBG_oc (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) * Blist :=
   match n with
   | O => (nil, v)
@@ -241,10 +184,8 @@ Definition GenUpdate_oc (state : KV) (n : nat) :
   v'' <- f k' v';
   ret (bits, (k', Vector.to_list v'')).
 
-(* (f k, v) instead of (k, v) *)
-Definition State := ((Blist -> Bvector eta) * Blist)%type.
-
-Parameter GenUpdate_oc' : State -> nat -> OracleComp Blist (Bvector eta) (list (Bvector eta) * State).
+Parameter GenUpdate_oc' :
+  State -> nat -> OracleComp Blist (Bvector eta) (list (Bvector eta) * State).
 
 Check A.                        (* OracleComp nat (list (Bvector eta)) bool *)
 Check OC_Run.
@@ -264,16 +205,15 @@ PRF_A should not be able to see or choose the key. Can it see or choose the v?
 The problem is that using OC_Run requires the PRF_Adv to give and get the GenUpdate state, since that's an oracle computation? *)
 
 Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool :=
-  (* but if i make GenUpdate an OracleComp, then A won't accept it?? *)
+  (* but if i make GenUpdate an OracleComp, then A won't accept it? *)
   (* how to NOT give it access to the initial key? *)
-  (* v <--$ RndV; (* can't seem to mix Comp and OracleComp? should it be able to see v? choose v? *) *)
+  (* v <--$ RndV; (* can't seem to mix Comp and OracleComp. should it be able to see v? choose v? *) *)
   (* can I name the input oracle that is "f k" and pass it in here? *)
   [b, _] <--$2 OC_Run _ _ _ A GenUpdate_oc' (f k, v);
-  (* theoretically here the PRF_adversary would have access to the final (updated) key...
+  (* theoretically here the PRF_adversary would have access to the final (updated) key.
    would that matter? *)
   (* should I modify GenUpdate_oc to not take the key as state in/out? *)
   $ (ret b).
-  (* A _ _ GenUpdate (k, v). *)
 
 Definition PRF_Advantage_ : Rat := PRF_Advantage RndK ({0,1}^eta) f _ _ PRF_Adversary.
 
@@ -288,7 +228,7 @@ Proof.
 
 Admitted.
 
-
+(* final theorem *)
 Theorem G1_G2_close :
   (* TODO: constructed PRF adversary *)
   (* | Pr[G1_prg] - Pr[G2_prg] | <= (q / 1) * (PRF_Advantage RndK ({0,1}^eta) f _ _ ). *)
@@ -297,7 +237,7 @@ Proof.
 
 Admitted.
 
-  (* Our proof:
+  (* Notes on our proof:
 
 G1: (assume instantiate ideal), then the adversary can query Generate+Update as many times as they want. all are done with PRF.
 
@@ -351,4 +291,23 @@ but also the induction hypothesis that K and V have been randomly sampled
 -- maybe we can change it?
 since we aren't dealing with anything in the previous call at the random function level
 unless we aggregate all of them into a list?
+
+pr[collisions] is a function of the number of times RF1 was called, which is n+1
+(can we still find pr[collisions] using the list way?)
+does pr[collisions] rely on the inductive hypothesis?
+
+how would i have redesigned the protocol with proof in mind?
+would resampling v, then K, have worked?
+
+why do we need the induction hypothesis in the current version? (that k, v are randomly sampled) if all the v's are randomly sampled, then the output is random
+
+are we dealing with global collisions b/t the randomly sampled k and v?
+
+can we re-use matt's computational argument and move the re-sampling of v to the top?
+change the inductive hypothesis to just that K has been randomly sampled and the un-updated v has been randomly sampled
+
+then we can prove it again?
+
+unsure how to deal with n+1 in fcf, but also unsure how to make the computational argument w/ inlining programs 
+
  *)
