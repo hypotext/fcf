@@ -103,7 +103,8 @@ Section PRF_DRBG.
   Qed.
 
   (* Step 2: use the PRF as an oracle.  This will allow us to apply the security definition and replace it in the next step.*)
-  Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :=
+  Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
+    OracleComp D (Bvector eta) (list (Bvector eta)) :=
     match n with
         | O => $ ret nil
         | S n' => 
@@ -112,9 +113,13 @@ Section PRF_DRBG.
                 $ ret (r :: ls')
     end.
 
-  (* The constructed adversary against the PRF. *)
+  (* The constructed adversary against the PRF.
+(takes something of type D -> Bvector eta, tries to guess whether it's RF or PRF)
+the adversary can know the initial v, but not the K
+   *)
   Definition PRF_A : OracleComp D (Bvector eta) bool :=
-    (ls <--$ PRF_DRBG_f_G2 v_init l; $ A ls).
+    ls <--$ PRF_DRBG_f_G2 v_init l;
+    $ A ls.
 
 Check A.                        (* A : list (Bvector eta) -> Comp bool *)
 (* TODO A isn't an OracleComp here but for mine it should probably be an oracle b/c of the hidden K,V state *)

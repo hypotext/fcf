@@ -220,11 +220,70 @@ Definition Gi_prg (i : nat) : Comp bool :=
 (* final theorem *)
 Check PRF_Advantage.
 
-Variable PRF_Adv : Rat.
+(* Should it be against GenUpdate or PRF_DRBG? breaking either implies breaking the PRF
+i guess we just use the adversary we have already 
+also, the PRF_A shows up in almost every subsequent game *)
+
+Fixpoint PRF_DRBG_oc (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) * Blist :=
+  match n with
+  | O => (nil, v)
+  | S n' =>
+    let v' := f k v in
+    let (bits, v'') := PRF_DRBG k (Vector.to_list v') n' in
+    (v' :: bits, v'')
+  end.
+
+Definition GenUpdate_oc (state : KV) (n : nat) :
+  Comp (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  [bits, v'] <-2 PRF_DRBG k v n;
+  k' <- f k (v' ++ zeroes);
+  v'' <- f k' v';
+  ret (bits, (k', Vector.to_list v'')).
+
+(* (f k, v) instead of (k, v) *)
+Definition State := ((Blist -> Bvector eta) * Blist)%type.
+
+Parameter GenUpdate_oc' : State -> nat -> OracleComp Blist (Bvector eta) (list (Bvector eta) * State).
+
+Check A.                        (* OracleComp nat (list (Bvector eta)) bool *)
+Check OC_Run.
+Parameter init : KV.
+Print OracleComp.
+Parameter k : Bvector eta.
+Parameter v : Blist.
+
+Hypothesis eds : EqDec State.
+
+  (* [k, v] <-$2 Instantiate;      (* is this right? no, key instantiated in game *) *)
+
+(* intuitively, what I want is to give PRF_Adversary an oracle (f k). It will plug it into GenUpdate that uses that oracle, then give the resulting function to the GenUpdate adversary A, and return what it outputs.
+
+PRF_A should not be able to see or choose the key. Can it see or choose the v?
+
+The problem is that using OC_Run requires the PRF_Adv to give and get the GenUpdate state, since that's an oracle computation? *)
+
+Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool :=
+  (* but if i make GenUpdate an OracleComp, then A won't accept it?? *)
+  (* how to NOT give it access to the initial key? *)
+  (* v <--$ RndV; (* can't seem to mix Comp and OracleComp? should it be able to see v? choose v? *) *)
+  (* can I name the input oracle that is "f k" and pass it in here? *)
+  [b, _] <--$2 OC_Run _ _ _ A GenUpdate_oc' (f k, v);
+  (* theoretically here the PRF_adversary would have access to the final (updated) key...
+   would that matter? *)
+  (* should I modify GenUpdate_oc to not take the key as state in/out? *)
+  $ (ret b).
+  (* A _ _ GenUpdate (k, v). *)
+
+Definition PRF_Advantage_ : Rat := PRF_Advantage RndK ({0,1}^eta) f _ _ PRF_Adversary.
+
+Definition Pr_collisions n := n^2 / 2^eta.
+
+Definition game_bound := (2/1) * PRF_Advantage_ + (Pr_collisions q).
 
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
-  | Pr[Gi_prg O] - Pr[Gi_prg q] | <= (q / 1) * PRF_Adv.
+  | Pr[Gi_prg O] - Pr[Gi_prg q] | <= game_bound.
 Proof.
 
 Admitted.
@@ -233,7 +292,7 @@ Admitted.
 Theorem G1_G2_close :
   (* TODO: constructed PRF adversary *)
   (* | Pr[G1_prg] - Pr[G2_prg] | <= (q / 1) * (PRF_Advantage RndK ({0,1}^eta) f _ _ ). *)
-  | Pr[G1_prg] - Pr[G2_prg] | <= (q / 1) * PRF_Adv.
+  | Pr[G1_prg] - Pr[G2_prg] | <= (q / 1) * game_bound.
 Proof.
 
 Admitted.
