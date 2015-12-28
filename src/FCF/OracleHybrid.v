@@ -6,7 +6,7 @@ Require Import FCF.
 Require Import RndInList. 
 
 Section OracleHybrid.
-
+,
   Variable A B State : Set.
   (* At one point in the proof, we need to know that B is inhabited *)
   Variable b : B. 
@@ -67,34 +67,6 @@ So G1 = G_0 = (Gi q) and G2 = G_q = (Gi 0) *)
   Hypothesis Gi_Si_close : 
     forall i,
   | Pr[Gi i] - Pr[Gi (S i)] | <= k. (* G_i and G_{i+1} are close *)
-
-
-  (* Our proof:
-
-G1: (assume instantiate ideal), then the adversary can query Generate+Update as many times as they want. all are done with PRF.
-
-G2: (assume instantiate ideal), then the adversary can query Generate+Update as many times as they want. all are done with random sampling.
-
-Gi i: (assume instantiate ideal), then the adversary can query Generate+Update as many times as they want (q). the first i calls are done with random sampling, the rest are done normally, with PRF.
-
-(* 
-- replace PRF updating K with a random function first, then replace that with randomly-sampled bits
-- then replace PRF updating V with a random function, then replace that with randomly-sampled bits
-  (instead of replacing the PRF for both K and V at the same time)
-- the result will have an extra q * PRF_Advantage in the final bound. *)
-
-Oi: Generate+Update: modified version of PRG that does Generate n + Update with random sampling if < i, and PRF otherwise
-
-G_i_si_close: inductive hypothesis:
-
-given that K and V are randomly sampled (?),
-| Pr[G_i] - Pr[G_{i+1}] | <= PRF_advantage + Pr[collisions]
-^ more formally, what is PR[collisions]? 
-
-TODO: the new game
-
-*)
-  
 
   (* Step 1: show that G1 is the same as (Gi q).  This is actually the most complicated part of this proof. *)
 

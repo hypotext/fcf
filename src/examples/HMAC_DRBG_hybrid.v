@@ -8,7 +8,6 @@ Require Import CompFold.
 Require Import PRF.
 
   (* TODO:
-What's the simplest and best way to incrementally build this up, combining both proofs?
 
 - Blist definitions X
 - New for PRF-DRBG etc functions (instantiate, generate, update) X
@@ -17,7 +16,7 @@ What's the simplest and best way to incrementally build this up, combining both 
 
 - Write the initial game and final game X
 - Write the game i X
-- Write the theorem statements (final theorem, inductive hypothesis)
+- Write the theorem statements (final theorem, inductive hypothesis) (in progress)
 
 - Prove G1 = Gi 0 and G2 = Gi q
 - Prove the theorems:
@@ -36,7 +35,7 @@ Local Opaque evalDist.
 Section PRG.
 
   (* note: the domain of the f is now Blist, not an abstract D
-   note: the key type is now also Bvector eta, since HMAC specifies that the key has the same size as the output (simplified) *)
+the key type is now also Bvector eta, since HMAC specifies that the key has the same size as the output (simplified) *)
 Variable eta : nat.
 
 Variable RndK : Comp (Bvector eta).
@@ -54,19 +53,18 @@ Hypothesis injD_correct :
 
 (* PRG functions *)
 
-(* instantiate *)
 Definition Instantiate : Comp KV :=
   k <-$ RndK;
   v <-$ RndV;
   ret (k, v).
 
-(* save the last v and output it *)
-Fixpoint PRF_DRBG (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) * Blist :=
+(* save the last v and output it as part of the state *)
+Fixpoint Gen_loop (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) * Blist :=
   match n with
   | O => (nil, v)
   | S n' =>
     let v' := f k v in
-    let (bits, v'') := PRF_DRBG k (Vector.to_list v') n' in
+    let (bits, v'') := Gen_loop k (Vector.to_list v') n' in
     (v' :: bits, v'')
   end.
 
@@ -91,28 +89,39 @@ Definition zeroes : list bool := replicate 8 true.
 Definition GenUpdate (state : KV) (n : nat) :
   Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  [bits, v'] <-2 PRF_DRBG k v n;
+  [bits, v'] <-2 Gen_loop k v n;
   k' <- f k (v' ++ zeroes);
   v'' <- f k' v';
   ret (bits, (k', Vector.to_list v'')).
 
+(* want to change to this, and prove the outputs are the same. 
+the other GenUpdates don't use this version *)
+(* TODO convert Gen_loop to use v as (Bvector eta) *)
+(* Definition GenUpdate_v (state : KV) (n : nat) :
+  Comp (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  v' <- f k v;
+  [bits, v''] <-2 Gen_loop k v' n;
+  k' <- f k (v'' ++ zeroes);
+  ret (bits, (k', v'')). *)
+
 (* oracle 2: all PRFs replaced with random bits *)
 (* TODO: intermediate oracles, each with random functions *)
 
-Fixpoint PRF_DRBG_rb (k : Bvector eta) (v : Blist) (n : nat)
+Fixpoint Gen_loop_rb (k : Bvector eta) (v : Blist) (n : nat)
   : Comp (list (Bvector eta) * Blist) :=
   match n with
   | O => ret (nil, v)
   | S n' =>
     v' <-$ {0,1}^eta;
-    [bits, v''] <-$2 PRF_DRBG_rb k (Vector.to_list v') n';
+    [bits, v''] <-$2 Gen_loop_rb k (Vector.to_list v') n';
     ret (v' :: bits, v'')
   end.
 
 Definition GenUpdate_rb (state : KV) (n : nat) 
   : Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  [bits, v'] <-2 PRF_DRBG k v n;
+  [bits, v'] <-2 Gen_loop k v n;
   k' <-$ {0,1}^eta;
   v'' <-$ {0,1}^eta;
   ret (bits, (k', Vector.to_list v'')).
@@ -131,7 +140,7 @@ Definition G1_prg : Comp bool :=
   [b, _] <-$2 A _ _ GenUpdate (k, v);
   ret b.
 
-(* TODO: intermediate games with RF and RB *)
+(* TODO: intermediate games with random functions and random bits *)
 
 Definition G2_prg : Comp bool :=
   [k, v] <-$2 Instantiate;
@@ -139,7 +148,6 @@ Definition G2_prg : Comp bool :=
   ret b.
 
 (* oracle i *)
-
 Definition Oi_prg (i : nat) (sn : nat * KV) (n : nat)
   : Comp (list (Bvector eta) * (nat * KV)) :=
   [numCalls, state] <-2 sn;
@@ -147,19 +155,20 @@ Definition Oi_prg (i : nat) (sn : nat * KV) (n : nat)
   [bits, state'] <-$2 GenUpdate_choose state n;
   ret (bits, (S numCalls, state')).
 
+(* game i *)
 Definition Gi_prg (i : nat) : Comp bool :=
   [k, v] <-$2 Instantiate;
   [b, _] <-$2 A _ _ (Oi_prg i) (O, (k, v));
   ret b.
 
-(* base case (adam's) TODO *)
+(* base case theorem (adam's) TODO *)
 
-(* inductive case (with inductive hypothesis) TODO *)
+(* inductive case theorem (with inductive hypothesis) TODO *)
 
 (* final theorem *)
 Check PRF_Advantage.
 
-(* Should it be against GenUpdate or PRF_DRBG? breaking either implies breaking the PRF
+(* Should it be against GenUpdate or Gen_loop? breaking either implies breaking the PRF
 i guess we just use the adversary we have already 
 also, the PRF_A shows up in almost every subsequent game *)
 
@@ -167,19 +176,19 @@ also, the PRF_A shows up in almost every subsequent game *)
 Definition State := ((Blist -> Bvector eta) * Blist)%type.
 
 (* TODO: change these to use new State *)
-Fixpoint PRF_DRBG_oc (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) * Blist :=
+Fixpoint Gen_loop_oc (k : Bvector eta) (v : Blist) (n : nat) : list (Bvector eta) * Blist :=
   match n with
   | O => (nil, v)
   | S n' =>
     let v' := f k v in
-    let (bits, v'') := PRF_DRBG k (Vector.to_list v') n' in
+    let (bits, v'') := Gen_loop k (Vector.to_list v') n' in
     (v' :: bits, v'')
   end.
 
 Definition GenUpdate_oc (state : KV) (n : nat) :
   Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  [bits, v'] <-2 PRF_DRBG k v n;
+  [bits, v'] <-2 Gen_loop k v n;
   k' <- f k (v' ++ zeroes);
   v'' <- f k' v';
   ret (bits, (k', Vector.to_list v'')).
@@ -219,7 +228,8 @@ Definition PRF_Advantage_ : Rat := PRF_Advantage RndK ({0,1}^eta) f _ _ PRF_Adve
 
 Definition Pr_collisions n := n^2 / 2^eta.
 
-Definition game_bound := (2/1) * PRF_Advantage_ + (Pr_collisions q).
+(* may need to update this w/ new proof *)
+Definition game_bound := PRF_Advantage_ + (Pr_collisions q).
 
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
@@ -239,6 +249,17 @@ Admitted.
 
   (* Notes on our proof:
 
+Show GenUpdate's output indistinguishable from the output of this version, with v updated first: 
+
+  v' <- f k v;
+  [bits, v''] <-2 Gen_loop k v' n;
+  k' <- f k (v'' ++ zeroes);
+  ret (bits, (k', v'')).
+
+(won't be exactly the same since v is updated an extra time in the beginning -- unless we only change all GenUpdate oracles after the first one, according to i in the ith game)
+
+---
+
 G1: (assume instantiate ideal), then the adversary can query Generate+Update as many times as they want. all are done with PRF.
 
 G2: (assume instantiate ideal), then the adversary can query Generate+Update as many times as they want. all are done with random sampling.
@@ -247,17 +268,11 @@ Gi i: (assume instantiate ideal), then the adversary can query Generate+Update a
 
 Gi_0: the game as-is (PRF)
 
-Gi_1: replace PRF updating K with a random function first 
+Gi_1: replace PRF, updating K with a random function 
+      replace PRF, updating V with a random function 
 
-** here: should the oracle keep track of all calls to the RF over all calls to GenUpdate?
-
-Gi_2: replace RF updating K with randomly-sampled bits
-
-Gi_3: replace PRF updating K with a random function first 
-
-Gi_4: replace RF updating K with randomly-sampled bits
-  (Gi_3 and 4: done instead of replacing the PRF for both K and V at the same time.
-   the result will have an extra q * PRF_Advantage in the final bound)
+Gi_2: replace RF, updating K with randomly-sampled bits
+      replace RF, updating V with randomly-sampled bits
 
 ---
 
@@ -267,47 +282,10 @@ G_i_si_close: inductive hypothesis:
 
 given that K and V are randomly sampled,
 | Pr[G_i] - Pr[G_{i+1}] | <= PRF_advantage + Pr[collisions]
-              or is it <= 2 * (PRF_advantage + Pr[collisions]) ?
-              or <= 2 * PRF_advantage + Pr[collisions] ?
+(note that the randomly sampled V is first updated AGAIN in the new version of GenUpdate)
 
 Pr[collisions] = 
 "probability that /given the maximum input size n to any call/, the RF will be called on two identical inputs within the same oracle call"
 
 the RF used both within the Generate loop and outside to generate the key?
-but K <- RF(K, V || 0x00) so there can't be any collision within this call?
-
-in the previous call, we have 
-V_{n+1} <- RF(K_n, V_n)
-
-Generate for x blocks:
-V_{n+1} through V_{n+1 + x} <-- each one is random
-
-then
-K_{n+1} <- RF(K_n, V_{n+1 + x} || 0x00)
-
-so we aren't using the list tactic anymore
-
-but also the induction hypothesis that K and V have been randomly sampled
--- maybe we can change it?
-since we aren't dealing with anything in the previous call at the random function level
-unless we aggregate all of them into a list?
-
-pr[collisions] is a function of the number of times RF1 was called, which is n+1
-(can we still find pr[collisions] using the list way?)
-does pr[collisions] rely on the inductive hypothesis?
-
-how would i have redesigned the protocol with proof in mind?
-would resampling v, then K, have worked?
-
-why do we need the induction hypothesis in the current version? (that k, v are randomly sampled) if all the v's are randomly sampled, then the output is random
-
-are we dealing with global collisions b/t the randomly sampled k and v?
-
-can we re-use matt's computational argument and move the re-sampling of v to the top?
-change the inductive hypothesis to just that K has been randomly sampled and the un-updated v has been randomly sampled
-
-then we can prove it again?
-
-unsure how to deal with n+1 in fcf, but also unsure how to make the computational argument w/ inlining programs 
-
- *)
+but K <- RF(K, V || 0x00) so there can't be any collision within this call? *)
