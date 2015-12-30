@@ -6,7 +6,7 @@ Require Import FCF.
 Require Import RndInList. 
 
 Section OracleHybrid.
-,
+
   Variable A B State : Set.
   (* At one point in the proof, we need to know that B is inhabited *)
   Variable b : B. 
