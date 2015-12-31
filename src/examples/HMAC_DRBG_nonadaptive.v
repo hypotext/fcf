@@ -210,6 +210,26 @@ Definition Gi_prg (i : nat) : Comp bool :=
 
 (* For PRF adversary *)
 
+(* Working on this. Outline:
+(need the types of all of these to fit together)
+
+Gen_loop_oc: takes an oracle in place of (f k)
+
+GenUpdate_oc: takes an oracle in place of (f k)
+
+Oi_prg_rf: if n > i then query GenUpdate_rb, OC version
+           else if n = i then query Gen_loop_oc with the given oracle (RF)
+           else query GenUpdate, OC version
+
+PRF_Adversary (?): should query the given oracle q times and pass the result to the GenUpdate adversary?
+  difficulty: implicit oracle? 
+
+Gi_prg_rf: should give the PRF_Adversary the Oi_prg_rf oracle with the nested random function oracle, and return what PRF_Adversary returns
+
+PRF_Advantage: defined in terms of PRF_Adversary (different type?)
+ *)
+
+
 Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
   : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * Bvector eta) :=
   match n with
@@ -252,27 +272,45 @@ Check GenUpdate_oc x O _ eqdkv.
  while it is expected to have type
  "KV -> list bool -> Comp (Bvector eta * KV)". *)
 
-Definition Oi_prg_rf (i : nat) (sn : nat * KV) (n : nat)
-  : Comp (list (Bvector eta) * (nat * KV)) :=
-  [numCalls, state] <-2 sn;
-  [k, v] <-2 state;
-  let GenUpdate_choose := (* if ge_dec numCalls i *)
-                          (* then GenUpdate_rb_intermediate *)
-                          (* (* first call does not update v, to make proving equiv. easier*) *)
-                          (* else if beq_nat i numCalls then GenUpdate_oc *)
-                          (* else if beq_nat i O then GenUpdate_noV *)
-                          (*      else GenUpdate in *)
-      GenUpdate_oc in
-  (* note: have to use intermediate, not final GenUpdate_rb here *)
-  [bits, state'] <-$2 GenUpdate_choose v n _ _ ((randomFunc ({0,1}^eta) _) nil);
-    (* one oracle is randomFunc, one is F *)
-  ret (bits, (S numCalls, state')).
+(* nested oracles *)
+(* Definition Oi_prg_rf (i : nat) (sn : nat * KV) (n : nat) *)
+(*   : Comp (list (Bvector eta) * (nat * KV)) := *)
+(*   [numCalls, state] <-2 sn; *)
+(*   [k, v] <-2 state; *)
+(*   let GenUpdate_choose := (* if ge_dec numCalls i *) *)
+(*                           (* then GenUpdate_rb_intermediate *) *)
+(*                           (* (* first call does not update v, to make proving equiv. easier*) *) *)
+(*                           (* else if beq_nat i numCalls then GenUpdate_oc *) *)
+(*                           (* else if beq_nat i O then GenUpdate_noV *) *)
+(*                           (*      else GenUpdate in *) *)
+(*       GenUpdate_oc in *)
+(*   (* note: have to use intermediate, not final GenUpdate_rb here *) *)
+(*   [bits, state'] <-$2 GenUpdate_choose v n _ _ ((randomFunc ({0,1}^eta) _) nil); *)
+(*     (* one oracle is randomFunc, one is F *) *)
+(*   ret (bits, (S numCalls, state')). *)
+
+Parameter Oi_prg_rf : nat -> nat * KV -> nat -> Comp (list (Bvector eta) * (nat * KV)).
+
+(* f : Bvector eta -> Blist -> Bvector eta *)
+(* this should get the result (passing in o) and return the result of the GenUpdate oracle *)
+(* Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool := *)
+   (* [bits, _] <-2 oracleMap ... given oracle (opaque initial state?) maxCallsAndBlocks  *)
+   (* A bits. (this is a game, though?) *)
+
+    (* ls <--$ PRF_DRBG_f_G2 v_init l; *)
+    (* $ A ls.  *)
+Parameter PRF_Adversary : OracleComp Blist (Bvector eta) bool.
+(* the type will be different given that we're giving it Oi_prg, not f_oracle *)
+(* confused: there has to be a RF oracle slot for GenUpdate_oc, but there also has to be (k,v) for the GenUpdate oracle -- unless that is (f k)? *)
 
 Definition Gi_prg_rf (i : nat) : Comp bool :=
-  [k, v] <-$2 Instantiate;
-  [bits, _] <-$2 oracleMap _ _ (Oi_prg i) (O, (k, v)) maxCallsAndBlocks;
-  A bits.
-
+    (* we should give PRF_A the (Oi_prg i) that has been given the random function oracle *)
+  (* [k, v] <-$2 Instantiate; *)
+  (* [bits, _] <-$2 oracleMap _ _ (Oi_prg i) (O, (k, v)) maxCallsAndBlocks; *)
+  (* A bits. *)
+  (* OracleComp should take care of PRF_adversary not being able to see (O, (k, v)) *)
+    [b, _] <-$2 PRF_Adversary _ _ (Oi_prg i ((randomFunc ({0,1}^eta) _) nil) (O, (k, v));
+    ret b.
 
 (*   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
     OracleComp D (Bvector eta) (list (Bvector eta)) :=
@@ -281,8 +319,7 @@ Definition Gi_prg_rf (i : nat) : Comp bool :=
         | S n' => 
           r <--$ (OC_Query _ v);
             ls' <--$ (PRF_DRBG_f_G2 (injD r) n');
-                $ ret (r :: ls')
-    end.
+                $ ret (r :: ls')    end.
 
   (* The constructed adversary against the PRF.
 (takes something of type D -> Bvector eta, tries to guess whether it's RF or PRF)
@@ -295,10 +332,6 @@ the adversary can know the initial v, but not the K
   Definition PRF_DRBG_G3 :=
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b. *)
-
-(* f : Bvector eta -> Blist -> Bvector eta *)
-Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool :=
-  ls <--$ GenUpdate_oc 
 
 Definition PRF_Advantage_ : Rat := PRF_Advantage RndK ({0,1}^eta) f _ _ PRF_Adversary.
 
