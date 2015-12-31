@@ -91,6 +91,7 @@ Definition zeroes : list bool := replicate 8 true.
 
 (* oracle 1 *)
 
+(* do not use *)
 Definition GenUpdate_original (state : KV) (n : nat) :
   Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
@@ -111,6 +112,7 @@ Definition GenUpdate (state : KV) (n : nat) :
   k' <- f k (to_list v' ++ zeroes);
   ret (bits, (k', v'')).
 
+(* use this for the first call *)
 Definition GenUpdate_noV (state : KV) (n : nat) :
   Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
@@ -191,29 +193,112 @@ Check G1_G2_close.
 Definition Oi_prg (i : nat) (sn : nat * KV) (n : nat)
   : Comp (list (Bvector eta) * (nat * KV)) :=
   [numCalls, state] <-2 sn;
-  let GenUpdate_choose := if ge_dec numCalls i
-                          then GenUpdate_rb_intermediate else GenUpdate in
+  let GenUpdate_choose := if ge_dec numCalls i (* numCalls >= i *)
+                          then GenUpdate_rb_intermediate
+                          (* first call does not update v, to make proving equiv. easier*)
+                          else if beq_nat numCalls O then GenUpdate_noV
+                               else GenUpdate in
   (* note: have to use intermediate, not final GenUpdate_rb here *)
   [bits, state'] <-$2 GenUpdate_choose state n;
   ret (bits, (S numCalls, state')).
 
-(* game i *)
-
+(* game i (Gi q = G1 and Gi 0 = G2) *)
 Definition Gi_prg (i : nat) : Comp bool :=
   [k, v] <-$2 Instantiate;
   [bits, _] <-$2 oracleMap _ _ (Oi_prg i) (O, (k, v)) maxCallsAndBlocks;
   A bits.
 
-(* base case theorem (adam's) TODO *)
+(* For PRF adversary *)
 
-(* inductive case theorem (with inductive hypothesis) TODO *)
+Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
+  : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * Bvector eta) :=
+  match n with
+  | O => $ ret (nil, v)
+  | S n' =>
+    v' <--$ (OC_Query _ (to_list v));
+    [bits, v''] <--$2 Gen_loop_oc v' n';
+    $ ret (v' :: bits, v'')
+  end.
 
-(* final theorem *)
+Definition GenUpdate_oc (v_0 : Bvector eta) (n : nat) :
+  OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  v <--$ (OC_Query _ (to_list v_0));
+  [bits, v'] <--$2 Gen_loop_oc v n;
+  k' <--$ (OC_Query _ (to_list v' ++ zeroes));
+  $ ret (bits, (k', v')).
 
-(* Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool := *)
-(*   $ ret bool. *)
+Check GenUpdate.                (* KV -> nat -> Comp (list (Bvector eta) * KV) *)
 
-Parameter PRF_Adversary : OracleComp Blist (Bvector eta) bool.
+(* TODO: everything else needs to be converted to GenUpdate_noV's type *)
+
+(* The term "randomFunc ({ 0 , 1 }^eta) eqDecState nil state" has type
+ "Comp (Bvector eta * list (KV * Bvector eta))"
+ while it is expected to have type
+ "KV -> list bool -> Comp (Bvector eta * KV)". *)
+
+Check GenUpdate_oc.
+Parameter x : Bvector eta.
+Parameter f' : list bool -> Bvector eta.
+
+Hypothesis eqdbl : EqDec Blist.
+
+Check ((randomFunc ({0,1}^eta) eqdbl) nil).
+  (* KV -> Comp (Bvector eta * list (KV * Bvector eta)) *)
+
+Hypothesis eqdkv : EqDec KV.
+
+Check GenUpdate_oc x O _ eqdkv.
+(* The term "f'" has type "list bool -> Bvector eta"
+ while it is expected to have type
+ "KV -> list bool -> Comp (Bvector eta * KV)". *)
+
+Definition Oi_prg_rf (i : nat) (sn : nat * KV) (n : nat)
+  : Comp (list (Bvector eta) * (nat * KV)) :=
+  [numCalls, state] <-2 sn;
+  [k, v] <-2 state;
+  let GenUpdate_choose := (* if ge_dec numCalls i *)
+                          (* then GenUpdate_rb_intermediate *)
+                          (* (* first call does not update v, to make proving equiv. easier*) *)
+                          (* else if beq_nat i numCalls then GenUpdate_oc *)
+                          (* else if beq_nat i O then GenUpdate_noV *)
+                          (*      else GenUpdate in *)
+      GenUpdate_oc in
+  (* note: have to use intermediate, not final GenUpdate_rb here *)
+  [bits, state'] <-$2 GenUpdate_choose v n _ _ ((randomFunc ({0,1}^eta) _) nil);
+    (* one oracle is randomFunc, one is F *)
+  ret (bits, (S numCalls, state')).
+
+Definition Gi_prg_rf (i : nat) : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [bits, _] <-$2 oracleMap _ _ (Oi_prg i) (O, (k, v)) maxCallsAndBlocks;
+  A bits.
+
+
+(*   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
+    OracleComp D (Bvector eta) (list (Bvector eta)) :=
+    match n with
+        | O => $ ret nil
+        | S n' => 
+          r <--$ (OC_Query _ v);
+            ls' <--$ (PRF_DRBG_f_G2 (injD r) n');
+                $ ret (r :: ls')
+    end.
+
+  (* The constructed adversary against the PRF.
+(takes something of type D -> Bvector eta, tries to guess whether it's RF or PRF)
+the adversary can know the initial v, but not the K
+   *)
+  Definition PRF_A : OracleComp D (Bvector eta) bool :=
+    ls <--$ PRF_DRBG_f_G2 v_init l;
+    $ A ls. 
+
+  Definition PRF_DRBG_G3 :=
+    [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
+    ret b. *)
+
+(* f : Bvector eta -> Blist -> Bvector eta *)
+Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool :=
+  ls <--$ GenUpdate_oc 
 
 Definition PRF_Advantage_ : Rat := PRF_Advantage RndK ({0,1}^eta) f _ _ PRF_Adversary.
 
@@ -221,6 +306,8 @@ Definition Pr_collisions n := n^2 / 2^eta.
 
 (* may need to update this w/ new proof *)
 Definition game_bound := PRF_Advantage_ + (Pr_collisions numCalls).
+
+(* base case theorem (adam's) TODO *)
 
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)

@@ -264,8 +264,12 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b.
 Check (randomFunc ({0,1}^eta)).
+Print randomFunc.
 
 Print PRF_A.
+Check PRF_A.
+
+(* PRF_Advantage RndKey ({ 0 , 1 }^eta) f D_EqDec (Bvector_EqDec eta) PRF_A *)
 
   Theorem PRF_DRBG_G2_G3_close : 
     | Pr[PRF_DRBG_G2] - Pr[PRF_DRBG_G3] | <= PRF_Advantage RndKey ({0,1}^eta) f _ _ PRF_A.
