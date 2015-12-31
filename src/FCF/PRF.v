@@ -9,9 +9,13 @@ Require Export Array.
 Local Open Scope list_scope.
 Local Open Scope array_scope.
 
-Definition oracleMap(D R S: Set)(eqds : EqDec S)(eqdr : EqDec R)(oracle : S  -> D -> Comp (R * S))(s : S)(ds : list D) :=
+Definition oracleMap (D R S: Set) (eqds : EqDec S) (eqdr : EqDec R)
+           (oracle : S  -> D -> Comp (R * S)) (s : S) (ds : list D) :=
   compFold _ 
-  (fun acc d => [rs, s] <-2 acc; [r, s] <-$2 oracle s d; ret (rs ++ r :: nil, s)) 
+  (fun acc d =>
+     [rs, s] <-2 acc;
+     [r, s] <-$2 oracle s d;
+     ret (rs ++ r :: nil, s)) 
   (nil, s) ds.
 
 Theorem oracleMap_wf : 
