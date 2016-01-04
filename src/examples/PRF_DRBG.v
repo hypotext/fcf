@@ -205,10 +205,9 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
      induction n; intuition; simpl in *.
 
      fcf_simp.
-     (* Print Ltac comp_spec_ret. *) (* ? *)
      fcf_spec_ret.
 
-     fcf_skip.                  (* they are equiv to what specification? *)
+     fcf_skip.
      unfold f_oracle.           (* * *)
 
      (* we are left with a unification variable for the specification, we can supply a value for it by specializing the appropriate theorem. *)
@@ -216,7 +215,7 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
      trivial.
 
      (* rest of proof *)
-     simpl in *.                (* why do the hypotheses simplify like that? *)
+     simpl in *.
      intuition.
      subst.
 
@@ -895,11 +894,14 @@ Check PRF_DRBG_f_bad_2.
 
   (* The final security result showing that the advantage of the adversary against the DRBG is at most the advantage of the constructed adversary against the PRF, and some negligible value. *)
 
-  Theorem PRF_DRBG_Adv_small : 
-    DRBG_Advantage RndKey RndOut PRF_DRBG A <=  
+  Theorem PRF_DRBG_Adv_small :
+    (* difference between game START and game END *)
+    DRBG_Advantage RndKey RndOut PRF_DRBG A <=
+    (* advantage of constructed adversary against PRF *)
     PRF_Advantage RndKey ({ 0 , 1 }^eta) f D_EqDec (Bvector_EqDec eta) PRF_A
-    + l ^ 2 / 2 ^ eta.
-
+    + l ^ 2 / 2 ^ eta.          (* probability of collisions in list *)
+  Proof.
+    (* written and checked in Coq proof assistant *)
     intuition.
     unfold DRBG_Advantage.
     rewrite PRF_DRBG_G1_equiv.
@@ -908,7 +910,6 @@ Check PRF_DRBG_f_bad_2.
     eapply ratDistance_le_trans.
     apply PRF_DRBG_G2_G3_close.
     apply PRF_DRBG_G3_G4_close.
-
   Qed.
 
   Print Assumptions PRF_DRBG_Adv_small.
