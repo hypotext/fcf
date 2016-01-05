@@ -229,7 +229,6 @@ Gi_prg_rf (?): should give the PRF_Adversary the Oi_prg_rf oracle with the neste
 PRF_Advantage: defined in terms of PRF_Adversary (different type?)
  *)
 
-
 Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
   : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * Bvector eta) :=
   match n with
@@ -240,114 +239,81 @@ Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
     $ ret (v' :: bits, v'')
   end.
 
-Definition GenUpdate_oc (v_0 : Bvector eta) (n : nat) :
+(* takes in key but doesn't use it, to match the type of other GenUpdates *)
+Definition GenUpdate_oc (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v_0] <-2 state;
   v <--$ (OC_Query _ (to_list v_0));
   [bits, v'] <--$2 Gen_loop_oc v n;
   k' <--$ (OC_Query _ (to_list v' ++ zeroes));
   $ ret (bits, (k', v')).
 
-Check GenUpdate.                (* KV -> nat -> Comp (list (Bvector eta) * KV) *)
+Print Gen_loop.
 
-(* TODO: everything else needs to be converted to GenUpdate_noV's type *)
+(* doesn't use the oracle *)
+Definition GenUpdate_noV_oc (state : KV) (n : nat) :
+  OracleComp (list bool) (Bvector eta)  (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  [bits, v'] <-2 Gen_loop k v n;
+  k' <- f k (to_list v' ++ zeroes);
+  $ ret (bits, (k', v')).
 
-(* The term "randomFunc ({ 0 , 1 }^eta) eqDecState nil state" has type
- "Comp (Bvector eta * list (KV * Bvector eta))"
- while it is expected to have type
- "KV -> list bool -> Comp (Bvector eta * KV)". *)
-
-Check GenUpdate_oc.
-Parameter x : Bvector eta.
-Parameter f' : list bool -> Bvector eta.
-
-Hypothesis eqdbl : EqDec Blist.
-Hypothesis eqdbv : EqDec (Bvector eta).
-
-Check ((randomFunc ({0,1}^eta) eqdbl) nil).
-  (* KV -> Comp (Bvector eta * list (KV * Bvector eta)) *)
-
-Hypothesis eqdkv : EqDec KV.
-
-Check GenUpdate_oc x O _ eqdkv.
-(* The term "f'" has type "list bool -> Bvector eta"
- while it is expected to have type
- "KV -> list bool -> Comp (Bvector eta * KV)". *)
-
-(* nested oracles *)
-(* Definition Oi_prg_rf (i : nat) (sn : nat * KV) (n : nat) *)
-(*   : Comp (list (Bvector eta) * (nat * KV)) := *)
-(*   [numCalls, state] <-2 sn; *)
-(*   [k, v] <-2 state; *)
-(*   let GenUpdate_choose := (* if ge_dec numCalls i *) *)
-(*                           (* then GenUpdate_rb_intermediate *) *)
-(*                           (* (* first call does not update v, to make proving equiv. easier*) *) *)
-(*                           (* else if beq_nat i numCalls then GenUpdate_oc *) *)
-(*                           (* else if beq_nat i O then GenUpdate_noV *) *)
-(*                           (*      else GenUpdate in *) *)
-(*       GenUpdate_oc in *)
-(*   (* note: have to use intermediate, not final GenUpdate_rb here *) *)
-(*   [bits, state'] <-$2 GenUpdate_choose v n _ _ ((randomFunc ({0,1}^eta) _) nil); *)
-(*     (* one oracle is randomFunc, one is F *) *)
-(*   ret (bits, (S numCalls, state')). *)
-(* Parameter Oi_prg_rf : nat -> nat * KV -> nat -> Comp (list (Bvector eta) * (nat * KV)). *)
-
-Check OC_Run.
-
-Parameter Oi_oc : nat -> (Blist -> Comp (Bvector eta * list (Blist * Bvector eta))) (* RF *)
-                  -> nat * KV (* Oi init *)
-                  -> (KV -> Blist -> Comp (Bvector eta * KV)). (* oracle for PRF adv *)
-
-Check Oi_prg.
-Check GenUpdate_oc.
+(* doesn't use the oracle *)
+(* intermediates have unnecessary state and updating of the state to match earlier ones *)
+Definition GenUpdate_rb_intermediate_oc (state : KV) (n : nat) 
+  : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  v'' <--$ $ {0,1}^eta;
+  [bits, v'] <--$2 $ Gen_loop_rb_intermediate k v n;
+  k' <--$ $ {0,1}^eta;
+  $ ret (bits, (k', v'')).
 
 Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
   [numCalls, state] <-2 sn;
   [k, v] <-2 state;
-  let GenUpdate_choose := GenUpdate_oc in (* TODO other two oracles oc using $? *)
-  (* need to change GenUpdate_choose to take (k,v) *)
-  [bits, state'] <--$2 GenUpdate_choose v n;
-    $ ret (bits, (S numCalls, state')).
+  let GenUpdate_choose := 
+      if ge_dec numCalls i (* numCalls >= i *)
+                          then GenUpdate_rb_intermediate_oc
+                          (* first call does not update v, to make proving equiv. easier*)
+                          else if beq_nat numCalls O then GenUpdate_noV_oc
+                               else GenUpdate_oc in
+  [bits, state'] <--$2 GenUpdate_choose (k, v) n;
+  $ ret (bits, (S numCalls, state')).
   
-(* f : Bvector eta -> Blist -> Bvector eta *)
-(* this should get the result (passing in o) and return the result of the GenUpdate oracle *)
-(* Definition PRF_Adversary : OracleComp Blist (Bvector eta) bool := *)
-   (* [bits, _] <-2 oracleMap ... given oracle (opaque initial state?) maxCallsAndBlocks  *)
-   (* A bits. (this is a game, though?) *)
+Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set} 
+           (e1 : EqDec ((list R) * (nat * KV))) 
+           (e2 : EqDec (list R)) 
+           (oracleComp : (nat * KV) -> D -> OracleComp OracleIn OracleOut (R * (nat * KV))) (state : (nat * KV))
+           (inputs : list D) : OracleComp OracleIn OracleOut (list R * (nat * KV)) :=
+  match inputs with
+  | nil => $ ret (nil, state)
+  | input :: inputs' => 
+    [res, state'] <--$2 oracleComp state input;
+    [resList, state''] <--$2 oracleCompMap_inner _ _ oracleComp state' inputs';
+    $ ret (res :: resList, state'')
+  end.
 
-    (* ls <--$ PRF_DRBG_f_G2 v_init l; *)
-    (* $ A ls.  *)
-Parameter PRF_Adversary : OracleComp Blist (Bvector eta) bool.
-Print OracleComp.
+Definition oracleCompMap_outer {D R OracleIn OracleOut : Set} 
+           (e1 : EqDec ((list R) * (nat * KV))) 
+           (e2 : EqDec (list R))
+           (oracleComp : (nat * KV) -> D -> OracleComp OracleIn OracleOut (R * (nat * KV)))
+           (inputs : list D) : OracleComp OracleIn OracleOut (list R) :=
+  [k, v] <--$2 $ Instantiate;   (* generate state inside, instead of being passed state *)
+  [bits, _] <--$2 oracleCompMap_inner _ _ oracleComp (O, (k, v)) inputs;
+  $ ret bits.                    (* don't return the state to the PRF adversary *)
 
-(* Definition oracleMap (D R S: Set) (eqds : EqDec S) (eqdr : EqDec R)
-           (oracle : S  -> D -> Comp (R * S)) (s : S) (ds : list D) := *)
-(* run with oracle access? give it (Oi_oc i) *)
+(* - need to oracleify GenUpdate, GenUpdate_rb and GenUpdate_choose takes state *)
 
-Definition oracleCompMap {S D R OracleIn OracleOut : Set} (e : EqDec ((list R) * S)) 
-           (oracleComp : S -> D -> OracleComp OracleIn OracleOut (R * S))
-           (state: S) (inputs : list D) : OracleComp OracleIn OracleOut (list R * S) :=
-  $ ret (nil, state).             (* placeholder *)
-
-(* - need an oracleMap for OracleComp X (impl)
-   - need to oracleify GenUpdate, GenUpdate_rb and GenUpdate_choose takes state
-   - PRF_Adversary can see key
-*)
-
-Definition PRF_Adversary' (i : nat) : OracleComp Blist (Bvector eta) bool :=
-  [k, v] <--$2 $ Instantiate; (* it can see the key *)
-  (* can I put instantiate (k,v) in oracleCompMap and just not have it return the state *)
-  [bits, _] <--$2 oracleCompMap _ (Oi_oc' i) (O, (k, v)) maxCallsAndBlocks;
+Definition PRF_Adversary (i : nat) : OracleComp Blist (Bvector eta) bool :=
+  bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) maxCallsAndBlocks;
   $ A bits.
-
-Check ($ Instantiate).
 
 (* the type will be different given that we're giving it Oi_prg, not f_oracle *)
 (* confused: there has to be a RF oracle slot for GenUpdate_oc, but there also has to be (k,v) for the GenUpdate oracle -- unless that is (f k)? *)
 
 Definition Gi_prg_rf (i : nat) : Comp bool :=
-  [k, v] <-$2 Instantiate; (* TODO remove? *)
-  [b, _] <-$2 PRF_Adversary' i _ _ ((randomFunc ({0,1}^eta) _)) nil;
+  [b, _] <-$2 PRF_Adversary i _ _ ((randomFunc ({0,1}^eta) _)) nil;
   (* the type of the PRF adversary is fixed by PRF_advantage, so I can't pass it Oi *)
   ret b.
 
@@ -373,13 +339,21 @@ the adversary can know the initial v, but not the K
     ret b. *)
 
 Check PRF_Advantage.
-Definition PRF_Advantage_ : Rat := 
-  PRF_Advantage RndK ({0,1}^eta) f eqdbl eqdbv PRF_Adversary.
+
+Variable eqdbv : EqDec (Bvector eta).
+Variable eqdbl : EqDec Blist.
+
+(* TODO: ok to be parametrized by i? *)
+Definition PRF_Advantage i : Rat := 
+  PRF_Advantage RndK ({0,1}^eta) f eqdbl eqdbv (PRF_Adversary i).
+
+(* should be the same for all i, arbitrarily choose 0 *)
+Definition PRF_Advantage_i := PRF_Advantage 0.
 
 Definition Pr_collisions n := n^2 / 2^eta.
 
 (* may need to update this w/ new proof *)
-Definition game_bound := PRF_Advantage_ + (Pr_collisions numCalls).
+Definition game_bound := PRF_Advantage_i + (Pr_collisions numCalls).
 
 (* base case theorem (adam's) TODO *)
 
