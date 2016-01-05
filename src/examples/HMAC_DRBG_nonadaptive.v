@@ -313,7 +313,7 @@ Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set}
     $ ret (res :: resList, state'')
   end.
 
-(* hides the oracle state from the caller. instantates the initial state and does not return the end state *)
+(* hides the oracle state from the caller. instantates the initial state and does not return the end state. need this, otherwise the PRF adversary has to generate the key and initial value (and can see it, which it shouldn't be able to) *)
 Definition oracleCompMap_outer {D R OracleIn OracleOut : Set} 
            (e1 : EqDec ((list R) * (nat * KV))) 
            (e2 : EqDec (list R))
