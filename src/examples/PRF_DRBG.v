@@ -160,10 +160,11 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
     A ls.
 
   (* only difference: PRF_DRBG_f_G1_1 wraps everything in ret/comp *)
+  (* TODO: if i prove that two things are comp_spec relation, how do i use that elsewhere? *)
   Theorem  PRF_DRBG_f_G1_1_eq_ret : 
     forall k n v,
        comp_spec eq (PRF_DRBG_f_G1_1 v n k) (ret (PRF_DRBG_f v n k)).
-    
+
     induction n; intuition; simpl in *.
     
     (* comp_spec eq is registered as a setoid, so intuition will discharge simple goals. *)
@@ -172,6 +173,7 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
     fcf_simp.
     (* rewrite IHn. *)
     fcf_transitivity.
+    (* TODO how would I do this manually again? *)
     fcf_skip_eq.                (* this pulls in IHn, note it turns into PRF_DRBG_f *)
     fcf_reflexivity.
     fcf_simp.
@@ -187,7 +189,7 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
      fcf_to_prhl_eq.
      fcf_symmetry.
      fcf_transitivity.
-     fcf_with PRF_DRBG_f_G1_1_eq_ret fcf_skip_eq.
+     fcf_with PRF_DRBG_f_G1_1_eq_ret fcf_skip_eq. (* fcf_skip_eq with the comp_spec fact *)
      fcf_reflexivity.
 
      fcf_simp.

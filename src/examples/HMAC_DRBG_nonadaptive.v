@@ -20,6 +20,7 @@ Require Import OracleHybrid.
 - Construct PRF adversary (X?)
 - Write the theorem statements (final theorem, inductive hypothesis) X
 
+- Review step 4 and OracleHybrid proofs
 - Prove equivalence of the new GenUpdate oracle outputs (moving re-sampling v) to old GenUpdate oracle outputs
 - More subgames?
 
@@ -182,12 +183,72 @@ Definition maxCallsAndBlocks : list nat := replicate numCalls blocksPerUpdate.
 
 (* calling (GenUpdate_original, GenUpdate_original, ...) should have the same output
 as calling (GenUpdate_noV, GenUpdate, GenUpdate, ...) which moves the v-update to the beginning of the next oracle call *)
-Definition G1_prg : Comp bool :=
+Definition G1_prg_original : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [bits, _] <-$2 oracleMap _ _ GenUpdate_original (k, v) maxCallsAndBlocks;
+  A bits.
+
+Definition G1_prg_ : Comp bool :=
   [k, v] <-$2 Instantiate;
   [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerUpdate;
   [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
   A (head_bits :: tail_bits).
 
+(* should be easy to prove that Oi_G1 O == Oi_prg O (should I just use Oi_prg here, and define G1 in terms of Gi?) *)
+Definition Oi_G1 (i : nat) (sn : nat * KV) (n : nat)
+  : Comp (list (Bvector eta) * (nat * KV)) :=
+  [numCalls, state] <-2 sn;
+  let GenUpdate_choose := if beq_nat numCalls O then GenUpdate_noV
+                          else GenUpdate in
+  [bits, state'] <-$2 GenUpdate_choose state n;
+  ret (bits, (S numCalls, state')).
+
+Definition G1_prg : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [bits, _] <-$2 oracleMap _ _ (Oi_G1 O) (O, (k, v)) maxCallsAndBlocks;
+  A (bits).
+
+(* should I be using comp_spec or probability or something? *)
+Theorem GenUpdate_v_output_equality :
+  forall (state : KV) (numBlockList : list nat),
+    ([bits, _] <-$2 oracleMap _ _ GenUpdate_original state numBlockList;
+    ret bits) =
+    ([bits, _] <-$2 oracleMap _ _ (Oi_G1 O) (O, state) numBlockList;
+     ret bits).
+Proof.
+  intros.
+(* the two GenUpdates don't have to be in comp... this is all deterministic *)
+  induction numBlockList as [ | numBlocks numBlockList']; simpl.
+  * unfold oracleMap. simpl. fcf_simp. admit.
+  (* inline tuple? *)
+  * unfold oracleMap.
+(* induction hypothesis in comp too... *)
+(* comp_spec?? *)
+
+Admitted.
+
+Theorem GenUpdate_v_output_probability :
+  Pr[G1_prg_original] == Pr[G1_prg].
+Proof.
+  unfold G1_prg, G1_prg_original.
+  fcf_skip.
+  fcf_to_prhl.
+
+  fcf_simp.
+  (* simpl in *. *)
+  (* unfold oracleMap. *)
+  eapply fcf_oracle_eq with (fun x => snd x).
+
+(* fcf_skip. *)
+
+  fcf_skip (fun (x : (list (list (Bvector eta)) * KV) => snd x).
+
+(* have the relation be snf *)
+  
+  (* fcf_skip. *) (* ?? *)
+
+  
+Admitted.
 (* TODO: intermediate games with random functions and random bits *)
 
 Definition G2_prg' : Comp bool :=
