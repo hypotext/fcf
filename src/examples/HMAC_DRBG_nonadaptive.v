@@ -18,7 +18,14 @@ Require Import OracleHybrid.
 - Write the initial game and final game X
 - Write the game i X
 - Construct PRF adversary (X?)
-- Write the theorem statements (final theorem, inductive hypothesis) (in progress)
+- Write the theorem statements (final theorem, inductive hypothesis) X
+
+- Prove equivalence of the new GenUpdate oracle outputs (moving re-sampling v) to old GenUpdate oracle outputs
+- More subgames?
+
+- Apply the hybrid argument in G1_G2_close and make sure that theorem can be proven with Gi_Gi_plus_1_close X
+- Remove unneeded GenUpdate*_oc versions
+- Change to adaptive adversary??
 
 - Prove G1 = Gi 0 and G2 = Gi q
 - Prove the theorems:
@@ -28,7 +35,7 @@ Require Import OracleHybrid.
   - Outer inductive hypothesis
   - Inner double induction (Adam's proof)
 - Prove other things (well-formedness, etc. -- the hypotheses)
-  - Deal with actual Instantiate
+  - Deal with actual Instantiate (not just RB)
 - Add backtracking resistance and prove that *)
 
 Local Open Scope list_scope.
@@ -47,6 +54,8 @@ Variable f : Bvector eta -> Blist -> Bvector eta.
 
 Definition KV : Set := (Bvector eta * Bvector eta)%type.
 Hypothesis eqDecState : EqDec KV.
+Variable eqdbv : EqDec (Bvector eta).
+Variable eqdbl : EqDec Blist.
 
 (* injection is Vector.to_list. TODO prove this *)
 Variable injD : Bvector eta -> Blist.
@@ -171,10 +180,13 @@ Variable numCalls : nat.        (* number of calls to GenUpdate *)
 Definition maxCallsAndBlocks : list nat := replicate numCalls blocksPerUpdate.
 (* used with oracleMap: call the oracle numCalls times, each time requesting blocksPerUpdate blocks *)
 
+(* calling (GenUpdate_original, GenUpdate_original, ...) should have the same output
+as calling (GenUpdate_noV, GenUpdate, GenUpdate, ...) which moves the v-update to the beginning of the next oracle call *)
 Definition G1_prg : Comp bool :=
   [k, v] <-$2 Instantiate;
-  [bits, _] <-$2 oracleMap _ _ GenUpdate (k, v) maxCallsAndBlocks;
-  A bits.
+  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerUpdate;
+  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
+  A (head_bits :: tail_bits).
 
 (* TODO: intermediate games with random functions and random bits *)
 
@@ -328,7 +340,12 @@ Definition PRF_Adversary (i : nat) : OracleComp Blist (Bvector eta) bool :=
   $ A bits.
 
 Definition Gi_prg_rf (i : nat) : Comp bool :=
-  [b, _] <-$2 PRF_Adversary i _ _ ((randomFunc ({0,1}^eta) _)) nil;
+  [b, _] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
+  ret b.
+
+Definition Gi_prg_prf (i : nat) : Comp bool :=
+  k <-$ RndK;
+  [b, _] <-$2 PRF_Adversary i _ _ (f_oracle f _ k) tt;
   ret b.
 
 (* Modeled after these definitions from PRF_DRBG.v *)
@@ -349,12 +366,15 @@ the adversary can know the initial v, but not the K
     ls <--$ PRF_DRBG_f_G2 v_init l;
     $ A ls. 
 
+  Definition PRF_DRBG_G2 :=
+    s <-$ RndKey ;
+    [b, _] <-$2 PRF_A unit _ (f_oracle f _ s) tt;
+    ret b.
+
   Definition PRF_DRBG_G3 :=
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b. *)
 
-Variable eqdbv : EqDec (Bvector eta).
-Variable eqdbl : EqDec Blist.
 
 (* TODO: ok to be parametrized by i? *)
 Definition PRF_Advantage i : Rat := 
@@ -363,19 +383,105 @@ Definition PRF_Advantage i : Rat :=
 (* should be the same for all i, arbitrarily choose 0 *)
 Definition PRF_Advantage_i := PRF_Advantage 0.
 
-(* ----- Unfinished after this *)
+(* -------------- *)
+(* Final theorems *)
 
-Definition Pr_collisions n := n^2 / 2^eta.
+(* TODO use Adam's existing theorem *)
+Definition Pr_collisions := numCalls^2 / 2^eta.
 
 (* may need to update this w/ new proof *)
-Definition game_bound := PRF_Advantage_i + (Pr_collisions numCalls).
+Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 
 (* base case theorem (adam's) TODO *)
 
+(* Step 1 *)
+Lemma Gi_prf_rf_close : forall (i : nat),
+  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
+Proof.
+  intros i.
+  unfold Gi_prg_prf.
+  unfold Gi_prg_rf.
+  unfold PRF_Advantage_i.
+  unfold PRF_Advantage.
+  (* TODO how to prove this? analogous proof only used reflexivity *)
+  (* simpl. *)
+Admitted.
+
+(* Step 2 *)
+Lemma Gi_rf_rb_close : forall (i : nat),
+  | Pr[Gi_prg_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions.
+Proof.
+  unfold Gi_prg_rf.
+  unfold Gi_prg.
+Admitted.
+
+Lemma Gi_prg_normal_prf_eq : forall (i : nat),
+    Pr[Gi_prg i] == Pr[Gi_prg_prf i].
+Proof.
+  intros.
+  unfold Gi_prg.
+  unfold Gi_prg_prf.
+Admitted.
+
+(* Inductive step *)
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
-  | Pr[Gi_prg O] - Pr[Gi_prg numCalls] | <= game_bound.
+  forall (n : nat),
+  | Pr[Gi_prg n] - Pr[Gi_prg (S n)] | <= Gi_Gi_plus_1_bound.
 Proof.
+  unfold Gi_Gi_plus_1_bound.
+  intros.
+(* TODO: separate this into a series of bounds lemmas: Gi_prg i, Gi_prg_rf?, Gi_prg n *)
+  eapply ratDistance_le_trans.
+  rewrite Gi_prg_normal_prf_eq.
+  apply Gi_prf_rf_close.
+  apply Gi_rf_rb_close.
+Qed.
+
+(* this proof (in OracleHybrid) is long and uses identical until bad. should i make sure this is true first...? *)
+
+Lemma G1_Gi_O_equal :
+  Pr[G1_prg] == Pr[Gi_prg O].
+Proof.
+  unfold G1_prg.
+  unfold Gi_prg.
+  simpl.
+  comp_skip.
+  (* fcf_simp. *)
+  
+  (* unfold oracleMap. *)
+  (* unfold compFold. *)
+  
+  (* fcf_to_prhl. *)
+
+Admitted.
+
+Lemma G2_oracle_eq :
+  Pr[G2_prg'] == Pr[G2_prg].
+Proof.
+  unfold G2_prg, G2_prg'.
+  comp_skip.
+(* relate GenUpdate_rb and GenUpdate_rb_oracle *)
+
+Admitted.
+
+Lemma G2_oracle_eq' :
+  G2_prg' = G2_prg.
+Proof.
+  unfold G2_prg, G2_prg'.
+(* relate GenUpdate_rb and GenUpdate_rb_oracle *)
+
+Admitted.
+
+Lemma G2_Gi_n_equal :
+  Pr[G2_prg] == Pr[Gi_prg numCalls].
+Proof.
+  (* rewrite G2_oracle_eq.         (* TODO can't rewrite with this? *) *)
+  rewrite <- G2_oracle_eq'.
+  unfold G2_prg'.
+  unfold Gi_prg.
+  comp_skip.
+  (* comp_skip. (* ? *) *)
 
 Admitted.
 
@@ -383,12 +489,17 @@ Admitted.
 Theorem G1_G2_close :
   (* TODO: constructed PRF adversary *)
   (* | Pr[G1_prg] - Pr[G2_prg] | <= (q / 1) * (PRF_Advantage RndK ({0,1}^eta) f _ _ ). *)
-  | Pr[G1_prg] - Pr[G2_prg] | <= (numCalls / 1) * game_bound.
+  | Pr[G1_prg] - Pr[G2_prg] | <= (numCalls / 1) * Gi_Gi_plus_1_bound.
 Proof.
+  rewrite G1_Gi_O_equal.
+  rewrite G2_Gi_n_equal.
+  (* rewrite ratDistance_comm. *)
+  Check distance_le_prod_f.
+  specialize (distance_le_prod_f (fun i => Pr[Gi_prg i]) Gi_Gi_plus_1_close numCalls).
+  intuition.
+Qed.
 
-Admitted.
-
-  (* Notes on our proof:
+  (* Notes on our proof: (might be outdated as of 1/1/16)
 
 Show GenUpdate's output indistinguishable from the output of this version, with v updated first: 
 
