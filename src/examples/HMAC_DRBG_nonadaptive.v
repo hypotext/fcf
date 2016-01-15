@@ -7,6 +7,7 @@ Require Import HasDups.
 Require Import CompFold.
 Require Import PRF.
 Require Import OracleHybrid.
+Require Import List.
 
   (* TODO:
 
@@ -227,27 +228,53 @@ Proof.
 
 Admitted.
 
+Definition llb := list (list (Bvector eta)).
+
+Theorem GenUpdate_v_output_inner :
+  forall (k : Bvector eta) (v : Bvector eta),
+   comp_spec (fun x y => fst x = fst y)
+     (oracleMap eqDecState (list_EqDec eqdbv) GenUpdate_original 
+        (k, v) maxCallsAndBlocks)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_G1 0) (O, (k, v)) maxCallsAndBlocks).
+Proof.
+  induction maxCallsAndBlocks as [ | numBlocks numBlocksList']; intros; simpl.
+
+  * unfold oracleMap. unfold compFold. eapply comp_spec_ret. reflexivity.
+
+  *
+    unfold oracleMap.
+    simpl.
+    (* you actually need to reason about the GenUpdates *)
+    (* also -- induction again? (0 -> 1) *)
+
+    comp_simp.
+    fcf_inline_first.
+    remember (to_list b) as bl.
+    fcf_simp.
+    (* f f k in the former is the updated state (v). it hasn't been updated in the latter yet (though, what is b?) *)
+    (* SearchAbout compFold.     *)
+    (* fcf_skip_eq. *)
+
+    (* how to use induction hypothesis here? this form looks nice but we inlined too much *)
+    unfold oracleMap in *.
+(* fcf_skip_eq. *)
+
+  
+Admitted.
+
 Theorem GenUpdate_v_output_probability :
   Pr[G1_prg_original] == Pr[G1_prg].
 Proof.
   unfold G1_prg, G1_prg_original.
-  fcf_skip.
   fcf_to_prhl.
-
+  fcf_skip.
   fcf_simp.
-  (* simpl in *. *)
-  (* unfold oracleMap. *)
-  eapply fcf_oracle_eq with (fun x => snd x).
+  fcf_skip.
+  apply GenUpdate_v_output_inner.
+  simpl in *. subst. fcf_simp. simpl. (* clean this up *)
 
-(* fcf_skip. *)
 
-  fcf_skip (fun (x : (list (list (Bvector eta)) * KV) => snd x).
-
-(* have the relation be snf *)
-  
-  (* fcf_skip. *) (* ?? *)
-
-  
 Admitted.
 (* TODO: intermediate games with random functions and random bits *)
 
