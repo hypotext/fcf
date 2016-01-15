@@ -257,7 +257,12 @@ Proof.
     (* fcf_skip_eq. *)
 
     (* how to use induction hypothesis here? this form looks nice but we inlined too much *)
-    unfold oracleMap in *.
+    unfold oracleMap in *. simpl in *.
+(* actually this does not hold because it assumes 0, not 1. maybe replace with "given..." for the first call? *)
+(* new proof strategy: will doing it on paper help/prevent distraction? *)
+(* might be easier to prove if i revert to the first form (not Oi, but head/tail). just assumes nonempty list (OK if maxCalls > 0). i could split the first homogenous one into head/tail as well and prove equivalent, then do induction on both of the tails.
+
+but then Gi i will be harder to prove equal to G1 *)
 (* fcf_skip_eq. *)
 
   
