@@ -209,81 +209,6 @@ Definition G1_prg : Comp bool :=
   [bits, _] <-$2 oracleMap _ _ (Oi_G1 O) (O, (k, v)) maxCallsAndBlocks;
   A (bits).
 
-(*
-(* should I be using comp_spec or probability or something? *)
-Theorem GenUpdate_v_output_equality :
-  forall (state : KV) (numBlockList : list nat),
-    ([bits, _] <-$2 oracleMap _ _ GenUpdate_original state numBlockList;
-    ret bits) =
-    ([bits, _] <-$2 oracleMap _ _ (Oi_G1 O) (O, state) numBlockList;
-     ret bits).
-Proof.
-  intros.
-(* the two GenUpdates don't have to be in comp... this is all deterministic *)
-  induction numBlockList as [ | numBlocks numBlockList']; simpl.
-  * unfold oracleMap. simpl. fcf_simp. admit.
-  (* inline tuple? *)
-  * unfold oracleMap.
-(* induction hypothesis in comp too... *)
-(* comp_spec?? *)
-
-Admitted.
-
-Definition llb := list (list (Bvector eta)).
-
-Theorem GenUpdate_v_output_inner :
-  forall (k : Bvector eta) (v : Bvector eta),
-   comp_spec (fun x y => fst x = fst y)
-     (oracleMap eqDecState (list_EqDec eqdbv) GenUpdate_original 
-        (k, v) maxCallsAndBlocks)
-     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-        (Oi_G1 0) (O, (k, v)) maxCallsAndBlocks).
-Proof.
-  induction maxCallsAndBlocks as [ | numBlocks numBlocksList']; intros; simpl.
-
-  * unfold oracleMap. unfold compFold. eapply comp_spec_ret. reflexivity.
-
-  *
-    unfold oracleMap.
-    simpl.
-    (* you actually need to reason about the GenUpdates *)
-    (* also -- induction again? (0 -> 1) *)
-
-    comp_simp.
-    fcf_inline_first.
-    remember (to_list b) as bl.
-    fcf_simp.
-    (* f f k in the former is the updated state (v). it hasn't been updated in the latter yet (though, what is b?) *)
-    (* SearchAbout compFold.     *)
-    (* fcf_skip_eq. *)
-
-    (* how to use induction hypothesis here? this form looks nice but we inlined too much *)
-    unfold oracleMap in *. simpl in *.
-(* actually this does not hold because it assumes 0, not 1. maybe replace with "given..." for the first call? *)
-(* new proof strategy: will doing it on paper help/prevent distraction? *)
-(* might be easier to prove if i revert to the first form (not Oi, but head/tail). just assumes nonempty list (OK if maxCalls > 0). i could split the first homogenous one into head/tail as well and prove equivalent, then do induction on both of the tails.
-
-but then Gi i will be harder to prove equal to G1 *)
-(* fcf_skip_eq. *)
-
-  
-Admitted.
-
-Theorem GenUpdate_v_output_probability :
-  Pr[G1_prg_original] == Pr[G1_prg].
-Proof.
-  unfold G1_prg, G1_prg_original.
-  fcf_to_prhl.
-  fcf_skip.
-  fcf_simp.
-  fcf_skip.
-  apply GenUpdate_v_output_inner.
-  simpl in *. subst. fcf_simp. simpl. (* clean this up *)
-
-
-Admitted.
-*)
-
 Definition G1_prg_original_split : Comp bool :=
   [k, v] <-$2 Instantiate;
   [head_bits, state'] <-$2 GenUpdate_original (k, v) blocksPerUpdate;
@@ -379,6 +304,7 @@ Qed.
 
 (* G1_prg_original: calls GenUpdate_original, then GenUpdate_original
 G1_prg_: uses GenUpdate_noV, then GenUpdate (v moved) *)
+(* TODO clean up function names and underscores *)
 Theorem GenUpdate_v_output_probability_ :
   Pr[G1_prg_original] == Pr[G1_prg_].
 Proof.
