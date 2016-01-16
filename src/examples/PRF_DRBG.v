@@ -711,7 +711,6 @@ Check PRF_DRBG_f_bad_2.
      fcf_skip.
      fcf_skip.
      fcf_spec_ret.
-
    Qed.
 
    Theorem PRF_DRBG_G3_bad_1_2_equiv : 
@@ -725,13 +724,13 @@ Check PRF_DRBG_f_bad_2.
      simpl.
      fcf_reflexivity.
 
-     fcf_skip.
+     fcf_skip. (* TODO: comp_spec (with something other than eq) is applied here *)
      apply PRF_DRBG_f_bad_2_equiv.
+     (* the postcondition becomes a hypothesis for the next goal! *)
      simpl in H1.
      subst.
 
      fcf_spec_ret.
-  
    Qed.
 
 
