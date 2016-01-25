@@ -2,7 +2,7 @@ Set Implicit Arguments.
 
 Require Import FCF.
 (* RndInList has a useful theorem (qam_count) about counting calls to an oracle. *)
-Require Import RndInList. 
+Require Import RndInList.
 Require Import HasDups.
 Require Import CompFold.
 Require Import PRF.
@@ -18,27 +18,31 @@ Require Import List.
 
 - Write the initial game and final game X
 - Write the game i X
-- Construct PRF adversary (X?)
+- Construct PRF adversary X
 - Write the theorem statements (final theorem, inductive hypothesis) X
 
-- Review step 4 and OracleHybrid proofs
-- Prove equivalence of the new GenUpdate oracle outputs (moving re-sampling v) to old GenUpdate oracle outputs
-- More subgames?
-
+- Prove equivalence of the new GenUpdate oracle outputs (moving re-sampling v) to old GenUpdate oracle outputs X
 - Apply the hybrid argument in G1_G2_close and make sure that theorem can be proven with Gi_Gi_plus_1_close X
+
+- Move my proof to a separate file? or review it
+- Comment the uncommented games
+- Write out all subgames (e.g. involving random functions)
+- Review step 4 and OracleHybrid proofs
+- Look at OracleMapHybrid
 - Remove unneeded GenUpdate*_oc versions
-- Change to adaptive adversary??
 
 - Prove G1 = Gi 0 and G2 = Gi q
-- Prove the theorems:
-  - maintain state from prev call of GenUpdate
+- Prove the theorems: (figure out what the main lemmas and difficulties are)
   - Pr[Collisions] = ? (for n+1 calls)
   - Outer base case (Adam's proof)
   - Outer inductive hypothesis
-  - Inner double induction (Adam's proof)
+  - Inner double induction (Adam's proof) -- PRF_DRBG argument
+
 - Prove other things (well-formedness, etc. -- the hypotheses)
   - Deal with actual Instantiate (not just RB)
-- Add backtracking resistance and prove that *)
+- Add backtracking resistance and prove that 
+- Change to adaptive adversary?? (additional input, etc.)
+*)
 
 Local Open Scope list_scope.
 Local Opaque evalDist.
@@ -68,6 +72,7 @@ Definition to_list (A : Type) (n : nat) (v : Vector.t A n) := Vector.to_list v.
 
 (* PRG functions *)
 
+(* TODO does not reflect NIST spec *)
 Definition Instantiate : Comp KV :=
   k <-$ RndK;
   v <-$ RndV;
@@ -182,19 +187,6 @@ Hypothesis H_numCalls : numCalls > 0. (* need this for GenUpdate equivalence? *)
 Definition maxCallsAndBlocks : list nat := replicate numCalls blocksPerUpdate.
 (* used with oracleMap: call the oracle numCalls times, each time requesting blocksPerUpdate blocks *)
 
-(* calling (GenUpdate_original, GenUpdate_original, ...) should have the same output
-as calling (GenUpdate_noV, GenUpdate, GenUpdate, ...) which moves the v-update to the beginning of the next oracle call *)
-Definition G1_prg_original : Comp bool :=
-  [k, v] <-$2 Instantiate;
-  [bits, _] <-$2 oracleMap _ _ GenUpdate_original (k, v) maxCallsAndBlocks;
-  A bits.
-
-Definition G1_prg_ : Comp bool :=
-  [k, v] <-$2 Instantiate;
-  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerUpdate;
-  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
-  A (head_bits :: tail_bits).
-
 (* should be easy to prove that Oi_G1 O == Oi_prg O (should I just use Oi_prg here, and define G1 in terms of Gi?) *)
 Definition Oi_G1 (i : nat) (sn : nat * KV) (n : nat)
   : Comp (list (Bvector eta) * (nat * KV)) :=
@@ -208,6 +200,23 @@ Definition G1_prg : Comp bool :=
   [k, v] <-$2 Instantiate;
   [bits, _] <-$2 oracleMap _ _ (Oi_G1 O) (O, (k, v)) maxCallsAndBlocks;
   A (bits).
+
+(* --------------------- *)
+(* Prove v-update move equivalence *)
+
+(* calling (GenUpdate_original, GenUpdate_original, ...) should have the same output
+as calling (GenUpdate_noV, GenUpdate, GenUpdate, ...) which moves the v-update to the beginning of the next oracle call *)
+Definition G1_prg_original : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [bits, _] <-$2 oracleMap _ _ GenUpdate_original (k, v) maxCallsAndBlocks;
+  A bits.
+
+(*   *)
+Definition G1_prg_ : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerUpdate;
+  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
+  A (head_bits :: tail_bits).
 
 Definition G1_prg_original_split : Comp bool :=
   [k, v] <-$2 Instantiate;
@@ -246,8 +255,6 @@ Proof.
     apply IHnumCalls0.
 Qed.
 
-SearchAbout compFold.
-
 Theorem GenUpdate_split_close :
   Pr[G1_prg_original] == Pr[G1_prg_original_split].
 Proof.
@@ -273,9 +280,8 @@ Proof.
     instantiate (1 := (fun x y => hd_error (fst x) = Some bits /\ tail (fst x) = fst y)).
     - apply compFold_acc.
     - fcf_simp. simpl in H5. inversion H5. clear H5. destruct a1. inversion H6. simpl in *. inversion H6. subst. fcf_reflexivity.
+      Transparent GenUpdate_original.
 Qed.
-
-Transparent GenUpdate_original.
 
 (* generalize acc again. could be generalized further for the function on v but oh well *)
 Theorem comp_spec_acc_2 : forall numCalls acc k v,
@@ -332,6 +338,9 @@ Proof.
 
     - fcf_simp. simpl in *. subst. fcf_reflexivity.
 Qed.
+
+(* End proofs of v-update equivalence *)
+(* ------------------------------------------------ *)
 
 (* TODO: intermediate games with random functions and random bits *)
 
@@ -531,7 +540,7 @@ Definition PRF_Advantage_i := PRF_Advantage 0.
 (* -------------- *)
 (* Final theorems *)
 
-(* TODO use Adam's existing theorem *)
+(* TODO use Adam's existing theorem. not sure if this is the right bound *)
 Definition Pr_collisions := numCalls^2 / 2^eta.
 
 (* may need to update this w/ new proof *)
@@ -549,6 +558,7 @@ Proof.
   unfold PRF_Advantage_i.
   unfold PRF_Advantage.
   (* TODO how to prove this? analogous proof only used reflexivity *)
+  (* numbering is backward *)
   (* simpl. *)
 Admitted.
 
