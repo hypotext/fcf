@@ -187,37 +187,26 @@ Hypothesis H_numCalls : numCalls > 0. (* need this for GenUpdate equivalence? *)
 Definition maxCallsAndBlocks : list nat := replicate numCalls blocksPerUpdate.
 (* used with oracleMap: call the oracle numCalls times, each time requesting blocksPerUpdate blocks *)
 
-(* should be easy to prove that Oi_G1 O == Oi_prg O (should I just use Oi_prg here, and define G1 in terms of Gi?) *)
-Definition Oi_G1 (i : nat) (sn : nat * KV) (n : nat)
-  : Comp (list (Bvector eta) * (nat * KV)) :=
-  [numCalls, state] <-2 sn;
-  let GenUpdate_choose := if beq_nat numCalls O then GenUpdate_noV
-                          else GenUpdate in
-  [bits, state'] <-$2 GenUpdate_choose state n;
-  ret (bits, (S numCalls, state')).
-
+(* only first call uses GenUpdate_noV; assumes numCalls > 0 *)
 Definition G1_prg : Comp bool :=
   [k, v] <-$2 Instantiate;
-  [bits, _] <-$2 oracleMap _ _ (Oi_G1 O) (O, (k, v)) maxCallsAndBlocks;
-  A (bits).
+  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerUpdate;
+  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
+  A (head_bits :: tail_bits).
 
 (* --------------------- *)
 (* Prove v-update move equivalence *)
 
 (* calling (GenUpdate_original, GenUpdate_original, ...) should have the same output
 as calling (GenUpdate_noV, GenUpdate, GenUpdate, ...) which moves the v-update to the beginning of the next oracle call *)
+(* proof outline: G1_prg_original = G1_prg_original_split ~ G1_prg *)
+
 Definition G1_prg_original : Comp bool :=
   [k, v] <-$2 Instantiate;
   [bits, _] <-$2 oracleMap _ _ GenUpdate_original (k, v) maxCallsAndBlocks;
   A bits.
 
-(*   *)
-Definition G1_prg_ : Comp bool :=
-  [k, v] <-$2 Instantiate;
-  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerUpdate;
-  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
-  A (head_bits :: tail_bits).
-
+(* make the form closer to G1_prg by splitting off first call only *)
 Definition G1_prg_original_split : Comp bool :=
   [k, v] <-$2 Instantiate;
   [head_bits, state'] <-$2 GenUpdate_original (k, v) blocksPerUpdate;
@@ -255,6 +244,7 @@ Proof.
     apply IHnumCalls0.
 Qed.
 
+(* do first call of map separately *)
 Theorem GenUpdate_split_close :
   Pr[G1_prg_original] == Pr[G1_prg_original_split].
 Proof.
@@ -310,12 +300,11 @@ Qed.
 
 (* G1_prg_original: calls GenUpdate_original, then GenUpdate_original
 G1_prg_: uses GenUpdate_noV, then GenUpdate (v moved) *)
-(* TODO clean up function names and underscores *)
-Theorem GenUpdate_v_output_probability_ :
-  Pr[G1_prg_original] == Pr[G1_prg_].
+Theorem GenUpdate_v_output_probability :
+  Pr[G1_prg_original] == Pr[G1_prg].
 Proof.
   rewrite GenUpdate_split_close.
-  unfold G1_prg_original_split, G1_prg_.
+  unfold G1_prg_original_split, G1_prg.
   fcf_to_prhl_eq.
   fcf_skip.
   fcf_simp.
@@ -344,6 +333,7 @@ Qed.
 
 (* TODO: intermediate games with random functions and random bits *)
 
+(* uses simplified RB versions *)
 Definition G2_prg' : Comp bool :=
   [k, v] <-$2 Instantiate;
   [bits, _] <-$2 oracleMap _ _ GenUpdate_rb_oracle tt maxCallsAndBlocks;
@@ -354,8 +344,6 @@ Definition G2_prg : Comp bool :=
   [k, v] <-$2 Instantiate;
   bits <-$ compMap _ GenUpdate_rb maxCallsAndBlocks;
   A bits.
-
-Check G1_G2_close.
 
 (* oracle i *)
 (* number of calls starts at 0 and ends at q. 
@@ -446,9 +434,9 @@ Definition GenUpdate_rb_intermediate_oc (state : KV) (n : nat)
   $ ret (bits, (k', v'')).
 
 (* same as Oi_prg but each GenUpdate in it has been converted to OracleComp *)
-(* number of calls starts at 0 and ends at q. say i = 1:
+(* number of calls starts at 0 and ends at q. e.g.
 G1:      RB  PRF PRF
-Gi_rf 1: RB  RF  PRF
+Gi_rf 1: RB  RF  PRF (i = 1 here)
 G2:      RB  RB  PRF *)
 Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
@@ -489,14 +477,17 @@ Definition oracleCompMap_outer {D R OracleIn OracleOut : Set}
   [bits, _] <--$2 oracleCompMap_inner _ _ oracleComp (O, (k, v)) inputs;
   $ ret bits.                    (* don't return the state to the PRF adversary *)
 
+(* see long comment above this section *)
 Definition PRF_Adversary (i : nat) : OracleComp Blist (Bvector eta) bool :=
   bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) maxCallsAndBlocks;
   $ A bits.
 
+(* ith game: use RF oracle *)
 Definition Gi_prg_rf (i : nat) : Comp bool :=
   [b, _] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
   ret b.
 
+(* ith game: use PRF oracle *)
 Definition Gi_prg_prf (i : nat) : Comp bool :=
   k <-$ RndK;
   [b, _] <-$2 PRF_Adversary i _ _ (f_oracle f _ k) tt;
@@ -549,6 +540,9 @@ Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 (* base case theorem (adam's) TODO *)
 
 (* Step 1 *)
+(* let i = 3. 
+Gi_prg_prf i: RB RB RB PRF PRF
+Gi_prg_rf i:  RB RB RF PRF PRF *)
 Lemma Gi_prf_rf_close : forall (i : nat),
   | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
 Proof.
@@ -563,15 +557,22 @@ Proof.
 Admitted.
 
 (* Step 2 *)
+(* let i = 3. 
+Gi_prg_rf i: RB RB RF PRF PRF
+Gi_prg i:    RB RB RB PRF PRF *)
 Lemma Gi_rf_rb_close : forall (i : nat),
-  | Pr[Gi_prg_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions.
+  | Pr[Gi_prg_rf i] - Pr[Gi_prg i] | <= Pr_collisions.
 Proof.
   unfold Gi_prg_rf.
   unfold Gi_prg.
 Admitted.
 
+(* let i = 3. 
+Gi_prg i:         RB RB RB PRF PRF 
+Gi_prg_prf (S i): RB RB RB PRF PRF *)
+Lemma Gi_rf_rb_close : forall (i : nat),
 Lemma Gi_prg_normal_prf_eq : forall (i : nat),
-    Pr[Gi_prg i] == Pr[Gi_prg_prf i].
+    Pr[Gi_prg i] == Pr[Gi_prg_prf (S i)].
 Proof.
   intros.
   unfold Gi_prg.
@@ -579,6 +580,9 @@ Proof.
 Admitted.
 
 (* Inductive step *)
+(* let i = 3. 
+Gi_prg i:      RB RB RB PRF PRF
+Gi_prg (S i):  RB RB RB RB  PRF *)
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
   forall (n : nat),
@@ -589,12 +593,13 @@ Proof.
 (* TODO: separate this into a series of bounds lemmas: Gi_prg i, Gi_prg_rf?, Gi_prg n *)
   eapply ratDistance_le_trans.
   rewrite Gi_prg_normal_prf_eq.
+  (* TODO check the numberings on these and add comments *)
   apply Gi_prf_rf_close.
   apply Gi_rf_rb_close.
 Qed.
 
-(* this proof (in OracleHybrid) is long and uses identical until bad. should i make sure this is true first...? *)
-
+(* this proof (in OracleHybrid) is long and uses identical until bad. should i make sure this is true first? *)
+(* TODO make sure the numbering is right *)
 Lemma G1_Gi_O_equal :
   Pr[G1_prg] == Pr[Gi_prg O].
 Proof.
@@ -612,18 +617,10 @@ Proof.
 Admitted.
 
 Lemma G2_oracle_eq :
-  Pr[G2_prg'] == Pr[G2_prg].
+  Pr[G2_prg'] == Pr[G2_prg]. (* oracleCompMap vs compMap *)
 Proof.
   unfold G2_prg, G2_prg'.
   comp_skip.
-(* relate GenUpdate_rb and GenUpdate_rb_oracle *)
-
-Admitted.
-
-Lemma G2_oracle_eq' :
-  G2_prg' = G2_prg.
-Proof.
-  unfold G2_prg, G2_prg'.
 (* relate GenUpdate_rb and GenUpdate_rb_oracle *)
 
 Admitted.
@@ -650,6 +647,7 @@ Proof.
   rewrite G2_Gi_n_equal.
   (* rewrite ratDistance_comm. *)
   Check distance_le_prod_f.
+  (* inductive argument *)
   specialize (distance_le_prod_f (fun i => Pr[Gi_prg i]) Gi_Gi_plus_1_close numCalls).
   intuition.
 Qed.
