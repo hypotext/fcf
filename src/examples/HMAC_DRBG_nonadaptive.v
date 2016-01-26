@@ -23,9 +23,10 @@ Require Import List.
 
 - Prove equivalence of the new GenUpdate oracle outputs (moving re-sampling v) to old GenUpdate oracle outputs X
 - Apply the hybrid argument in G1_G2_close and make sure that theorem can be proven with Gi_Gi_plus_1_close X
+- Move my proof to a separate file? or review it X
+- Comment the uncommented games X
 
-- Move my proof to a separate file? or review it
-- Comment the uncommented games
+- Figure out what's going on with PRF advantage
 - Write out all subgames (e.g. involving random functions)
 - Review step 4 and OracleHybrid proofs
 - Look at OracleMapHybrid
@@ -528,6 +529,56 @@ Definition PRF_Advantage i : Rat :=
 (* should be the same for all i, arbitrarily choose 0 *)
 Definition PRF_Advantage_i := PRF_Advantage 0.
 
+(*   | Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary 0) ] -
+   Pr  [PRF_G_B ({ 0 , 1 }^eta) eqdbl eqdbv (PRF_Adversary 0) ] | =
+   | Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary i) ] -
+   Pr  [PRF_G_B ({ 0 , 1 }^eta) eqdbl eqdbv (PRF_Adversary i) ] | *)
+
+(* TODO: are these lemmas even true? 
+G1: using PRF oracle
+PA uses the existing adversary against the output?
+PA 0: PRF PRF PRF PRF? 
+PA 2: RB  PRF  PRF PRF? 
+do the PRF_advantages add? *)
+Lemma PRF_GA_same : forall (i : nat), 
+    Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary 0) ] =
+    Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary i) ].
+Proof.
+  intros.
+  unfold PRF_G_A.
+  (* fcf_skip. admit. *)
+  (* what comp_spec relation to use here *)
+  unfold PRF_Adversary.
+  unfold Oi_oc'.
+  simpl.
+(* destruct i? *)
+Admitted.
+
+(* PA uses the existing adversary against the output?
+G2: using RF oracle
+PA 0: PRF PRF PRF PRF? <-- should this be RF PRF PRF PRF?
+PA 2: RB  RF  PRF PRF? 
+this doesn't seem to be true *)
+Lemma PRF_GB_same : forall (i : nat), 
+   Pr  [PRF_G_B ({0,1}^eta) eqdbl eqdbv (PRF_Adversary 0) ] =
+   Pr  [PRF_G_B ({0,1}^eta) eqdbl eqdbv (PRF_Adversary i) ].
+Proof.
+
+Admitted.
+
+(* why do we need this theorem again? what will go wrong if we don't have it? *)
+Lemma PRF_Advantages_same : forall (i : nat),
+    PRF_Advantage_i = PRF_Advantage i.
+Proof.
+  intros. unfold PRF_Advantage_i. unfold PRF_Advantage.
+  unfold PRF.PRF_Advantage.
+  Print PRF_Adversary.
+  rewrite (PRF_GA_same i).
+  rewrite (PRF_GB_same i).
+  reflexivity.
+  (* intermediate lemmas -- each individual prob is the same? is that true? *)
+Qed.
+
 (* -------------- *)
 (* Final theorems *)
 
@@ -547,14 +598,15 @@ Lemma Gi_prf_rf_close : forall (i : nat),
   | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
 Proof.
   intros i.
+  rewrite (PRF_Advantages_same i). (* TODO true? *)
+  (* don't need to unfold *)
   unfold Gi_prg_prf.
   unfold Gi_prg_rf.
-  unfold PRF_Advantage_i.
   unfold PRF_Advantage.
-  (* TODO how to prove this? analogous proof only used reflexivity *)
-  (* numbering is backward *)
-  (* simpl. *)
-Admitted.
+  reflexivity. (* TODO how was this proven automatically? *)
+  (* TODO how to prove this? analogous proof PRF_DRBG_G2_G3_close only used reflexivity *)
+  (* numbering is backward? *)
+Qed.
 
 (* Step 2 *)
 (* let i = 3. 
