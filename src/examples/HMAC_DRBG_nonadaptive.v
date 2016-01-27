@@ -347,22 +347,23 @@ Definition G2_prg : Comp bool :=
   A bits.
 
 (* oracle i *)
-(* number of calls starts at 0 and ends at q. 
+(* number of calls: first call is 0, last call is (numCalls - 1) for numCalls calls total
 G0: PRF PRF PRF
 G1: RB  PRF PRF
 G2: RB  RB  PRF
-G2: RB  RB  RB *)
+G3: RB  RB  RB 
+there should be (S numCalls) games, so games are numbered from 0 through numCalls *)
 Definition Oi_prg (i : nat) (sn : nat * KV) (n : nat)
   : Comp (list (Bvector eta) * (nat * KV)) :=
-  [numCalls, state] <-2 sn;
-  let GenUpdate_choose := if lt_dec numCalls i (* numCalls < i *)
+  [callsSoFar, state] <-2 sn;
+  let GenUpdate_choose := if lt_dec callsSoFar i (* callsSoFar < i *)
                           then GenUpdate_rb_intermediate
                           (* first call does not update v, to make proving equiv. easier*)
-                          else if beq_nat numCalls O then GenUpdate_noV
+                          else if beq_nat callsSoFar O then GenUpdate_noV
                                else GenUpdate in
   (* note: have to use intermediate, not final GenUpdate_rb here *)
   [bits, state'] <-$2 GenUpdate_choose state n;
-  ret (bits, (S numCalls, state')).
+  ret (bits, (S callsSoFar, state')).
 
 (* game i (Gi 0 = G1 and Gi q = G2) *)
 Definition Gi_prg (i : nat) : Comp bool :=
@@ -439,20 +440,30 @@ Definition GenUpdate_rb_intermediate_oc (state : KV) (n : nat)
 G1:      RB  PRF PRF
 Gi_rf 1: RB  RF  PRF (i = 1 here)
 G2:      RB  RB  PRF *)
+(* number of calls: first call is 0, last call is (numCalls - 1) for numCalls calls total
+G0: PRF PRF PRF <-- Gi_prg_prf 0
+    RF  PRF PRF <-- Gi_prg_rf 0
+G1: RB  PRF PRF <-- Gi_prg_prf 1
+    RB  RF  PRF <-- Gi_prg_prg 1
+G2: RB  RB  PRF
+    RB  RB  RF
+G3: RB  RB  RB  <-- note that there is no oracle slot to replace here
+    RB  RB  RB  <-- likewise
+there should be (S numCalls) games, so games are numbered from 0 through numCalls *)
 Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
-  [numCalls, state] <-2 sn;
+  [callsSoFar, state] <-2 sn;
   [k, v] <-2 state;
   let GenUpdate_choose := 
-      if lt_dec numCalls i (* numCalls < i *)
+      if lt_dec callsSoFar i (* callsSoFar < i *)
       then GenUpdate_rb_intermediate_oc
-      else if beq_nat numCalls i (* numCalls = i *)
+      else if beq_nat callsSoFar i (* callsSoFar = i *)
            then GenUpdate_oc    (* uses random function oracle *)
-      else if beq_nat numCalls O 
+      else if beq_nat callsSoFar O 
            then GenUpdate_noV_oc  (* first call does not update v *)
       else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
   [bits, state'] <--$2 GenUpdate_choose (k, v) n;
-  $ ret (bits, (S numCalls, state')).
+  $ ret (bits, (S callsSoFar, state')).
 
 (* oracleCompMap_inner repeatedly applies the given oracle on the list of inputs (given an initial oracle state), collecting the outputs and final state *)
 Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set} 
@@ -523,11 +534,11 @@ the adversary can know the initial v, but not the K
 
 
 (* TODO: ok to be parametrized by i? *)
-Definition PRF_Advantage i : Rat := 
+Definition PRF_Advantage_Game i : Rat := 
   PRF_Advantage RndK ({0,1}^eta) f eqdbl eqdbv (PRF_Adversary i).
 
 (* should be the same for all i, arbitrarily choose 0 *)
-Definition PRF_Advantage_i := PRF_Advantage 0.
+Definition PRF_Advantage_i := PRF_Advantage_Game 0.
 
 (*   | Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary 0) ] -
    Pr  [PRF_G_B ({ 0 , 1 }^eta) eqdbl eqdbv (PRF_Adversary 0) ] | =
@@ -535,78 +546,96 @@ Definition PRF_Advantage_i := PRF_Advantage 0.
    Pr  [PRF_G_B ({ 0 , 1 }^eta) eqdbl eqdbv (PRF_Adversary i) ] | *)
 
 (* TODO: are these lemmas even true? 
-G1: using PRF oracle
 PA uses the existing adversary against the output?
-PA 0: PRF PRF PRF PRF? 
-PA 2: RB  PRF  PRF PRF? 
-do the PRF_advantages add? *)
-Lemma PRF_GA_same : forall (i : nat), 
-    Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary 0) ] =
-    Pr  [PRF_G_A RndK f eqdbv (PRF_Adversary i) ].
-Proof.
-  intros.
-  unfold PRF_G_A.
-  (* fcf_skip. admit. *)
-  (* what comp_spec relation to use here *)
-  unfold PRF_Adversary.
-  unfold Oi_oc'.
-  simpl.
-(* destruct i? *)
-Admitted.
+here, numCalls = 4
 
-(* PA uses the existing adversary against the output?
-G2: using RF oracle
-PA 0: PRF PRF PRF PRF? <-- should this be RF PRF PRF PRF?
-PA 2: RB  RF  PRF PRF? 
-this doesn't seem to be true *)
-Lemma PRF_GB_same : forall (i : nat), 
-   Pr  [PRF_G_B ({0,1}^eta) eqdbl eqdbv (PRF_Adversary 0) ] =
-   Pr  [PRF_G_B ({0,1}^eta) eqdbl eqdbv (PRF_Adversary i) ].
-Proof.
+PA 0: using given oracle for call 0
+GA: PRF PRF PRF PRF?
+GB:  RF PRF PRF PRF 
+PRF_Advantage 0 = 0
 
-Admitted.
+PA 1: using given oracle for call 1
+GA: RB  PRF PRF PRF? 
+GB: RB  RF  PRF PRF? 
+(do the PRF_advantages add?)
+
+PA n-2: using given oracle for call (n-2) = 2
+GA: RB  RB  PRF PRF
+GB: RB  RB  RF  PRF
+
+PA n-1: using given oracle for call (n-1) = 3
+GA: RB  RB  RB  PRF
+GB: RB  RB  RB  RF
+
+PA n: using given oracle for call n = 4
+(note: there is no oracle to replace, so PRF_Advantage = 0)
+GA: RB  RB  RB  RB
+GB: RB  RB  RB  RB
+
+forall i, i != n -> 
+PRF_Advantage_Game i = PRF_Advantage_Game j
+PRF_Advantage_Game n = 0
+
+thus, forall i, PRF_Advantage_Game i <= PRF_Advantage_Game 0 *)
 
 (* why do we need this theorem again? what will go wrong if we don't have it? *)
-Lemma PRF_Advantages_same : forall (i : nat),
-    PRF_Advantage_i = PRF_Advantage i.
+(* maybe it's <=, not = 
+(but upper-bounded by which one? PRF_Advantage 1? i guess we're guaranteed that that one exists, since numCalls > 1. which one would be less -- PRF_Advantage 0? *)
+Lemma PRF_Advantage_0 : 
+    PRF_Advantage_Game numCalls = 0.
 Proof.
-  intros. unfold PRF_Advantage_i. unfold PRF_Advantage.
-  unfold PRF.PRF_Advantage.
-  Print PRF_Adversary.
-  rewrite (PRF_GA_same i).
-  rewrite (PRF_GB_same i).
-  reflexivity.
-  (* intermediate lemmas -- each individual prob is the same? is that true? *)
-Qed.
+  intros. unfold PRF_Advantage_Game. unfold PRF_Advantage.
+
+Admitted.
+
+Lemma PRF_Advantages_same : forall (i j : nat),
+    i <> numCalls -> j <> numCalls ->
+    PRF_Advantage_Game i = PRF_Advantage_Game j.
+Proof.
+  intros i j i_neq j_neq.
+  unfold PRF_Advantage_Game. unfold PRF_Advantage.
+  
+Admitted.
+
+Lemma PRF_Advantages_lte : forall (i : nat),
+    PRF_Advantage_Game i <= PRF_Advantage_Game 0.
+Proof.
+  intros.
+  (* TODO finish this using above two lemmas *)
+  (* destruct (beq_nat i numCalls). *)
+
+Admitted.
 
 (* -------------- *)
 (* Final theorems *)
+
+(* base case theorem (adam's) TODO *)
+
+(* Step 1 *)
+(* let i = 3. 
+Gi_prg_prf i: RB RB PRF PRF PRF
+Gi_prg_rf i:  RB RB RF  PRF PRF 
+need to use `Gi_prg_prf i` instead of `Gi_prg i` because this matches the form of 
+`Gi_prg_rf` closer so we can match the form of PRF_Advantage*)
+Lemma Gi_prf_rf_close : forall (i : nat),
+  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
+Proof.
+  intros i.
+  rewrite (PRF_Advantages_same i). (* TODO true? or rewrite on right with properties of <= *)
+  (* don't need to unfold *)
+  unfold Gi_prg_prf.
+  unfold Gi_prg_rf.
+  unfold PRF_Advantage_Game.
+  reflexivity. (* TODO how was this proven automatically? *)
+  (* TODO how to prove this? analogous proof PRF_DRBG_G2_G3_close only used reflexivity *)
+  (* numbering is backward? *)
+Qed.
 
 (* TODO use Adam's existing theorem. not sure if this is the right bound *)
 Definition Pr_collisions := numCalls^2 / 2^eta.
 
 (* may need to update this w/ new proof *)
 Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
-
-(* base case theorem (adam's) TODO *)
-
-(* Step 1 *)
-(* let i = 3. 
-Gi_prg_prf i: RB RB RB PRF PRF
-Gi_prg_rf i:  RB RB RF PRF PRF *)
-Lemma Gi_prf_rf_close : forall (i : nat),
-  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
-Proof.
-  intros i.
-  rewrite (PRF_Advantages_same i). (* TODO true? *)
-  (* don't need to unfold *)
-  unfold Gi_prg_prf.
-  unfold Gi_prg_rf.
-  unfold PRF_Advantage.
-  reflexivity. (* TODO how was this proven automatically? *)
-  (* TODO how to prove this? analogous proof PRF_DRBG_G2_G3_close only used reflexivity *)
-  (* numbering is backward? *)
-Qed.
 
 (* Step 2 *)
 (* let i = 3. 
@@ -619,10 +648,6 @@ Proof.
   unfold Gi_prg.
 Admitted.
 
-(* let i = 3. 
-Gi_prg i:         RB RB RB PRF PRF 
-Gi_prg_prf (S i): RB RB RB PRF PRF *)
-Lemma Gi_rf_rb_close : forall (i : nat),
 Lemma Gi_prg_normal_prf_eq : forall (i : nat),
     Pr[Gi_prg i] == Pr[Gi_prg_prf (S i)].
 Proof.
@@ -643,7 +668,7 @@ Proof.
   unfold Gi_Gi_plus_1_bound.
   intros.
 (* TODO: separate this into a series of bounds lemmas: Gi_prg i, Gi_prg_rf?, Gi_prg n *)
-  eapply ratDistance_le_trans.
+  eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
   rewrite Gi_prg_normal_prf_eq.
   (* TODO check the numberings on these and add comments *)
   apply Gi_prf_rf_close.
@@ -680,8 +705,7 @@ Admitted.
 Lemma G2_Gi_n_equal :
   Pr[G2_prg] == Pr[Gi_prg numCalls].
 Proof.
-  (* rewrite G2_oracle_eq.         (* TODO can't rewrite with this? *) *)
-  rewrite <- G2_oracle_eq'.
+  rewrite <- G2_oracle_eq.
   unfold G2_prg'.
   unfold Gi_prg.
   comp_skip.
