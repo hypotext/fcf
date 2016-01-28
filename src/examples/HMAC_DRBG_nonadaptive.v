@@ -26,13 +26,16 @@ Require Import List.
 - Move my proof to a separate file? or review it X
 - Comment the uncommented games X
 
-- Figure out what's going on with PRF advantage
+- Figure out what's going on with PRF advantage X
+- Look at OracleMapHybrid (X)
+
 - Write out all subgames (e.g. involving random functions)
 - Review step 4 and OracleHybrid proofs
-- Look at OracleMapHybrid
 - Remove unneeded GenUpdate*_oc versions
 
 - Prove G1 = Gi 0 and G2 = Gi q
+- Prove Gi_prg_prf (S i) = Gi_prg i
+- Prove PRF advantage theorems
 - Prove the theorems: (figure out what the main lemmas and difficulties are)
   - Pr[Collisions] = ? (for n+1 calls)
   - Outer base case (Adam's proof)
@@ -394,7 +397,7 @@ Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
   match n with
   | O => $ ret (nil, v)
   | S n' =>
-    v' <--$ (OC_Query _ (to_list v));
+    v' <--$ (OC_Query _ (to_list v)); (* ORACLE USE *)
     [bits, v''] <--$2 Gen_loop_oc v' n';
     $ ret (v' :: bits, v'')
   end.
@@ -403,9 +406,9 @@ Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
 Definition GenUpdate_oc (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
   [k, v_0] <-2 state;
-  v <--$ (OC_Query _ (to_list v_0));
+  v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *)
   [bits, v'] <--$2 Gen_loop_oc v n;
-  k' <--$ (OC_Query _ (to_list v' ++ zeroes));
+  k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
   $ ret (bits, (k', v')).
 
 (* doesn't use the oracle *)
@@ -458,7 +461,7 @@ Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat)
       if lt_dec callsSoFar i (* callsSoFar < i *)
       then GenUpdate_rb_intermediate_oc
       else if beq_nat callsSoFar i (* callsSoFar = i *)
-           then GenUpdate_oc    (* uses random function oracle *)
+           then GenUpdate_oc    (* uses provided oracle (PRF or RF) *)
       else if beq_nat callsSoFar O 
            then GenUpdate_noV_oc  (* first call does not update v *)
       else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
@@ -578,14 +581,12 @@ PRF_Advantage_Game n = 0
 
 thus, forall i, PRF_Advantage_Game i <= PRF_Advantage_Game 0 *)
 
-(* why do we need this theorem again? what will go wrong if we don't have it? *)
-(* maybe it's <=, not = 
-(but upper-bounded by which one? PRF_Advantage 1? i guess we're guaranteed that that one exists, since numCalls > 1. which one would be less -- PRF_Advantage 0? *)
+(* these proofs will require dealing with OracleComps *)
 Lemma PRF_Advantage_0 : 
     PRF_Advantage_Game numCalls = 0.
 Proof.
   intros. unfold PRF_Advantage_Game. unfold PRF_Advantage.
-
+  (* TODO lemma that PRF_Advantage_Game numCalls always uses random bits and ignores the inputted oracle, so games A and B are on indistinguishable output *)
 Admitted.
 
 Lemma PRF_Advantages_same : forall (i j : nat),
@@ -617,43 +618,65 @@ Gi_prg_prf i: RB RB PRF PRF PRF
 Gi_prg_rf i:  RB RB RF  PRF PRF 
 need to use `Gi_prg_prf i` instead of `Gi_prg i` because this matches the form of 
 `Gi_prg_rf` closer so we can match the form of PRF_Advantage*)
-Lemma Gi_prf_rf_close : forall (i : nat),
-  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
+Lemma Gi_prf_rf_close_i : forall (i : nat),
+  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_Game i.
 Proof.
   intros i.
-  rewrite (PRF_Advantages_same i). (* TODO true? or rewrite on right with properties of <= *)
+  unfold PRF_Advantage_i.
   (* don't need to unfold *)
   unfold Gi_prg_prf.
   unfold Gi_prg_rf.
   unfold PRF_Advantage_Game.
   reflexivity. (* TODO how was this proven automatically? *)
-  (* TODO how to prove this? analogous proof PRF_DRBG_G2_G3_close only used reflexivity *)
-  (* numbering is backward? *)
 Qed.
 
+Lemma Gi_prf_rf_close : forall (i : nat),
+  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
+Proof.
+  intros.
+  eapply leRat_trans.
+  apply Gi_prf_rf_close_i.
+  apply PRF_Advantages_lte.
+Qed.
+
+(* ------------------------------- *)
+
+(* Step 2 *)
 (* TODO use Adam's existing theorem. not sure if this is the right bound *)
 Definition Pr_collisions := numCalls^2 / 2^eta.
 
 (* may need to update this w/ new proof *)
 Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 
-(* Step 2 *)
-(* let i = 3. 
-Gi_prg_rf i: RB RB RF PRF PRF
-Gi_prg i:    RB RB RB PRF PRF *)
-Lemma Gi_rf_rb_close : forall (i : nat),
-  | Pr[Gi_prg_rf i] - Pr[Gi_prg i] | <= Pr_collisions.
-Proof.
-  unfold Gi_prg_rf.
-  unfold Gi_prg.
-Admitted.
-
+(* Random functions to random bits -- what's the bound? what are the intermediate games? 
+need to look at step 4 again *)
+(* TODO make sure this is true, some important theorems depend on it *)
+(* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
 Lemma Gi_prg_normal_prf_eq : forall (i : nat),
     Pr[Gi_prg i] == Pr[Gi_prg_prf (S i)].
 Proof.
   intros.
   unfold Gi_prg.
   unfold Gi_prg_prf.
+Admitted.
+
+(* let i = 3. 
+Gi_prg_rf i: RB RB RF PRF PRF
+Gi_prg i:    RB RB RB PRF PRF *)
+Lemma Gi_rf_rb_close : forall (i : nat),
+  | Pr[Gi_prg_rf i] - Pr[Gi_prg i] | <= Pr_collisions.
+Proof.
+  intros.
+  rewrite Gi_prg_normal_prf_eq. (* put Gi_prg into the same form using PRF oracle *)
+  unfold Gi_prg_rf.
+  unfold Gi_prg_prf.
+  (* need an aux. theorem about collisions? how to reuse adam's work? *)
+(* want a theorem saying 
+- ignore previous RB stuff, indistinguishable
+- RF vs. RB: ?
+- following PRF stuff: ?
+something about K, V updating too
+ *)
 Admitted.
 
 (* Inductive step *)
@@ -665,15 +688,14 @@ Theorem Gi_Gi_plus_1_close :
   forall (n : nat),
   | Pr[Gi_prg n] - Pr[Gi_prg (S n)] | <= Gi_Gi_plus_1_bound.
 Proof.
-  unfold Gi_Gi_plus_1_bound.
-  intros.
-(* TODO: separate this into a series of bounds lemmas: Gi_prg i, Gi_prg_rf?, Gi_prg n *)
+  unfold Gi_Gi_plus_1_bound. intros.
   eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
   rewrite Gi_prg_normal_prf_eq.
-  (* TODO check the numberings on these and add comments *)
   apply Gi_prf_rf_close.
   apply Gi_rf_rb_close.
 Qed.
+
+(* ------------------------------- *)
 
 (* this proof (in OracleHybrid) is long and uses identical until bad. should i make sure this is true first? *)
 (* TODO make sure the numbering is right *)
@@ -712,6 +734,8 @@ Proof.
   (* comp_skip. (* ? *) *)
 
 Admitted.
+
+(* ------------------------------- *)
 
 (* final theorem *)
 Theorem G1_G2_close :
