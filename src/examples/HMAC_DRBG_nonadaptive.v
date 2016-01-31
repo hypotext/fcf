@@ -303,7 +303,7 @@ Proof.
 Qed.
 
 (* G1_prg_original: calls GenUpdate_original, then GenUpdate_original
-G1_prg_: uses GenUpdate_noV, then GenUpdate (v moved) *)
+G1_prg: uses GenUpdate_noV, then GenUpdate (v moved) *)
 Theorem GenUpdate_v_output_probability :
   Pr[G1_prg_original] == Pr[G1_prg].
 Proof.
@@ -586,7 +586,38 @@ Lemma PRF_Advantage_0 :
     PRF_Advantage_Game numCalls = 0.
 Proof.
   intros. unfold PRF_Advantage_Game. unfold PRF_Advantage.
+
+  assert (distance_0_eq : forall G1 G2, | Pr[G1] - Pr[G2] | = 0 <-> Pr[G1] == Pr[G2]).
+  { intros. intuition. admit.
+    (* rewrite -> H. ?? *) admit. } (* TODO this is probably already proven *)
+
+  apply distance_0_eq. clear distance_0_eq.
+  
+  fcf_to_prhl_eq. (* TODO when should I *not* use this? *)
+
   (* TODO lemma that PRF_Advantage_Game numCalls always uses random bits and ignores the inputted oracle, so games A and B are on indistinguishable output *)
+
+  unfold PRF_Adversary.
+  unfold PRF_G_A.
+  unfold PRF_G_B.
+
+  fcf_irr_l. admit.
+
+  fcf_skip.
+  simpl.
+  fcf_inline_first.
+  fcf_skip.
+  fcf_simp.
+  simpl.
+  fcf_inline_first.
+  fcf_skip.
+
+  (* arriving at oracleCompMap_inner: same but the oracles are different *)
+  instantiate (1 := (fun x y => fst x = fst y)). (* TODO: forgot why this and not eq *)
+  (* TODO: here, theorem about oracleCompMap_inner on maxCallsAndBlocks not using oracle *)
+  
+  (* unfold Oi_oc'. *)
+
 Admitted.
 
 Lemma PRF_Advantages_same : forall (i j : nat),
@@ -606,9 +637,6 @@ Proof.
   (* destruct (beq_nat i numCalls). *)
 
 Admitted.
-
-(* -------------- *)
-(* Final theorems *)
 
 (* base case theorem (adam's) TODO *)
 
@@ -643,9 +671,6 @@ Qed.
 
 (* Step 2 *)
 
-(*  *)
-
-
 (* TODO use Adam's existing theorem. not sure if this is the right bound.
 should be a function of [blocksPerCall + 1] (for the extra v-update) *)
 Definition Pr_collisions := (S blocksPerCall)^2 / 2^eta.
@@ -664,6 +689,8 @@ Proof.
   unfold Gi_prg.
   unfold Gi_prg_prf.
 Admitted.
+
+
 
 (* let i = 3. 
 Gi_prg_rf i: RB RB RF PRF PRF
@@ -756,6 +783,8 @@ Proof.
   specialize (distance_le_prod_f (fun i => Pr[Gi_prg i]) Gi_Gi_plus_1_close numCalls).
   intuition.
 Qed.
+
+(* ------------------------------- *)
 
   (* Notes on our proof: (might be outdated as of 1/1/16)
 
