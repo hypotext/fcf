@@ -603,7 +603,6 @@ Proof.
 
   fcf_irr_l. admit.
 
-  fcf_skip.
   simpl.
   fcf_inline_first.
   fcf_skip.
@@ -614,11 +613,31 @@ Proof.
 
   (* arriving at oracleCompMap_inner: same but the oracles are different *)
   instantiate (1 := (fun x y => fst x = fst y)). (* TODO: forgot why this and not eq *)
-  (* TODO: here, theorem about oracleCompMap_inner on maxCallsAndBlocks not using oracle *)
-  
-  (* unfold Oi_oc'. *)
+  (* TODO: here, theorem about oracleCompMap_inner on maxCallsAndBlocks not using oracle (forall oracles A B...) *)
 
-Admitted.
+  *
+    (* do i need induction? are there theorems about oracleCompMap (Adam's version)? *)
+    unfold Oi_oc'.
+    unfold oracleCompMap_inner.
+
+    
+    
+    admit.
+
+  * simpl.
+    fcf_simp.
+    fcf_inline_first.
+    simpl.
+    fcf_inline_first.
+    fcf_simp.
+    fcf_inline_first.
+    simpl in H4.
+    inversion H4.
+    subst.
+    fcf_skip.
+    fcf_simp. (* TODO ltac for this kind of proof *)
+    fcf_reflexivity.
+Qed.
 
 Lemma PRF_Advantages_same : forall (i j : nat),
     i <> numCalls -> j <> numCalls ->
@@ -702,13 +721,34 @@ Proof.
   rewrite Gi_prg_normal_prf_eq. (* put Gi_prg into the same form using PRF oracle *)
   unfold Gi_prg_rf.
   unfold Gi_prg_prf.
-  (* need an aux. theorem about collisions? how to reuse adam's work? *)
-(* want a theorem saying 
-- ignore previous RB stuff, indistinguishable
-- RF vs. RB: ?
-- following PRF stuff: ?
-something about K, V updating too
- *)
+  unfold PRF_Adversary.
+  simpl.
+
+  (* i can at least prove that doing the RBs first, then instantiating, key gen, etc. (changing the numbers of calls) is equivalent to what we have here, then split out the RBs in the |Pr - Pr| and eliminate them? not sure what to do with the PRFs afterward
+
+(* can't do the fcf_to_prhl stuff here, TODO figure out how adam does it 
+see PRF_DRBG_G3_G4_close *)
+
+(* TODO: split up this theorem into lemmas and Qed it. split up the bigger lemmas and Qed them too *)
+
+(* want lemmas saying
+- key updating: calling a RF with an input of longer length whereas all other inputs had same length = randomly sampled <<<
+
+- previous RB output (if any) are indistinguishable <<<
+- succeeding PRF output (if any) are indistinguishable
+  - uses key updating lemma above
+  - v-updating: 
+- only the RB/RF outputs may be distinguishable
+  - the K, V inputs are randomly sampled
+  - distinguishable with advantage Pr_collisions = (blocksPerCall + 1)^2 / 2^eta
+  - because of key updating lemma above (adv 0)
+  - plus adam's lemma with an additional list entry
+
+- question: how to split into these three parts/lemmas?
+   identical until bad? do i need this? how to use it?
+   multiple adversaries? induction?
+
+- other wrinkles: dealing with OracleComp stuff, PRF_Adversary *)
 Admitted.
 
 (* Inductive step *)

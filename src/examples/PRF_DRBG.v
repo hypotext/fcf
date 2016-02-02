@@ -514,9 +514,11 @@ Check PRF_A.
   Qed.
   
   Theorem PRF_DRBG_G3_2_3_close : 
-  | Pr[x <-$ PRF_DRBG_G3_2; ret (fst x)] - Pr[x <-$ PRF_DRBG_G3_3; ret (fst x)] | <= Pr[x <-$ PRF_DRBG_G3_3; ret (snd x)].
+  | Pr[x <-$ PRF_DRBG_G3_2; ret (fst x)] - Pr[x <-$ PRF_DRBG_G3_3; ret (fst x)] | <=
+                                           Pr[x <-$ PRF_DRBG_G3_3; ret (snd x)].
     
     rewrite ratDistance_comm.
+    (* turns inequality to two equaliites *)
     fcf_fundamental_lemma.      (* * TODO *)
 
     symmetry.
@@ -525,7 +527,6 @@ Check PRF_A.
     intuition.
     symmetry.
     apply PRF_DRBG_G3_2_3_eq_until_bad.    
-    
   Qed.
 
   Theorem PRF_DRBG_G3_3_G4_eq :
@@ -848,10 +849,14 @@ Check PRF_DRBG_f_bad_2.
      | Pr[ PRF_DRBG_G3 ] - Pr[  PRF_DRBG_G4 ] | <= (l^2 / 2^eta).
 
      rewrite PRF_DRBG_G3_1_eq.
-     rewrite PRF_DRBG_G3_1_2_eq.
+
+     rewrite PRF_DRBG_G3_1_2_eq. (* id until bad? *)
      rewrite <- PRF_DRBG_G3_3_G4_eq.
-     rewrite PRF_DRBG_G3_2_3_close. (* from diff of adv guessing correct bit in 2 games, to just the pr of adv guessing correct bit in 1 game (from fst to snd) *)
+
+     rewrite PRF_DRBG_G3_2_3_close. (* from diff of adv guessing correct bit in 2 games, to just the pr of adv guessing correct bit in 1 game (from fst to snd) *) (* **** *)
      rewrite PRF_DRBG_G3_bad_equiv. (* identical until bad? transitions from the normal game to the one exposing the bad event *)
+
+     (* examine *_G3_bad_* games! *)
      rewrite PRF_DRBG_G3_bad_1_2_equiv.
      rewrite PRF_DRBG_G3_bad_2_3_equiv.
      rewrite PRF_DRBG_G3_bad_3_4_equiv.
@@ -916,4 +921,12 @@ Check PRF_DRBG_f_bad_2.
   Print Assumptions PRF_DRBG_Adv_small.
 
 End PRF_DRBG.
+
+
+
+
+
+
+
+
 
