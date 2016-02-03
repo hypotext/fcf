@@ -722,7 +722,10 @@ Proof.
   unfold Gi_prg_rf.
   unfold Gi_prg_prf.
   unfold PRF_Adversary.
+  unfold Oi_oc'.
   simpl.
+
+
 
   (* i can at least prove that doing the RBs first, then instantiating, key gen, etc. (changing the numbers of calls) is equivalent to what we have here, then split out the RBs in the |Pr - Pr| and eliminate them? not sure what to do with the PRFs afterward
 
@@ -745,7 +748,9 @@ see PRF_DRBG_G3_G4_close *)
   - plus adam's lemma with an additional list entry
 
 - question: how to split into these three parts/lemmas?
-   identical until bad? do i need this? how to use it?
+   identical until bad: have to use it. how to use it?
+    how to expose fst/snd?
+    (so now this needs TWO identical until bads)
    multiple adversaries? induction?
 
 - other wrinkles: dealing with OracleComp stuff, PRF_Adversary *)
