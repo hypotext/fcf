@@ -725,7 +725,14 @@ Proof.
   unfold Oi_oc'.
   simpl.
 
-
+  (* - question: how to split into these three parts/lemmas?
+   multiple adversaries? induction?
+   identical until bad: have to use it. how to use it?
+    - how to expose fst/snd?
+    (so now this needs TWO identical until bads)
+    - Q: 
+what is the bad event?
+ *)
 
   (* i can at least prove that doing the RBs first, then instantiating, key gen, etc. (changing the numbers of calls) is equivalent to what we have here, then split out the RBs in the |Pr - Pr| and eliminate them? not sure what to do with the PRFs afterward
 
@@ -746,12 +753,6 @@ see PRF_DRBG_G3_G4_close *)
   - distinguishable with advantage Pr_collisions = (blocksPerCall + 1)^2 / 2^eta
   - because of key updating lemma above (adv 0)
   - plus adam's lemma with an additional list entry
-
-- question: how to split into these three parts/lemmas?
-   identical until bad: have to use it. how to use it?
-    how to expose fst/snd?
-    (so now this needs TWO identical until bads)
-   multiple adversaries? induction?
 
 - other wrinkles: dealing with OracleComp stuff, PRF_Adversary *)
 Admitted.
