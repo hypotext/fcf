@@ -719,6 +719,14 @@ Lemma Gi_rf_rb_close : forall (i : nat),
 Proof.
   intros.
   rewrite Gi_prg_normal_prf_eq. (* put Gi_prg into the same form using PRF oracle *)
+
+  (* here: rewrite Gi_prg_rf with fst (value) *)
+  (* rewrite Gi_prg_prf (S i) with fst (value) *)
+  (* use identical until bad to turn the left into Pr[one of them] with snd (bad)
+   -- which one? should be prf (S i) since that's the one that has RB in place of RF  *)
+  (* after that: adam turned that one into a game with just bad, then did equivalences *)
+  (* i need to reduce it to his somehow *)
+
   unfold Gi_prg_rf.
   unfold Gi_prg_prf.
   unfold PRF_Adversary.

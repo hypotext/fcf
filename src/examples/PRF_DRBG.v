@@ -351,7 +351,8 @@ Check PRF_A.
   Definition PRF_DRBG_G3_2 :=
     [b, ls] <-$2 PRF_A _ _ (randomFunc_withDups) nil;
     ret (b, hasDups _ (fst (split ls))).
-  (* TODO: so would the bad event in the hybrid arg be that the ith list hasDups? *)
+
+  (* ls : list (D * Bvector eta) <-- whether the list of INPUTS of the RF has dups  *)
 
   Theorem PRF_DRBG_G3_1_2_eq : 
     Pr[PRF_DRBG_G3_1] == Pr[x <-$ PRF_DRBG_G3_2; ret (fst x)].
@@ -366,7 +367,6 @@ Check PRF_A.
     fcf_simp.
     simpl.
     fcf_reflexivity.
-
   Qed.
 
   (* Obtain a new random value for all inputs.  This game is only equal to the previous game when there are no duplicates in the inputs. *)
@@ -390,9 +390,10 @@ Check PRF_A.
       (*    (* the inputs should be the same anyway *) *)
       (*    hasDups _ inputs1 = *)
       (*    hasDups _ inputs2 /\ *)
-      (*    (* randomFunc_withDups has no dups -> exactly same as random bits & adversary cannot distinguish them. TODO how to write these specifications? *) *)
       (*    (hasDups _ inputs1 = false -> *)
       (*     cache1 = cache2 /\ adv1 = adv2)) *)
+      (*    (* randomFunc_withDups has no dups in its inputs -> its inputs and outputs are exactly the same as the one for random inputs and outputs & adversary cannot distinguish them. *) *)
+         (* TODO how was this proved? *)
          hasDups _ (fst (split (snd y1))) =
          hasDups _ (fst (split (snd y2))) /\
          (hasDups _ (fst (split (snd y1))) = false ->
@@ -401,9 +402,14 @@ Check PRF_A.
       (PRF_A _ _ 
              (fun (ls : list (D * Bvector eta)) (x : D) =>
          r <-$ { 0 , 1 }^eta; ret (r, (x, r) :: ls)) nil).
-
-      (* ? *)
-    eapply (fcf_oracle_eq_until_bad (fun x => hasDups _ (fst (split x))) (fun x => hasDups _ (fst (split x))) eq); intuition.
+  Proof.
+    (* TODO what is the next line? comment each assumption/conclusion in english *)
+    (* Check fcf_oracle_eq_until_bad. *)
+    Locate fcf_oracle_eq_until_bad.
+    eapply (fcf_oracle_eq_until_bad
+              (fun x => hasDups _ (fst (split x)))
+              (fun x => hasDups _ (fst (split x))) eq);
+    intuition.
     apply PRF_A_wf.
     
     unfold randomFunc_withDups.
@@ -497,11 +503,13 @@ Check PRF_A.
 
     intuition.
     unfold PRF_DRBG_G3_2, PRF_DRBG_G3_3.
-    fcf_to_prhl.
+    fcf_to_prhl.                (* proved via moving to comp_spec with iff! *)
     fcf_skip.
-    apply PRF_A_randomFunc_eq_until_bad. (* identical until bad *)
+    apply PRF_A_randomFunc_eq_until_bad.
+    (* nested identical until bad -- this is the big comp_spec above. has (bad = false) as an assumption *)
     fcf_simp.
     fcf_spec_ret.
+
     simpl in *; pairInv; intuition; subst;
     trivial.
     
@@ -511,7 +519,6 @@ Check PRF_A.
     rewrite <- H2 in H6.
     edestruct H3; intuition; subst.
     trivial.
-
   Qed.
   
   Theorem PRF_DRBG_G3_2_3_close : 
@@ -521,12 +528,21 @@ Check PRF_A.
     rewrite ratDistance_comm.
     (* turns inequality to two equaliites *)
     fcf_fundamental_lemma.      (* * TODO *)
+    (* TODO ask adam how he proved this (did he use "coins"?) *)
+    (* what are the assumptions we need to prove? *)
+    (* so these two games AREN'T identical until bad in the sense that there's no "code is the same before bad" and "after bad we can do whatever" *)
 
     symmetry.
+    (* probability that they return bad is the same *)
     apply PRF_DRBG_G3_2_3_badness_same.
 
     intuition.
     symmetry.
+    (* ? *)
+    Print evalDist.
+    Print Distribution.
+    Locate evalDist.
+    (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- how to prove this? esp b/c the two games aren't in exactly the "identical until bad" form *)
     apply PRF_DRBG_G3_2_3_eq_until_bad.    
   Qed.
 
@@ -848,20 +864,28 @@ Check PRF_DRBG_f_bad_2.
    (* Combine all of the results related to the G3 games to show that G3 and G4 are close. *)
    Theorem PRF_DRBG_G3_G4_close : 
      | Pr[ PRF_DRBG_G3 ] - Pr[  PRF_DRBG_G4 ] | <= (l^2 / 2^eta).
-
+   Proof.
+     (* randomFunc -> randomFunc_withDups *)
      rewrite PRF_DRBG_G3_1_eq.
 
      (* identical until bad: both return fst (expose bad event?), <= collision bound *)
-     rewrite PRF_DRBG_G3_1_2_eq.
-     rewrite <- PRF_DRBG_G3_3_G4_eq.
+     (* randomFunc_withDups; bad event: inputs to RF have dups *)
+     (* the outputs of the RF are random AND are the new inputs to the RF *)
+     Print PRF_A. Print PRF_DRBG_f_G2.
+     rewrite PRF_DRBG_G3_1_2_eq. (* returning 1 (not bad) *)
+     (* new random value for all inputs. bad event: duplicate input *)
+     rewrite <- PRF_DRBG_G3_3_G4_eq. (* returning 1 (not bad) *)
 
      (* from diff of adv guessing correct bit in 2 games, to just the pr of adv guessing correct bit in 1 game (from fst to snd) *) (* **** *)
      (* the difference between the fsts is equal to one game with snd *)
-     rewrite PRF_DRBG_G3_2_3_close.
+     (* id until bad: the difference between the probability of the first game returning 1 (?) minus the probability of the second game returning 1 is <= the probability of the *second* (?) game returning bad (?) *)
+     (* can we choose which game we want to use? (the 2nd one is easier here?) *)
+     rewrite PRF_DRBG_G3_2_3_close. (* returning bad *)
      (* identical until bad? transitions from the normal game to the one exposing the bad event *) 
      rewrite PRF_DRBG_G3_bad_equiv.
+     (* throw away game output *)
 
-     (* examine *_G3_bad_* games! *)
+     (* TODO: examine *_G3_bad_* games! *)
      rewrite PRF_DRBG_G3_bad_1_2_equiv.
      rewrite PRF_DRBG_G3_bad_2_3_equiv.
      rewrite PRF_DRBG_G3_bad_3_4_equiv.
