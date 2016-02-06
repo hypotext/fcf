@@ -34,7 +34,7 @@ Require Import List.
 - Remove unneeded GenUpdate*_oc versions
 
 - Prove G1 = Gi 0 and G2 = Gi q
-- Prove Gi_prg_prf (S i) = Gi_prg i
+- Prove Gi_prf (S i) = Gi_prg i
 - Prove PRF advantage theorems
 - Prove the theorems: (figure out what the main lemmas and difficulties are)
   - Pr[Collisions] = ? (for n+1 calls)
@@ -386,7 +386,7 @@ Oi_prg_rf: if n > i then query GenUpdate_rb, OC version
 
 PRF_Adversary: gives the Oi oracle the (f k) oracle it's given by Gi, and queries the resulting oracle `maxCalls` times, querying `numBlocks` each time. passes the result to the existing (non-adaptive) GenUpdate adversary
 
-Gi_prg_rf: gives the PRF_Adversary the random function oracle and returns what PRF_Adversary returns
+Gi_rf: gives the PRF_Adversary the random function oracle and returns what PRF_Adversary returns
 
 PRF_Advantage: defined in terms of PRF_Adversary, indexed by i 
 (but PRF_Advantage should be the same for all i) *)
@@ -444,10 +444,10 @@ G1:      RB  PRF PRF
 Gi_rf 1: RB  RF  PRF (i = 1 here)
 G2:      RB  RB  PRF *)
 (* number of calls: first call is 0, last call is (numCalls - 1) for numCalls calls total
-G0: PRF PRF PRF <-- Gi_prg_prf 0
-    RF  PRF PRF <-- Gi_prg_rf 0
-G1: RB  PRF PRF <-- Gi_prg_prf 1
-    RB  RF  PRF <-- Gi_prg_prg 1
+G0: PRF PRF PRF <-- Gi_prf 0
+    RF  PRF PRF <-- Gi_rf 0
+G1: RB  PRF PRF <-- Gi_prf 1
+    RB  RF  PRF <-- Gi_rf 1
 G2: RB  RB  PRF
     RB  RB  RF
 G3: RB  RB  RB  <-- note that there is no oracle slot to replace here
@@ -498,15 +498,42 @@ Definition PRF_Adversary (i : nat) : OracleComp Blist (Bvector eta) bool :=
   $ A bits.
 
 (* ith game: use RF oracle *)
-Definition Gi_prg_rf (i : nat) : Comp bool :=
+Definition Gi_rf (i : nat) : Comp bool :=
   [b, _] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
   ret b.
 
 (* ith game: use PRF oracle *)
-Definition Gi_prg_prf (i : nat) : Comp bool :=
+Definition Gi_prf (i : nat) : Comp bool :=
   k <-$ RndK;
   [b, _] <-$2 PRF_Adversary i _ _ (f_oracle f _ k) tt;
   ret b.
+
+(* Expose the bad events *)
+(* ith game: use RF oracle *)
+Definition Gi_rf_bad (i : nat) : Comp (bool * bool) :=
+  [b, state] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
+  let rfInputs := fst (split state) in
+  ret (b, hasDups _ (nth i nil rfInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+
+Definition Gi_rb (i : nat) : Comp bool :=
+  let rb_oracle := (fun state input =>
+                    output <-$ ({0,1}^eta);
+                    ret (output, (input, output) :: state)) in
+  [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
+  let rbInputs := fst (split state) in
+  ret b.
+
+(* adam wrote a new game here -- bad event is repetition in the random INPUTS
+INPUTS = v :: (first n of outputs)? *)
+(* pass in the RB oracle that records its inputs? don't use Gi_prf_bad (S i)? 
+what about preceding/following RB and (especially) PRF inputs/outputs? *)
+Definition Gi_rb_bad (i : nat) : Comp (bool * bool) :=
+  let rb_oracle := (fun state input =>
+                    output <-$ ({0,1}^eta);
+                    ret (output, (input, output) :: state)) in
+  [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
+  let rbInputs := fst (split state) in
+  ret (b, hasDups _ (nth i nil rbInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 (* Modeled after these definitions from PRF_DRBG.v *)
 (*   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
@@ -620,8 +647,6 @@ Proof.
     unfold Oi_oc'.
     unfold oracleCompMap_inner.
 
-    
-    
     admit.
 
   * simpl.
@@ -661,24 +686,24 @@ Admitted.
 
 (* Step 1 *)
 (* let i = 3. 
-Gi_prg_prf i: RB RB PRF PRF PRF
-Gi_prg_rf i:  RB RB RF  PRF PRF 
-need to use `Gi_prg_prf i` instead of `Gi_prg i` because this matches the form of 
-`Gi_prg_rf` closer so we can match the form of PRF_Advantage*)
+Gi_prf i: RB RB PRF PRF PRF
+Gi_rf i:  RB RB RF  PRF PRF 
+need to use `Gi_prf i` instead of `Gi_prg i` because this matches the form of 
+`Gi_rf` closer so we can match the form of PRF_Advantage*)
 Lemma Gi_prf_rf_close_i : forall (i : nat),
-  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_Game i.
+  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Game i.
 Proof.
   intros i.
   unfold PRF_Advantage_i.
   (* don't need to unfold *)
-  unfold Gi_prg_prf.
-  unfold Gi_prg_rf.
+  unfold Gi_prf.
+  unfold Gi_rf.
   unfold PRF_Advantage_Game.
   reflexivity. (* TODO how was this proven automatically? *)
 Qed.
 
 Lemma Gi_prf_rf_close : forall (i : nat),
-  | Pr[Gi_prg_prf i] - Pr[Gi_prg_rf i] | <= PRF_Advantage_i.
+  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_i.
 Proof.
   intros.
   eapply leRat_trans.
@@ -701,48 +726,86 @@ Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 need to look at step 4 again *)
 (* TODO make sure this is true, some important theorems depend on it *)
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
-Lemma Gi_prg_normal_prf_eq : forall (i : nat),
-    Pr[Gi_prg i] == Pr[Gi_prg_prf (S i)].
+Lemma Gi_normal_prf_eq : forall (i : nat),
+    Pr[Gi_prg i] == Pr[Gi_prf (S i)].
 Proof.
   intros.
   unfold Gi_prg.
-  unfold Gi_prg_prf.
+  unfold Gi_prf.
 Admitted.
 
-
-
-(* let i = 3. 
-Gi_prg_rf i: RB RB RF PRF PRF
-Gi_prg i:    RB RB RB PRF PRF *)
-Lemma Gi_rf_rb_close : forall (i : nat),
-  | Pr[Gi_prg_rf i] - Pr[Gi_prg i] | <= Pr_collisions.
+(* does not hold for i = 0:
+Gi_prg 0: PRF PRF PRF...
+Gi_prg 1: RB PRF PRF...
+Gi_rb 1 : RB PRF PRF... *)
+Lemma Gi_normal_rb_eq : forall (i : nat),
+    Pr[Gi_prg (S i)] == Pr[Gi_rb i].
 Proof.
   intros.
-  rewrite Gi_prg_normal_prf_eq. (* put Gi_prg into the same form using PRF oracle *)
+  unfold Gi_prg.
+  unfold Gi_rb.
+Admitted.
 
-  (* here: rewrite Gi_prg_rf with fst (value) *)
-  (* rewrite Gi_prg_prf (S i) with fst (value) *)
+(* Gi_rf 0:  RF  PRF PRF
+Gi_prg 0:    PRF PRF PRF
+
+Gi_rf  1:    RF  PRF PRF
+Gi_prg 1:    RB  PRF PRF
+
+Gi_rf  2:    RB  RF  PRF 
+Gi_prg 2:    RB  RB  PRF *)
+Lemma Gi_rf_rb_close : forall (i : nat), (* not true for i = 0 (and not needed) *)
+  | Pr[Gi_rf (S i)] - Pr[Gi_prg (S i)] | <= Pr_collisions.
+Proof.
+  intros.
+  rewrite Gi_normal_rb_eq. (* put Gi_prg into the same form using RB oracle *)
+
+  (* here: rewrite Gi_rf with fst (value) *)
+  (* rewrite Gi_prf (S i) with fst (value) *)
   (* use identical until bad to turn the left into Pr[one of them] with snd (bad)
    -- which one? should be prf (S i) since that's the one that has RB in place of RF  *)
   (* after that: adam turned that one into a game with just bad, then did equivalences *)
   (* i need to reduce it to his somehow *)
 
-  unfold Gi_prg_rf.
-  unfold Gi_prg_prf.
-  unfold PRF_Adversary.
-  unfold Oi_oc'.
+  assert (rf_return_bad : forall (j : nat), Pr[Gi_rf j] == Pr[x <-$ Gi_rf_bad j; ret fst x]).
+  { admit. }
+  rewrite rf_return_bad. clear rf_return_bad.
+
+  assert (rb_return_bad : forall (j : nat), Pr[Gi_rb j] == Pr[x <-$ Gi_rb_bad j; ret fst x]).
+  { admit. }
+  rewrite rb_return_bad. clear rb_return_bad.
+
+  assert (id_until_bad : forall (j : nat),
+         | Pr[x <-$ Gi_rf_bad (S j); ret fst x] -
+           Pr[x <-$ Gi_rb_bad j; ret fst x] | <=
+                                              Pr[x <-$ Gi_rb_bad j; ret snd x]).
+  { intros. rewrite ratDistance_comm. fcf_fundamental_lemma.
+    -
+      (* probabilities of returning bad are the same *)
+      admit.
+    - intros.
+      (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen"*)
+      admit.
+  }
+
+  rewrite id_until_bad.
+  clear id_until_bad.
+
+  (* first, is this true? *)
+(* now bad_equiv (throw away inputs) / massaging games? + somehow reducing it to adam's? *)
+  unfold Gi_rb_bad.
   simpl.
+  fcf_inline_first.
 
   (* - question: how to split into these three parts/lemmas?
    multiple adversaries? induction?
    identical until bad: have to use it. how to use it?
     - how to expose fst/snd?
     (so now this needs TWO identical until bads)
-    - Q: 
 what is the bad event?
  *)
 
-  (* i can at least prove that doing the RBs first, then instantiating, key gen, etc. (changing the numbers of calls) is equivalent to what we have here, then split out the RBs in the |Pr - Pr| and eliminate them? not sure what to do with the PRFs afterward
+  (* i can at least prove that doing the RBs first, then instantiating, key gen, etc. (changing the numbers of calls) is equivalent to what we have here, then split out the RBs in the |Pr - Pr| and eliminate them? not sure what to do with the PRFs afterward *)
 
 (* can't do the fcf_to_prhl stuff here, TODO figure out how adam does it 
 see PRF_DRBG_G3_G4_close *)
@@ -768,7 +831,12 @@ Admitted.
 (* Inductive step *)
 (* let i = 3. 
 Gi_prg i:      RB RB RB PRF PRF
-Gi_prg (S i):  RB RB RB RB  PRF *)
+Gi_prg (S i):  RB RB RB RB  PRF 
+
+Gi_prg 0: PRF PRF PRF
+Gi_rf  0:  RF PRF PRF
+Gi_prg 1:  RB PRF PRF
+Gi_rf  1:  RB  RF PRF *)
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
   forall (n : nat),
@@ -776,7 +844,7 @@ Theorem Gi_Gi_plus_1_close :
 Proof.
   unfold Gi_Gi_plus_1_bound. intros.
   eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
-  rewrite Gi_prg_normal_prf_eq.
+  rewrite Gi_normal_prf_eq.
   apply Gi_prf_rf_close.
   apply Gi_rf_rb_close.
 Qed.

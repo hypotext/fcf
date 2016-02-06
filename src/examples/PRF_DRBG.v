@@ -374,6 +374,16 @@ Check PRF_A.
     [b, ls] <-$2 PRF_A _ _  (fun ls a => x <-$ {0, 1}^eta; ret (x, (a, x)::ls)) nil;
     ret (b, hasDups _ (fst (split ls))).
 
+  (* proved equivalent to this *)
+  (*   Definition PRF_DRBG_G4 :=
+    [b, _] <-$2 PRF_A _ _ (fun _ _ => x <-$ {0, 1}^eta; ret (x, tt)) tt;
+    ret b. *)
+
+Check (PRF_A _ _ (fun _ _ => x <-$ {0, 1}^eta; ret (x, tt)) tt).
+(* also unit *)
+Print PRF_A.
+Print PRF_DRBG_f_G2.
+
   (* The "equal until bad" specification for randomFunc_withDups and the oracle that always produces a new random value.  This specification forms the core of the proofs of the two parts of the fundamental lemma in the following two theorems. *)
   Theorem PRF_A_randomFunc_eq_until_bad : 
     comp_spec
