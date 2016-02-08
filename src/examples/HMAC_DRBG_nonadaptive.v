@@ -734,6 +734,16 @@ Proof.
   unfold Gi_prf.
 Admitted.
 
+Lemma Gi_rf_return_bad_eq : forall (i : nat),
+    Pr[Gi_rf i] == Pr[x <-$ Gi_rf_bad i; ret fst x].
+Proof.
+Admitted.
+
+Lemma Gi_rb_return_bad_eq : forall (i : nat),
+    Pr[Gi_rb i] == Pr[x <-$ Gi_rb_bad i; ret fst x].
+Proof.
+Admitted.
+
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
 Gi_prg 1: RB PRF PRF...
@@ -746,6 +756,84 @@ Proof.
   unfold Gi_rb.
 Admitted.
 
+(* ------ Identical until bad section *)
+
+(* First assumption for id until bad: the two games have the same probability of returning bad *)
+Lemma Gi_rb_rf_return_bad_same :  forall (i : nat),
+    Pr  [x <-$ Gi_rb_bad i; ret snd x ] ==
+    Pr  [x <-$ Gi_rf_bad (S i); ret snd x ].
+Proof.
+  intros.
+  unfold Gi_rb_bad. unfold Gi_rf_bad.
+  simpl.
+  fcf_inline_first.
+  fcf_skip.
+  fcf_skip.
+  fcf_simp.
+  fcf_skip.
+  fcf_to_prhl.              (* true? *)
+  * admit.
+  * clear H1 H H0. (* as a test; don't actually clear these *)
+    fcf_simp.
+    fcf_inline_first.
+    fcf_skip.
+    simpl.
+    fcf_simp.
+    simpl.
+    destruct i.
+    fcf_reflexivity.
+    fcf_reflexivity.
+(* did this use the comp_spec relation proved before it? maybe implicitly? *)
+Qed.
+
+      (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
+         differences: 1. PRF re-keyed using RF vs. randomly sampled. but PRF re-keyed using something of length > eta, so it is effectively randomly sampled.
+         2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter 
+
+TODO need one of those complex comp_specs *)
+Theorem Gi_rb_rf_no_bad_same : forall (i : nat) (a : bool),
+   evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_bad (S i)) (a, false).
+Proof.
+  intros.
+  fcf_to_prhl.
+  unfold Gi_rb_bad.
+  unfold Gi_rf_bad.
+Admitted.
+
+Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
+| Pr[x <-$ Gi_rf_bad (S i); ret fst x] - Pr[x <-$ Gi_rb_bad i; ret fst x] | <=
+                                              Pr[x <-$ Gi_rb_bad i; ret snd x].
+Proof.
+  intros. rewrite ratDistance_comm.
+  fcf_fundamental_lemma.
+
+  (* first assumption: they have same probability of returning bad *)
+  - apply Gi_rb_rf_return_bad_same.
+    
+  (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" *)
+  - apply Gi_rb_rf_no_bad_same.
+Qed.
+
+(* ----------- End identical until bad section *)
+
+  (* first, is this true? (lemma about probability of bad event) *)
+(* since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
+
+(* does this deal with the additional v? yes (is an input to oracle). and the key updating? 
+why do we need the fact that from the previous call the key was randomly sampled? *)
+  (* TODO figure out how to apply adam's result here *)
+Lemma Gi_rb_bad_collisions : forall (i : nat),
+   Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
+Proof.
+  unfold Gi_rb_bad.
+  unfold PRF_Adversary.
+  unfold Oi_oc'.
+  unfold GenUpdate_oc.
+  simpl.
+  fcf_inline_first.
+Admitted.
+
+(* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
 (* Gi_rf 0:  RF  PRF PRF
 Gi_prg 0:    PRF PRF PRF
 
@@ -760,60 +848,11 @@ Proof.
   intros.
   rewrite Gi_normal_rb_eq. (* put Gi_prg into the same form using RB oracle *)
 
-  (* here: rewrite Gi_rf with fst (value) *)
-  (* rewrite Gi_prf (S i) with fst (value) *)
-  (* use identical until bad to turn the left into Pr[one of them] with snd (bad)
-   -- which one? should be prf (S i) since that's the one that has RB in place of RF  *)
-  (* after that: adam turned that one into a game with just bad, then did equivalences *)
-  (* i need to reduce it to his somehow *)
+  rewrite Gi_rf_return_bad_eq. 
+  rewrite Gi_rb_return_bad_eq. 
 
-  assert (rf_return_bad : forall (j : nat), Pr[Gi_rf j] == Pr[x <-$ Gi_rf_bad j; ret fst x]).
-  { admit. }
-  rewrite rf_return_bad. clear rf_return_bad.
-
-  assert (rb_return_bad : forall (j : nat), Pr[Gi_rb j] == Pr[x <-$ Gi_rb_bad j; ret fst x]).
-  { admit. }
-  rewrite rb_return_bad. clear rb_return_bad.
-
-  assert (id_until_bad : forall (j : nat),
-         | Pr[x <-$ Gi_rf_bad (S j); ret fst x] -
-           Pr[x <-$ Gi_rb_bad j; ret fst x] | <=
-                                              Pr[x <-$ Gi_rb_bad j; ret snd x]).
-  { intros. rewrite ratDistance_comm. fcf_fundamental_lemma.
-    -
-      (* probabilities of returning bad are the same -- seems true *)
-      admit.
-    - intros.
-      (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same, so it's true *)
-      admit.
-
-  (* neither assumption deals with the PRF output afterward?? *)
-  }
-
-  rewrite id_until_bad.
-  clear id_until_bad.
-
-  (* first, is this true? (lemma about probability of bad event) *)
-(* now bad_equiv (throw away inputs) / massaging games? + somehow reducing it to adam's? *)
-  (* does this deal with PRF output afterward? seems to not. how is this possible? id-until-bad seems overpowered.
-
-since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
-
-(* does this deal with the additional v? yes (is an input to oracle). and the key updating? 
-TODO i thought the whole point of this proof was to deal with the re-keying. 
-but it is after the bad event so it seems to be ignored?? 
-maybe we need the fact that from the previous call the key was randomly sampled? 
-*)
-  unfold Gi_rb_bad.
-  unfold PRF_Adversary.
-  unfold Oi_oc'.
-  unfold GenUpdate_oc.
-  simpl.
-  fcf_inline_first.
-
-(* see PRF_DRBG_G3_G4_close *)
-
-(* TODO: split up this theorem into lemmas and Qed it. split up the bigger lemmas and Qed them too *)
+  rewrite Gi_rb_rf_identical_until_bad.
+  apply Gi_rb_bad_collisions.
 
 (* want lemmas saying
 - key updating: calling a RF with an input of longer length whereas all other inputs had same length = randomly sampled <<<
@@ -829,7 +868,7 @@ maybe we need the fact that from the previous call the key was randomly sampled?
   - plus adam's lemma with an additional list entry
 
 - other wrinkles: dealing with OracleComp stuff, PRF_Adversary *)
-Admitted.
+Qed.
 
 (* Inductive step *)
 (* let i = 3. 
@@ -969,3 +1008,26 @@ Pr[collisions] =
 
 the RF used both within the Generate loop and outside to generate the key?
 but K <- RF(K, V || 0x00) so there can't be any collision within this call? *)
+
+(* ----------------------------------- *)
+(* Scratch work section -- ignore *)
+
+Parameter A_t : Bvector eta -> bool.
+
+Definition g1_test :=
+  x <-$ {0,1}^eta;
+  ret (A_t x).
+
+Definition g2_test :=
+  x <-$ {0,1}^eta;
+  ret (A_t x).
+
+Theorem g1_g2_eq : Pr[g1_test] == Pr[g2_test].
+Proof.
+  unfold g1_test. unfold g2_test.
+  comp_skip.
+  (* this also works, but you don't have to translate to prhl *)
+  (* not clear on exactly what comp_skip is doing *)
+  (* fcf_to_prhl_eq. *)
+  (* comp_skip. *)
+Qed.
