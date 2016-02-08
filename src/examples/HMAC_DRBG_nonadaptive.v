@@ -525,7 +525,7 @@ Definition Gi_rb (i : nat) : Comp bool :=
 
 (* adam wrote a new game here -- bad event is repetition in the random INPUTS
 INPUTS = v :: (first n of outputs)? *)
-(* pass in the RB oracle that records its inputs? don't use Gi_prf_bad (S i)? 
+(* pass in the RB oracle that records its inputs
 what about preceding/following RB and (especially) PRF inputs/outputs? *)
 Definition Gi_rb_bad (i : nat) : Comp (bool * bool) :=
   let rb_oracle := (fun state input =>
@@ -781,34 +781,37 @@ Proof.
                                               Pr[x <-$ Gi_rb_bad j; ret snd x]).
   { intros. rewrite ratDistance_comm. fcf_fundamental_lemma.
     -
-      (* probabilities of returning bad are the same *)
+      (* probabilities of returning bad are the same -- seems true *)
       admit.
     - intros.
-      (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen"*)
+      (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same, so it's true *)
       admit.
+
+  (* neither assumption deals with the PRF output afterward?? *)
   }
 
   rewrite id_until_bad.
   clear id_until_bad.
 
-  (* first, is this true? *)
+  (* first, is this true? (lemma about probability of bad event) *)
 (* now bad_equiv (throw away inputs) / massaging games? + somehow reducing it to adam's? *)
+  (* does this deal with PRF output afterward? seems to not. how is this possible? id-until-bad seems overpowered.
+
+since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
+
+(* does this deal with the additional v? yes (is an input to oracle). and the key updating? 
+TODO i thought the whole point of this proof was to deal with the re-keying. 
+but it is after the bad event so it seems to be ignored?? 
+maybe we need the fact that from the previous call the key was randomly sampled? 
+*)
   unfold Gi_rb_bad.
+  unfold PRF_Adversary.
+  unfold Oi_oc'.
+  unfold GenUpdate_oc.
   simpl.
   fcf_inline_first.
 
-  (* - question: how to split into these three parts/lemmas?
-   multiple adversaries? induction?
-   identical until bad: have to use it. how to use it?
-    - how to expose fst/snd?
-    (so now this needs TWO identical until bads)
-what is the bad event?
- *)
-
-  (* i can at least prove that doing the RBs first, then instantiating, key gen, etc. (changing the numbers of calls) is equivalent to what we have here, then split out the RBs in the |Pr - Pr| and eliminate them? not sure what to do with the PRFs afterward *)
-
-(* can't do the fcf_to_prhl stuff here, TODO figure out how adam does it 
-see PRF_DRBG_G3_G4_close *)
+(* see PRF_DRBG_G3_G4_close *)
 
 (* TODO: split up this theorem into lemmas and Qed it. split up the bigger lemmas and Qed them too *)
 
