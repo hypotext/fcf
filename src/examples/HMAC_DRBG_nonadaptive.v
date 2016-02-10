@@ -29,8 +29,8 @@ Require Import List.
 - Figure out what's going on with PRF advantage X
 - Look at OracleMapHybrid (X)
 
-- Write out all subgames (e.g. involving random functions)
-- Review step 4 and OracleHybrid proofs
+- Write out all subgames (e.g. involving random functions) X
+- Review step 4 and OracleHybrid proofs (X)
 - Remove unneeded GenUpdate*_oc versions
 
 - Prove G1 = Gi 0 and G2 = Gi q
@@ -38,9 +38,7 @@ Require Import List.
 - Prove PRF advantage theorems
 - Prove the theorems: (figure out what the main lemmas and difficulties are)
   - Pr[Collisions] = ? (for n+1 calls)
-  - Outer base case (Adam's proof)
-  - Outer inductive hypothesis
-  - Inner double induction (Adam's proof) -- PRF_DRBG argument
+  - Apply Adam's argument
 
 - Prove other things (well-formedness, etc. -- the hypotheses)
   - Deal with actual Instantiate (not just RB)
@@ -722,8 +720,8 @@ Definition Pr_collisions := (S blocksPerCall)^2 / 2^eta.
 (* may need to update this w/ new proof *)
 Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 
-(* Random functions to random bits -- what's the bound? what are the intermediate games? 
-need to look at step 4 again *)
+(* These are all lemmas to rewrite games so I can apply identical until bad *)
+
 (* TODO make sure this is true, some important theorems depend on it *)
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
 Lemma Gi_normal_prf_eq : forall (i : nat),
@@ -734,11 +732,13 @@ Proof.
   unfold Gi_prf.
 Admitted.
 
+(* expose the bad event (dups) *)
 Lemma Gi_rf_return_bad_eq : forall (i : nat),
     Pr[Gi_rf i] == Pr[x <-$ Gi_rf_bad i; ret fst x].
 Proof.
 Admitted.
 
+(* expose the bad event (dups) *)
 Lemma Gi_rb_return_bad_eq : forall (i : nat),
     Pr[Gi_rb i] == Pr[x <-$ Gi_rb_bad i; ret fst x].
 Proof.
@@ -747,13 +747,17 @@ Admitted.
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
 Gi_prg 1: RB PRF PRF...
-Gi_rb 1 : RB PRF PRF... *)
+Gi_rb 0 : RB PRF PRF... 
+(call number 0 uses the RB oracle) -- equivalence, no replacing happening here *)
+(* might have misnumbered something here? *)
+(* using random bits as the oracle for the ith call = the (i+1)th hybrid *)
 Lemma Gi_normal_rb_eq : forall (i : nat),
     Pr[Gi_prg (S i)] == Pr[Gi_rb i].
 Proof.
   intros.
   unfold Gi_prg.
   unfold Gi_rb.
+  
 Admitted.
 
 (* ------ Identical until bad section *)
@@ -783,14 +787,14 @@ Proof.
     destruct i.
     fcf_reflexivity.
     fcf_reflexivity.
-(* did this use the comp_spec relation proved before it? maybe implicitly? *)
+(* did this use the comp_spec relation proved before it? maybe implicitly after fcf_skip? *)
 Qed.
 
       (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
          differences: 1. PRF re-keyed using RF vs. randomly sampled. but PRF re-keyed using something of length > eta, so it is effectively randomly sampled.
-         2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter 
+         2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter (TODO how to show this?) *)
 
-TODO need one of those complex comp_specs *)
+(* TODO need one of those complex comp_specs *)
 Theorem Gi_rb_rf_no_bad_same : forall (i : nat) (a : bool),
    evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_bad (S i)) (a, false).
 Proof.
@@ -800,6 +804,7 @@ Proof.
   unfold Gi_rf_bad.
 Admitted.
 
+(* Applying the fundamental lemma here *)
 Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
 | Pr[x <-$ Gi_rf_bad (S i); ret fst x] - Pr[x <-$ Gi_rb_bad i; ret fst x] | <=
                                               Pr[x <-$ Gi_rb_bad i; ret snd x].
@@ -816,12 +821,7 @@ Qed.
 
 (* ----------- End identical until bad section *)
 
-  (* first, is this true? (lemma about probability of bad event) *)
-(* since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
-
-(* does this deal with the additional v? yes (is an input to oracle). and the key updating? 
-why do we need the fact that from the previous call the key was randomly sampled? *)
-  (* TODO figure out how to apply adam's result here *)
+(* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
@@ -831,6 +831,14 @@ Proof.
   unfold GenUpdate_oc.
   simpl.
   fcf_inline_first.
+
+  (* first, is this true? *)
+(* also since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
+
+(* does this deal with the additional v? yes (is an input to oracle). and the key updating? 
+why do we need the fact that from the previous call the key was randomly sampled? *)
+
+  (* TODO figure out how to apply adam's result here *)
 Admitted.
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
