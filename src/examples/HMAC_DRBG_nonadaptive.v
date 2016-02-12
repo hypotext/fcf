@@ -757,7 +757,29 @@ Proof.
   intros.
   unfold Gi_prg.
   unfold Gi_rb.
+  unfold Oi_prg.
+
+  unfold PRF_Adversary.
+  unfold Oi_oc'.
+
+(* relate Oi_prg with Oi_oc'? (they need better names?) *)
+  unfold oracleCompMap_outer.
+  (* do i have to induct? induction hypothesis doesn't help *)
+(* e.g. note that the instantiate has moved inside the oracleCompMap *)
+  (* also have to show that that passed-in RB oracle is equivalent to GenUpdate_rb_intermediate *)
+  (* want to destruct on: callsSoFar < i, = i, > i *)
+  (* but other one is lt_dec callsSoFar (S i) *)
   
+  simpl.                        (* ? *)
+  fcf_inline_first.
+  fcf_skip.
+  fcf_skip.
+  fcf_simp.
+  simpl.
+  fcf_inline_first.             (* ?? *)
+  (* what relation applies on these two? and can i even skip? *)
+  (* fcf_skip. *)
+
 Admitted.
 
 (* ------ Identical until bad section *)
@@ -821,16 +843,62 @@ Qed.
 
 (* ----------- End identical until bad section *)
 
+(* TODO delete these pasted-in examples *)
+(* adam wrote a new game here -- bad event is repetition in the random INPUTS
+INPUTS = v :: (first n of outputs)? *)
+(* pass in the RB oracle that records its inputs
+what about preceding/following RB and (especially) PRF inputs/outputs? *)
+(* see long comment above this section *)
+Definition PRF_Adversary_ (i : nat) : OracleComp Blist (Bvector eta) bool :=
+  bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) maxCallsAndBlocks;
+  $ A bits.
+
+Definition Gi_rb_bad_ (i : nat) : Comp (bool * bool) :=
+  let rb_oracle := (fun state input =>
+                    output <-$ ({0,1}^eta);
+                    ret (output, (input, output) :: state)) in
+  [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
+  let rbInputs := fst (split state) in
+  ret (b, hasDups _ (nth i nil rbInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+
+(* modified PRF_Adversary to just return bits *)
+Definition callMapWith (i : nat) : OracleComp Blist (Bvector eta) (list (list (Bvector eta))) :=
+  bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) maxCallsAndBlocks;
+  $ ret bits.
+
+(* throw away the first input and the adversary *)
+Definition Gi_rb_bad_no_adv (i : nat) : Comp bool :=
+  let rb_oracle := (fun state input =>
+                    output <-$ ({0,1}^eta);
+                    ret (output, (input, output) :: state)) in
+  [_, state] <-$2 callMapWith i _ _ rb_oracle nil;
+  let rbInputs := fst (split state) in
+  ret (hasDups _ (nth i nil rbInputs)).
+
+(* then throw away the bits output / other output *)
+
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
+  intros.
   unfold Gi_rb_bad.
   unfold PRF_Adversary.
+  (* simpl. *)
+  (* fcf_inline_first. *)
   unfold Oi_oc'.
-  unfold GenUpdate_oc.
-  simpl.
-  fcf_inline_first.
+  (* unfold GenUpdate_oc. *)
+
+  (* might need to destruct beq_nat callsSoFar i again *)
+  (* destruct (lt_dec callsSoFar i). (* but it's inside... *) *)
+  (* normally when dealing with (map f l) you induct on l to get (f x :: (map f xs)) so f is actually applied and you can reason about that instead of a binder. but here it doesn't quite work because of the whole oracle structure *)
+  (* maybe i should prove equivalent to an easier form to reason about?
+nth i nil (fst (split state)) -> snd_of_3 (fst (split state))? *)
+  (* actually i should prove equivalent to 
+(hasDups (do one call with GenUpdate_oc) <- ith call only
+ *)
+  (* unfold maxCallsAndBlocks. *)
+  (* destruct numCalls. *)
 
   (* first, is this true? *)
 (* also since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
