@@ -88,7 +88,7 @@ Fixpoint Gen_loop (k : Bvector eta) (v : Bvector eta) (n : nat)
   | S n' =>
     let v' := f k (Vector.to_list v) in
     let (bits, v'') := Gen_loop k v' n' in
-    (v' :: bits, v'')
+    (v' :: bits, v'')           (* TODO change mine from (v ::) to (v ++), *or* prove indistinguishable (add another game in the beginning) *)
   end.
 
 (* Generate + Update *)
@@ -488,6 +488,7 @@ Definition oracleCompMap_outer {D R OracleIn OracleOut : Set}
            (inputs : list D) : OracleComp OracleIn OracleOut (list R) :=
   [k, v] <--$2 $ Instantiate;   (* generate state inside, instead of being passed state *)
   [bits, _] <--$2 oracleCompMap_inner _ _ oracleComp (O, (k, v)) inputs;
+  (* the "_" here has type (nat * KV) *)
   $ ret bits.                    (* don't return the state to the PRF adversary *)
 
 (* see long comment above this section *)
@@ -860,6 +861,12 @@ Definition Gi_rb_bad_ (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
   let rbInputs := fst (split state) in
   ret (b, hasDups _ (nth i nil rbInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+(* TODO: but the inputs are just a list; they aren't segmented by call like the outputs are?! so nth won't work *)
+(* also -- oracleCompMap intentionally doesn't even return the state to the adversary??
+I don't want the (k,v) state, I want the oracle inputs
+who is collecting this?? *)
+
+Check (PRF_Adversary O _ _ ).
 
 (* modified PRF_Adversary to just return bits *)
 Definition callMapWith (i : nat) : OracleComp Blist (Bvector eta) (list (list (Bvector eta))) :=
@@ -876,6 +883,15 @@ Definition Gi_rb_bad_no_adv (i : nat) : Comp bool :=
   ret (hasDups _ (nth i nil rbInputs)).
 
 (* then throw away the bits output / other output *)
+(* TODO: but it's the probability of duplicates in the INPUT, not the OUTPUT *)
+Definition Gi_rb_bad_only_oracle : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  (* genUpdate *)
+  ret true.
+
+(* TODO: write that these games have the same probability, then rewrite below *)
+(* Lemma Gi_rb_bad_eq_1 : forall (i : nat), *)
+(*     Pr [x <- *)
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
