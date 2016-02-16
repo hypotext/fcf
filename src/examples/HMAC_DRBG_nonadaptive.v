@@ -9,6 +9,7 @@ Require Import PRF.
 Require Import OracleHybrid.
 Require Import List.
 Require Import PRF_DRBG.        (* note: had to move PRF_DRBG into FCF dir for this *)
+Require Import Coq.Program.Wf.
 
   (* TODO:
 
@@ -155,8 +156,8 @@ Fixpoint Gen_loop_rb_intermediate (k : Bvector eta) (v : Bvector eta) (n : nat)
 Definition GenUpdate_rb_intermediate (state : KV) (n : nat) 
   : Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  v'' <-$ {0,1}^eta;
-  [bits, v'] <-$2 Gen_loop_rb_intermediate k v n;
+  v' <-$ {0,1}^eta;
+  [bits, v''] <-$2 Gen_loop_rb_intermediate k v' n;
   k' <-$ {0,1}^eta;
   ret (bits, (k', v'')).
 
@@ -958,17 +959,43 @@ Definition Gi_rb_bad_only_oracle : Comp bool :=
   (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
   ret (dupsInIthCallInputs O state).
 
-(* ?? *)
-Definition Gi_rb_bad_only_oracle_ : Comp bool :=
+(* next, inline the RB oracle (change oracle computation to normal computation) and get the inputs in terms of the outputs etc. *)
+(* using Gen_loop_rb; need to slightly modify GenUpdate_rb_intermediate to get the calls 
+similar to Adam's PRF_DRBG_f_bad_2 *)
+
+Definition GenUpdate_rb_inputs (state : KV) (n : nat)
+  : Comp (list (Bvector eta) * KV * (Bvector eta * Blist)) :=
+  [k, v] <-2 state;
+  v' <-$ {0,1}^eta;
+  [bits, v''] <-$2 Gen_loop_rb_intermediate k v' n; (* could probably simplify GLRI *)
+  k' <-$ {0,1}^eta;                                 (* could probably remove this *)
+  ret (bits, (k', v''), (v', (to_list v'' ++ zeroes))).
+
+Definition Gi_rb_bad_no_oracle : Comp bool :=
   [k, v] <-$2 Instantiate;
-  [_, state] <-$2 GenUpdate_oc (k, v) blocksPerCall _ _ rb_oracle nil;
-  (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
-  ret (dupsInIthCallInputs O state).
+  [bits, kv_state, otherInputs] <-$3 GenUpdate_rb_inputs (k, v) blocksPerCall;
+  [v', keyInput] <-2 otherInputs;
+  let firstInput := to_list v in (* fixed *)
+  let nextInput := to_list v' in (* extra *)
+  let outputsAsInputs := map (fun v => to_list v) bits in
+  let lastInput := keyInput in  (* won't be a dup *)
+  ret (hasDups _ (firstInput :: nextInput :: outputsAsInputs ++ (keyInput :: nil))).
 
 (* TODO: get it to a point where I can apply Adam's lemma with a different size *)
+(* specifically figure out how much of it i can reuse.
+- can i only use the very last one? 
+
+   Theorem dupProb_const : 
+    forall (X : Set)(ls : list X)(v : Bvector eta),
+      (* why not put PRF_DRBG_G3_bad_4 here? *)
+      Pr[x <-$ compMap _ (fun _ => {0, 1}^eta) ls; ret (hasDups _ (v :: x))] <= 
+      ((S (length ls)) ^ 2 / 2 ^ eta).
+
+- at what point can i plug into the intermediate games?
+- the PRF_DRBG oracle constructions are slightly different
+- can i even instantiate his module's types? *)
 
 (* TODO: write that these games have the same probability, then rewrite below *)
-
 (* should be easy *)
 Lemma Gi_rb_bad_eq_1 : forall (i : nat),
     Pr [x <-$ Gi_rb_bad i; ret snd x] = Pr [Gi_rb_bad_no_adv i].
@@ -982,6 +1009,13 @@ Proof.
   intros.
 Admitted.
 
+(* note: no nat *)
+Lemma Gi_rb_bad_eq_3 : 
+    Pr [Gi_rb_bad_only_oracle] = Pr [Gi_rb_bad_no_oracle].
+Proof.
+  intros.
+Admitted.
+
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
@@ -989,6 +1023,8 @@ Proof.
   intros.
   rewrite Gi_rb_bad_eq_1.
   rewrite Gi_rb_bad_eq_2.
+  rewrite Gi_rb_bad_eq_3.
+  unfold Gi_rb_bad_no_oracle.
   unfold Gi_rb_bad.
   unfold PRF_Adversary.
   (* simpl. *)
