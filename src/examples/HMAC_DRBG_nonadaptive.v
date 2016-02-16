@@ -8,6 +8,7 @@ Require Import CompFold.
 Require Import PRF.
 Require Import OracleHybrid.
 Require Import List.
+Require Import Coq.Program.Wf.
 
   (* TODO:
 
@@ -406,6 +407,30 @@ Definition GenUpdate_oc (state : KV) (n : nat) :
   [k, v_0] <-2 state;
   v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *)
   [bits, v'] <--$2 Gen_loop_oc v n;
+  (* TODO what's the state type here? and the global GenUpdate_oc return type? *)
+  k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
+  $ ret (bits, (k', v')).
+
+(* TODO: attempt to segment Gen_loop input-output list.
+
+we want list (list (input * output)) = list (list (Blist * Bvector eta))?
+but there are also oracle queries before and after it:
+v, Gen_loop, k
+so per call, a triple of (IO, list IO, IO)
+and overall, list (IO, list IO, IO)?
+that would be a lot easier to work with (would it?) 
+and we can throw away the initial KV and the last KV 
+
+ok, we don't need a triple, we can prove the list for each oracle call has at least 3 elements; i just want to segment by call
+
+with this, the bad event would be (hasDups (combine-triple? (nth OracleCallState))) *)
+Definition GenUpdate_oc_segment (state : KV) (n : nat) :
+  OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v_0] <-2 state;
+  v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *)
+  [bits, v'] <--$2 Gen_loop_oc v n;
+  (* but I don't have the oracle, so I can't pass it in explicitly and get Gen_loop_oc's end state. can I do this where I *do* have the oracle? *)
+  (* TODO what's the state type here? and the global GenUpdate_oc return type? *)
   k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
   $ ret (bits, (k', v')).
 
@@ -469,16 +494,27 @@ Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat)
 (* oracleCompMap_inner repeatedly applies the given oracle on the list of inputs (given an initial oracle state), collecting the outputs and final state *)
 Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set} 
            (e1 : EqDec ((list R) * (nat * KV))) 
-           (e2 : EqDec (list R)) 
-           (oracleComp : (nat * KV) -> D -> OracleComp OracleIn OracleOut (R * (nat * KV))) (state : (nat * KV))
+           (e2 : EqDec (list R))
+           (* this is an oracleComp, not an oracle *)
+           (* the oracle has type (D * R) -> D -> Comp (R, (D * R)) *)
+           (oracleComp : (nat * KV) -> D -> OracleComp OracleIn OracleOut (R * (nat * KV))) 
+           (state : (nat * KV)) (* note this state type -- it is EXPLICITLY being passed around *)
            (inputs : list D) : OracleComp OracleIn OracleOut (list R * (nat * KV)) :=
   match inputs with
   | nil => $ ret (nil, state)
   | input :: inputs' => 
     [res, state'] <--$2 oracleComp state input;
+      (* TODO: i want to segment after one of these calls. it passes the state onto the recursive call to use, then returns the result of that call -- but that state is the (nat * KV) pair. what about the input/output list? and what type do i want? 
+
+but the type here is oraclecomp so by definition i can't access the oracle state... 
+
+if i can't do that, the bad event (with nth) is wrong
+
+what i need is hasDups $ nth $ segment (maxNumBlocks? + 2) rbInputs *)
     [resList, state''] <--$2 oracleCompMap_inner _ _ oracleComp state' inputs';
     $ ret (res :: resList, state'')
   end.
+(* compare to oc_compMap *)
 
 (* hides the oracle state from the caller. instantates the initial state and does not return the end state. need this, otherwise the PRF adversary has to generate the key and initial value (and can see it, which it shouldn't be able to) *)
 Definition oracleCompMap_outer {D R OracleIn OracleOut : Set} 
@@ -507,12 +543,49 @@ Definition Gi_prf (i : nat) : Comp bool :=
   [b, _] <-$2 PRF_Adversary i _ _ (f_oracle f _ k) tt;
   ret b.
 
+(* couldn't auto-prove this terminating, TODO fix this *)
+
+(* Program Fixpoint segment' {A : Type} (n : nat) (l : list A) {measure (length (skipn n l))} *)
+(*   : list (list A) := *)
+(*   match n with *)
+(*   | O => nil *)
+(*   | S _ => firstn n l :: segment' n (skipn n l) *)
+(*   end. *)
+(* Solve All Obligations. *)
+(* Next Obligation. *)
+(* destruct l. *)
+(* simpl. *)
+
+Program Fixpoint segment {A : Type} (n : nat) (l : list A) {measure (length (skipn n l))}
+  : list (list A) :=
+  match l with
+  | nil => nil
+  | _ :: _ =>
+    match n with
+    | O => nil
+    | S _ => firstn n l :: segment n (skipn n l)
+    end
+  end.
+Solve All Obligations.
+Next Obligation.
+  simpl.
+  destruct (skipn wildcard'1 wildcard'0). (* not true! obligations are too restrictive *)
+  (* TODO: pretty sure this version terminates... *)
+  admit.
+  simpl.
+  admit.
+Qed.
+Check segment.
+
 (* Expose the bad events *)
 (* ith game: use RF oracle *)
 Definition Gi_rf_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
   let rfInputs := fst (split state) in
-  ret (b, hasDups _ (nth i nil rfInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  (* all the inputs are in one big list, so break it up by oracle call *)
+  (* blocksPerCall inputs + 2 for the v and k re-updating *)
+  let rfInputs_byCall := segment (blocksPerCall + 2) rfInputs in
+  ret (b, hasDups _ (nth i nil rfInputs_byCall)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 Definition Gi_rb (i : nat) : Comp bool :=
   let rb_oracle := (fun state input =>
@@ -532,7 +605,8 @@ Definition Gi_rb_bad (i : nat) : Comp (bool * bool) :=
                     ret (output, (input, output) :: state)) in
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
   let rbInputs := fst (split state) in
-  ret (b, hasDups _ (nth i nil rbInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  let rbInputs_byCall := segment (blocksPerCall + 2) rbInputs in
+  ret (b, hasDups _ (nth i nil rbInputs_byCall)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 (* Modeled after these definitions from PRF_DRBG.v *)
 (*   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
@@ -859,12 +933,25 @@ Definition Gi_rb_bad_ (i : nat) : Comp (bool * bool) :=
                     output <-$ ({0,1}^eta);
                     ret (output, (input, output) :: state)) in
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
+    (* ret state. *)
+(* state : list (Blist * Bvector eta) ... isn't this what you wanted??
+but 1. it's not segmented (should i do it manually?? can i??)
+2. they're Blists now, not Bvector eta! (rekeying PRF -- different length)
+3.   *)
+
   let rbInputs := fst (split state) in
-  ret (b, hasDups _ (nth i nil rbInputs)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  let rbInputs_byCall := segment (blocksPerCall + 2) rbInputs in
+  ret (b, hasDups _ (nth i nil rbInputs_byCall)). 
+
+(* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 (* TODO: but the inputs are just a list; they aren't segmented by call like the outputs are?! so nth won't work *)
 (* also -- oracleCompMap intentionally doesn't even return the state to the adversary??
 I don't want the (k,v) state, I want the oracle inputs
 who is collecting this?? *)
+(* for PRF_DRBG, it only goes through the PRG_DRBG loop, then to PRF_Adversary and the game
+for here, it goes through Gen_loop, GenUpdate (which adds KV state on top), oracleCompMap_inner, oracleCompMap_outer, PRF_Adversary, then the game
+if i have to manually track the state, then at least i can segment it by call
+ *)
 
 Check (PRF_Adversary O _ _ ).
 
@@ -1123,3 +1210,35 @@ Proof.
   (* fcf_to_prhl_eq. *)
   (* comp_skip. *)
 Qed.
+
+(* ------ *)
+(* How to get the state from an OracleComp: need to fully apply it with type params, oracle, and initial state *)
+
+(* Definition GenUpdate_oc_test (state : KV) (n : nat) : *)
+(*   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) := *)
+(*   [k, v_0] <-2 state; *)
+(*   v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *) *)
+(*   [bits, v'] <--$2 Gen_loop_oc v n; *)
+(*   k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *) *)
+(*   $ ret (bits, (k', v')). *)
+
+Definition rb_oracle (state : list (Blist * Bvector eta)) (input : Blist) :=
+  output <-$ ({0,1}^eta);
+  ret (output, (input, output) :: state).
+
+Definition getState_test (n : nat) : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [x1, x2] <-$2 Gen_loop_oc v n _ _ rb_oracle nil; (* note here *)
+  ret true.
+
+Parameter v_0 : Blist.
+Check (OC_Query _ Blist).       (* ? *)
+
+Parameter v : Bvector eta.
+Parameter n : nat.
+Check (Gen_loop_oc v n).
+(* Gen_loop_oc v n
+     : OracleComp (list bool) (Bvector eta)
+         (list (Bvector eta) * Bvector eta) *)
+
+

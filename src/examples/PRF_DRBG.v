@@ -121,6 +121,8 @@ the adversary can know the initial v, but not the K
     ls <--$ PRF_DRBG_f_G2 v_init l;
     $ A ls.
 
+  (* return type Comp (bool * list (D * Bvector eta)) <-- tracks the state, and it's not even done explicitly (e.g. by oracleMap) *)
+
 Check A.                        (* A : list (Bvector eta) -> Comp bool *)
 (* TODO A isn't an OracleComp here but for mine it should probably be an oracle b/c of the hidden K,V state *)
 
@@ -270,6 +272,8 @@ Print randomFunc.
 Print PRF_A.
 Check PRF_A.
 
+Check (PRF_A _ _ (randomFunc ({0,1}^eta) _) nil).
+
 (* PRF_Advantage RndKey ({ 0 , 1 }^eta) f D_EqDec (Bvector_EqDec eta) PRF_A *)
 
   Theorem PRF_DRBG_G2_G3_close : 
@@ -348,9 +352,15 @@ Check PRF_A.
   Qed.
 
   (* Expose the bad event to the game. *)
-  Definition PRF_DRBG_G3_2 :=
+  Definition PRF_DRBG_G3_2 : Comp (bool * bool) :=
     [b, ls] <-$2 PRF_A _ _ (randomFunc_withDups) nil;
     ret (b, hasDups _ (fst (split ls))).
+
+Check PRF_A. (* : OracleComp D (Bvector eta) bool *)
+Check randomFunc_withDups.
+
+  (* to get the state, you have to 2-tuple-comp-deconstruct an OracleComp in something
+that is NOT an OracleComp (maybe?) AND give it the two type parameters, an oracle, and a start state *)
 
   (* ls : list (D * Bvector eta) <-- whether the list of INPUTS of the RF has dups  *)
 
@@ -960,12 +970,3 @@ Check PRF_DRBG_f_bad_2.
   Print Assumptions PRF_DRBG_Adv_small.
 
 End PRF_DRBG.
-
-
-
-
-
-
-
-
-
