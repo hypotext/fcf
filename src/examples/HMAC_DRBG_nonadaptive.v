@@ -8,7 +8,7 @@ Require Import CompFold.
 Require Import PRF.
 Require Import OracleHybrid.
 Require Import List.
-Require Import Coq.Program.Wf.
+Require Import PRF_DRBG.        (* note: had to move PRF_DRBG into FCF dir for this *)
 
   (* TODO:
 
@@ -391,6 +391,17 @@ PRF_Advantage: defined in terms of PRF_Adversary, indexed by i
 (but PRF_Advantage should be the same for all i) *)
 
 (* Versions of Gen_loop and GenUpdate with that query the oracle in place of (f k) *)
+(* this is slightly different from Adam's version:
+
+  Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
+    OracleComp D (Bvector eta) (list (Bvector eta)) :=
+    match n with
+        | O => $ ret nil
+        | S n' => 
+          r <--$ (OC_Query _ v);
+            ls' <--$ (PRF_DRBG_f_G2 (injD r) n');
+                $ ret (r :: ls')
+    end. *)
 Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
   : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * Bvector eta) :=
   match n with
@@ -400,6 +411,11 @@ Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
     [bits, v''] <--$2 Gen_loop_oc v' n';
     $ ret (v' :: bits, v'')
   end.
+
+(* TODO trying to figure out dependencies for PRF_DRBG. can i instantiate key D etc.? *)
+Check dupProb_const.
+Check PRF_DRBG_G3_bad_4_small.
+Print PRF_DRBG_G3_bad_4.
 
 (* takes in key but doesn't use it, to match the type of other GenUpdates *)
 Definition GenUpdate_oc (state : KV) (n : nat) :
@@ -424,15 +440,15 @@ and we can throw away the initial KV and the last KV
 ok, we don't need a triple, we can prove the list for each oracle call has at least 3 elements; i just want to segment by call
 
 with this, the bad event would be (hasDups (combine-triple? (nth OracleCallState))) *)
-Definition GenUpdate_oc_segment (state : KV) (n : nat) :
-  OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
-  [k, v_0] <-2 state;
-  v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *)
-  [bits, v'] <--$2 Gen_loop_oc v n;
-  (* but I don't have the oracle, so I can't pass it in explicitly and get Gen_loop_oc's end state. can I do this where I *do* have the oracle? *)
-  (* TODO what's the state type here? and the global GenUpdate_oc return type? *)
-  k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
-  $ ret (bits, (k', v')).
+(* Definition GenUpdate_oc_segment (state : KV) (n : nat) : *)
+(*   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) := *)
+(*   [k, v_0] <-2 state; *)
+(*   v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *) *)
+(*   [bits, v'] <--$2 Gen_loop_oc v n; *)
+(*   (* but I don't have the oracle, so I can't pass it in explicitly and get Gen_loop_oc's end state. can I do this where I *do* have the oracle? *) *)
+(*   (* TODO what's the state type here? and the global GenUpdate_oc return type? *) *)
+(*   k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *) *)
+(*   $ ret (bits, (k', v')). *)
 
 (* doesn't use the oracle *)
 Definition GenUpdate_noV_oc (state : KV) (n : nat) :
@@ -578,19 +594,28 @@ Qed.
 Check segment.
 
 (* Expose the bad events *)
+
+(* Bad event *)
+Definition dupsInIthCallInputs (i : nat) (state : list (Blist * Bvector eta)) : bool :=
+  (* throw away outputs *)
+  let inputs := fst (split state) in
+  (* all the inputs are in one big list, so break it up by oracle call *)
+  (* blocksPerCall inputs + 2 for the v and k re-updating *)
+  let inputs_byCall := segment (blocksPerCall + 2) inputs in
+  (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  let inputs_of_ith_call := nth i nil inputs_byCall in
+  hasDups _ inputs_of_ith_call.
+
 (* ith game: use RF oracle *)
 Definition Gi_rf_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
-  let rfInputs := fst (split state) in
-  (* all the inputs are in one big list, so break it up by oracle call *)
-  (* blocksPerCall inputs + 2 for the v and k re-updating *)
-  let rfInputs_byCall := segment (blocksPerCall + 2) rfInputs in
-  ret (b, hasDups _ (nth i nil rfInputs_byCall)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  ret (b, dupsInIthCallInputs i state). 
+
+Definition rb_oracle (state : list (Blist * Bvector eta)) (input : Blist) :=
+  output <-$ ({0,1}^eta);
+  ret (output, (input, output) :: state).
 
 Definition Gi_rb (i : nat) : Comp bool :=
-  let rb_oracle := (fun state input =>
-                    output <-$ ({0,1}^eta);
-                    ret (output, (input, output) :: state)) in
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
   let rbInputs := fst (split state) in
   ret b.
@@ -600,13 +625,8 @@ INPUTS = v :: (first n of outputs)? *)
 (* pass in the RB oracle that records its inputs
 what about preceding/following RB and (especially) PRF inputs/outputs? *)
 Definition Gi_rb_bad (i : nat) : Comp (bool * bool) :=
-  let rb_oracle := (fun state input =>
-                    output <-$ ({0,1}^eta);
-                    ret (output, (input, output) :: state)) in
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
-  let rbInputs := fst (split state) in
-  let rbInputs_byCall := segment (blocksPerCall + 2) rbInputs in
-  ret (b, hasDups _ (nth i nil rbInputs_byCall)). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  ret (b, dupsInIthCallInputs i state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 (* Modeled after these definitions from PRF_DRBG.v *)
 (*   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
@@ -918,73 +938,57 @@ Qed.
 
 (* ----------- End identical until bad section *)
 
-(* TODO delete these pasted-in examples *)
 (* adam wrote a new game here -- bad event is repetition in the random INPUTS
 INPUTS = v :: (first n of outputs)? *)
-(* pass in the RB oracle that records its inputs
-what about preceding/following RB and (especially) PRF inputs/outputs? *)
-(* see long comment above this section *)
-Definition PRF_Adversary_ (i : nat) : OracleComp Blist (Bvector eta) bool :=
-  bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) maxCallsAndBlocks;
-  $ A bits.
-
-Definition Gi_rb_bad_ (i : nat) : Comp (bool * bool) :=
-  let rb_oracle := (fun state input =>
-                    output <-$ ({0,1}^eta);
-                    ret (output, (input, output) :: state)) in
-  [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
-    (* ret state. *)
-(* state : list (Blist * Bvector eta) ... isn't this what you wanted??
-but 1. it's not segmented (should i do it manually?? can i??)
-2. they're Blists now, not Bvector eta! (rekeying PRF -- different length)
-3.   *)
-
-  let rbInputs := fst (split state) in
-  let rbInputs_byCall := segment (blocksPerCall + 2) rbInputs in
-  ret (b, hasDups _ (nth i nil rbInputs_byCall)). 
-
-(* assumes ith element will exist, otherwise hasDups nil (default) = false *)
-(* TODO: but the inputs are just a list; they aren't segmented by call like the outputs are?! so nth won't work *)
-(* also -- oracleCompMap intentionally doesn't even return the state to the adversary??
-I don't want the (k,v) state, I want the oracle inputs
-who is collecting this?? *)
-(* for PRF_DRBG, it only goes through the PRG_DRBG loop, then to PRF_Adversary and the game
-for here, it goes through Gen_loop, GenUpdate (which adds KV state on top), oracleCompMap_inner, oracleCompMap_outer, PRF_Adversary, then the game
-if i have to manually track the state, then at least i can segment it by call
- *)
-
-Check (PRF_Adversary O _ _ ).
-
 (* modified PRF_Adversary to just return bits *)
 Definition callMapWith (i : nat) : OracleComp Blist (Bvector eta) (list (list (Bvector eta))) :=
   bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) maxCallsAndBlocks;
   $ ret bits.
 
-(* throw away the first input and the adversary *)
+(* throw away the first input and the adversary, focus on bad event only *)
 Definition Gi_rb_bad_no_adv (i : nat) : Comp bool :=
-  let rb_oracle := (fun state input =>
-                    output <-$ ({0,1}^eta);
-                    ret (output, (input, output) :: state)) in
   [_, state] <-$2 callMapWith i _ _ rb_oracle nil;
-  let rbInputs := fst (split state) in
-  ret (hasDups _ (nth i nil rbInputs)).
+  ret (dupsInIthCallInputs i state).
 
-(* then throw away the bits output / other output *)
-(* TODO: but it's the probability of duplicates in the INPUT, not the OUTPUT *)
+(* throw away all other inputs but the ones in the "ith" call ((k,v) are randomly sampled going into the hybrid ith call anyway) 
+TODO: make sure numbering is right and that the ith call exists, etc. *)
 Definition Gi_rb_bad_only_oracle : Comp bool :=
   [k, v] <-$2 Instantiate;
-  (* genUpdate *)
-  ret true.
+  [_, state] <-$2 GenUpdate_oc (k, v) blocksPerCall _ _ rb_oracle nil;
+  (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
+  ret (dupsInIthCallInputs O state).
+
+(* ?? *)
+Definition Gi_rb_bad_only_oracle_ : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [_, state] <-$2 GenUpdate_oc (k, v) blocksPerCall _ _ rb_oracle nil;
+  (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
+  ret (dupsInIthCallInputs O state).
+
+(* TODO: get it to a point where I can apply Adam's lemma with a different size *)
 
 (* TODO: write that these games have the same probability, then rewrite below *)
-(* Lemma Gi_rb_bad_eq_1 : forall (i : nat), *)
-(*     Pr [x <- *)
+
+(* should be easy *)
+Lemma Gi_rb_bad_eq_1 : forall (i : nat),
+    Pr [x <-$ Gi_rb_bad i; ret snd x] = Pr [Gi_rb_bad_no_adv i].
+Proof.
+  intros.
+Admitted.  
+
+Lemma Gi_rb_bad_eq_2 : forall (i : nat),
+    Pr [Gi_rb_bad_no_adv i] = Pr [Gi_rb_bad_only_oracle].
+Proof.
+  intros.
+Admitted.
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
   intros.
+  rewrite Gi_rb_bad_eq_1.
+  rewrite Gi_rb_bad_eq_2.
   unfold Gi_rb_bad.
   unfold PRF_Adversary.
   (* simpl. *)
@@ -1222,10 +1226,6 @@ Qed.
 (*   k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *) *)
 (*   $ ret (bits, (k', v')). *)
 
-Definition rb_oracle (state : list (Blist * Bvector eta)) (input : Blist) :=
-  output <-$ ({0,1}^eta);
-  ret (output, (input, output) :: state).
-
 Definition getState_test (n : nat) : Comp bool :=
   [k, v] <-$2 Instantiate;
   [x1, x2] <-$2 Gen_loop_oc v n _ _ rb_oracle nil; (* note here *)
@@ -1240,5 +1240,3 @@ Check (Gen_loop_oc v n).
 (* Gen_loop_oc v n
      : OracleComp (list bool) (Bvector eta)
          (list (Bvector eta) * Bvector eta) *)
-
-
