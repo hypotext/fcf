@@ -959,10 +959,9 @@ Definition Gi_rb_bad_only_oracle : Comp bool :=
   (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
   ret (dupsInIthCallInputs O state).
 
-(* next, inline the RB oracle (change oracle computation to normal computation) and get the inputs in terms of the outputs etc. *)
+(* next, inline the RB oracle (change oracle computation to normal computation) and get the inputs in terms of the outputs etc. modify the type so that it returns the two internal inputs to the oracle as well (which we need for the game) *)
 (* using Gen_loop_rb; need to slightly modify GenUpdate_rb_intermediate to get the calls 
 similar to Adam's PRF_DRBG_f_bad_2 *)
-
 Definition GenUpdate_rb_inputs (state : KV) (n : nat)
   : Comp (list (Bvector eta) * KV * (Bvector eta * Blist)) :=
   [k, v] <-2 state;
@@ -975,13 +974,101 @@ Definition Gi_rb_bad_no_oracle : Comp bool :=
   [k, v] <-$2 Instantiate;
   [bits, kv_state, otherInputs] <-$3 GenUpdate_rb_inputs (k, v) blocksPerCall;
   [v', keyInput] <-2 otherInputs;
+  (* annoying, everything is converted to lists, so now i need to reason that all the lists have the same length except the key-refreshing input list *)
   let firstInput := to_list v in (* fixed *)
-  let nextInput := to_list v' in (* extra *)
-  let outputsAsInputs := map (fun v => to_list v) bits in
-  let lastInput := keyInput in  (* won't be a dup *)
+  let nextInput := to_list v' in (* extra input to refresh the v *)
+  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound. *)
   ret (hasDups _ (firstInput :: nextInput :: outputsAsInputs ++ (keyInput :: nil))).
 
-(* TODO: get it to a point where I can apply Adam's lemma with a different size *)
+(* remove the v input, cons the fixed v to the beginning, and map all the bvector outputs to blist. corresponds to Adam's PRF_DRBG_f_bad_2 and PRF_DRBG_G3_bad_2. uses Gen_loop_rb.
+can't use GenUpdate_rb because i need the v and k update inputs *)
+
+(* --- *)
+(* without k, still using first v (because we need a v) -- modified to return last v
+is there an easier way? maybe using firstn (blocksPerCall - 1) and skipn *)
+Fixpoint Gen_loop_rb_no_k (v : Bvector eta) (n : nat) :
+  Comp (list (Bvector eta) * Bvector eta) :=
+  match n with
+  | O => ret (nil, v)
+  | S n' =>
+    v' <-$ {0,1}^eta;
+    [bits, v''] <-$2 Gen_loop_rb_no_k v' n';
+    ret (v' :: bits, v'')
+  end.
+
+(* the first v is still an input to the oracle, but this GenUpdate doesn't need it
+also, we don't care about k: never used as an input, and its output doesn't matter 
+also, v'' itself is not used as an input *)
+Definition GenUpdate_rb_no_k (n : nat)
+  : Comp (Bvector eta * list (Bvector eta) * Blist) :=
+  v' <-$ {0,1}^eta;
+  [bits, v''] <-$2 Gen_loop_rb_no_k v' blocksPerCall;
+  ret (v', bits, (to_list v'' ++ zeroes)).
+
+Definition Gi_rb_bad_no_k : Comp bool :=
+  [_, v] <-$2 Instantiate;
+  [v', bits, keyInput] <-$3 GenUpdate_rb_no_k blocksPerCall;
+  let firstInput := to_list v in (* fixed *)
+  let nextInput := to_list v' in (* extra input to refresh the v *)
+  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound *)
+  ret (hasDups _ (firstInput :: nextInput :: outputsAsInputs ++ (keyInput :: nil))).
+
+(* ---- *)
+(* *have* to apply the injection to_list : forall eta, Bvector eta -> Blist, since there's one input of a different length, so skip that game *)
+(*    Definition PRF_DRBG_G3_bad_3 :=
+     ls <-$ compMap _ (fun _ => {0, 1}^eta) (forNats (pred l));
+     ret (hasDups _ (v_init :: (map injD ls))). *)
+
+(* get it to look like compMap and remove the GenUpdate *)
+(* this is basically compMap but carrying around an extra element... prove equivalence *)
+(* Fixpoint Gen_loop_rb_map (v : Bvector eta) (n : nat) : *)
+(*   Comp (list (Bvector eta) * Bvector eta) := *)
+(*   match n with *)
+(*   | O => ret (nil, v) *)
+(*   | S n' => *)
+(*     v' <-$ {0,1}^eta; *)
+(*     [bits, v''] <-$2 Gen_loop_rb_no_k v' n'; *)
+(*     ret (v' :: bits, v'') *)
+(*   end. *)
+
+(* Definition lastElem {A : Type} (l : list A) (default : A) : A := *)
+(*   match l with *)
+(*   | nil => default *)
+(*   | x :: *)
+
+(* inline GenUpdate and Gen_loop, change Gen_loop to a map *)
+(* also put keyInput in a less inconvenient place, order doesn't matter TODO *)
+(* TODO delete extraneous comments *)
+Definition Gi_rb_bad_map : Comp bool :=
+  [_, v] <-$2 Instantiate;
+  v' <-$ {0,1}^eta;
+  bits <-$ compMap _ (fun _ => {0,1}^eta) (forNats (blocksPerCall - 1)); (* ? *)
+  v'' <-$ {0,1}^eta;            (* TODO check if this is ok -- should it be -2 above? *)
+  (* not quite right -- blocksPerCall could be 1 -- TODO fix "last elem" everywhere *)
+  let firstInput := to_list v in (* fixed *)
+  let nextInput := to_list v' in (* extra input to refresh the v *)
+  let keyInput := to_list v'' ++ zeroes in
+  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound *)
+  (* TODO is this right, here? *)
+  let lastInput := keyInput in  (* won't be a dup of any previous *)
+  (* keyInput isn't a dup; firstInput is fixed, and inline nextInput into compMap *)
+  ret (hasDups _ (keyInput :: firstInput :: nextInput :: outputsAsInputs)).
+
+Definition Gi_rb_bad_map_inline : Comp bool :=
+  [_, v] <-$2 Instantiate;
+  (* absorb v' into compMap *)
+  bits <-$ compMap _ (fun _ => {0,1}^eta) (forNats blocksPerCall); (* ? *)
+  v'' <-$ {0,1}^eta;            (* TODO check if this is ok -- should it be -2 above? *)
+  (* not quite right -- blocksPerCall could be 1 -- TODO fix "last elem" everywhere *)
+  let firstInput := to_list v in (* fixed *)
+  let keyInput := to_list v'' ++ zeroes in
+  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound *)
+  (* TODO is this right, here? *)
+  let lastInput := keyInput in  (* won't be a dup of any previous *)
+  (* keyInput isn't a dup; firstInput is fixed, and inline nextInput into compMap *)
+  ret (hasDups _ (keyInput :: firstInput :: outputsAsInputs)).
+
+(* todo: get it to a point where I can apply Adam's lemma with a different size *)
 (* specifically figure out how much of it i can reuse.
 - can i only use the very last one? 
 
@@ -1016,6 +1103,25 @@ Proof.
   intros.
 Admitted.
 
+(* no k *)
+Lemma Gi_rb_bad_eq_4 : 
+    Pr [Gi_rb_bad_no_oracle] = Pr [Gi_rb_bad_no_k].
+Proof.
+  intros.
+Admitted.
+
+Lemma Gi_rb_bad_eq_5 : 
+    Pr [Gi_rb_bad_no_k] = Pr [Gi_rb_bad_map].
+Proof.
+  intros.
+Admitted.
+
+Lemma Gi_rb_bad_eq_6 : 
+    Pr [Gi_rb_bad_map] = Pr [Gi_rb_bad_map_inline].
+Proof.
+  intros.
+Admitted.
+
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
@@ -1024,33 +1130,16 @@ Proof.
   rewrite Gi_rb_bad_eq_1.
   rewrite Gi_rb_bad_eq_2.
   rewrite Gi_rb_bad_eq_3.
-  unfold Gi_rb_bad_no_oracle.
-  unfold Gi_rb_bad.
-  unfold PRF_Adversary.
-  (* simpl. *)
-  (* fcf_inline_first. *)
-  unfold Oi_oc'.
-  (* unfold GenUpdate_oc. *)
-
-  (* might need to destruct beq_nat callsSoFar i again *)
-  (* destruct (lt_dec callsSoFar i). (* but it's inside... *) *)
-  (* normally when dealing with (map f l) you induct on l to get (f x :: (map f xs)) so f is actually applied and you can reason about that instead of a binder. but here it doesn't quite work because of the whole oracle structure *)
-  (* maybe i should prove equivalent to an easier form to reason about?
-nth i nil (fst (split state)) -> snd_of_3 (fst (split state))? *)
-  (* actually i should prove equivalent to 
-(hasDups (do one call with GenUpdate_oc) <- ith call only
- *)
-  (* unfold maxCallsAndBlocks. *)
-  (* destruct numCalls. *)
-
-  (* first, is this true? *)
-(* also since i defined the bad event as focusing on the ith output, i should be able to prove that all output after i (PRF output) is irrelevant and we only care about the random input from previous calls *)
-
-(* does this deal with the additional v? yes (is an input to oracle). and the key updating? 
-why do we need the fact that from the previous call the key was randomly sampled? *)
-
-  (* TODO figure out how to apply adam's result here *)
-Admitted.
+  rewrite Gi_rb_bad_eq_4.
+  rewrite Gi_rb_bad_eq_5.
+  rewrite Gi_rb_bad_eq_6.
+  unfold Gi_rb_bad_map_inline.
+  Opaque hasDups.
+  fcf_inline_first.
+  (* apply Adam's collision bound here *)
+  
+  admit.
+Qed.                            (* for purposes of graphing *)
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
 (* Gi_rf 0:  RF  PRF PRF
@@ -1276,3 +1365,5 @@ Check (Gen_loop_oc v n).
 (* Gen_loop_oc v n
      : OracleComp (list bool) (Bvector eta)
          (list (Bvector eta) * Bvector eta) *)
+
+End PRG.
