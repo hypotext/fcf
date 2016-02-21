@@ -57,8 +57,11 @@ Section PRG.
 the key type is now also Bvector eta, since HMAC specifies that the key has the same size as the output (simplified) *)
 Variable eta : nat.
 
-Variable RndK : Comp (Bvector eta).
-Variable RndV : Comp (Bvector eta).
+(* Variable RndK : Comp (Bvector eta). *)
+(* Variable RndV : Comp (Bvector eta). *)
+(* TODO replace them *)
+Definition RndK : Comp (Bvector eta) := {0,1}^eta.
+Definition RndV : Comp (Bvector eta) := {0,1}^eta.
 
 Variable f : Bvector eta -> Blist -> Bvector eta.
 
@@ -81,6 +84,10 @@ Definition Instantiate : Comp KV :=
   k <-$ RndK;
   v <-$ RndV;
   ret (k, v).
+
+Print Comp.
+SearchAbout Comp.
+Locate "<-$". 
 
 (* save the last v and output it as part of the state *)
 Fixpoint Gen_loop (k : Bvector eta) (v : Bvector eta) (n : nat)
@@ -978,7 +985,7 @@ Definition Gi_rb_bad_no_oracle : Comp bool :=
   let firstInput := to_list v in (* fixed *)
   let nextInput := to_list v' in (* extra input to refresh the v *)
   let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound. *)
-  ret (hasDups _ (firstInput :: nextInput :: outputsAsInputs ++ (keyInput :: nil))).
+  ret (hasDups _ (keyInput :: firstInput :: nextInput :: outputsAsInputs)).
 
 (* remove the v input, cons the fixed v to the beginning, and map all the bvector outputs to blist. corresponds to Adam's PRF_DRBG_f_bad_2 and PRF_DRBG_G3_bad_2. uses Gen_loop_rb.
 can't use GenUpdate_rb because i need the v and k update inputs *)
@@ -1006,12 +1013,12 @@ Definition GenUpdate_rb_no_k (n : nat)
   ret (v', bits, (to_list v'' ++ zeroes)).
 
 Definition Gi_rb_bad_no_k : Comp bool :=
-  [_, v] <-$2 Instantiate;
+  v <-$ RndV;
   [v', bits, keyInput] <-$3 GenUpdate_rb_no_k blocksPerCall;
   let firstInput := to_list v in (* fixed *)
-  let nextInput := to_list v' in (* extra input to refresh the v *)
-  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound *)
-  ret (hasDups _ (firstInput :: nextInput :: outputsAsInputs ++ (keyInput :: nil))).
+  let nextInput := to_list v' in (* extra input to the loop -- the refreshed v *)
+  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in 
+  ret (hasDups _ (keyInput :: firstInput :: nextInput :: outputsAsInputs)).
 
 (* ---- *)
 (* *have* to apply the injection to_list : forall eta, Bvector eta -> Blist, since there's one input of a different length, so skip that game *)
@@ -1036,11 +1043,18 @@ Definition Gi_rb_bad_no_k : Comp bool :=
 (*   | nil => default *)
 (*   | x :: *)
 
-(* inline GenUpdate and Gen_loop, change Gen_loop to a map *)
-(* also put keyInput in a less inconvenient place, order doesn't matter TODO *)
-(* TODO delete extraneous comments *)
+(* inline GenUpdate and Gen_loop, change Gen_loop to a map
+remove v'' from the end (it's never used as an input) and generate it separately
+(only (to_list v'' ++ zeroes) is used as an input *)
+
+(*    Definition PRF_DRBG_G3_bad_3 :=
+     ls <-$ compMap _ (fun _ => {0, 1}^eta) (forNats (pred l));
+     ret (hasDups _ (v_init :: (map injD ls))).
+
+^ why is there a (-1) here? *)
+
 Definition Gi_rb_bad_map : Comp bool :=
-  [_, v] <-$2 Instantiate;
+  v <-$ RndV;
   v' <-$ {0,1}^eta;
   bits <-$ compMap _ (fun _ => {0,1}^eta) (forNats (blocksPerCall - 1)); (* ? *)
   v'' <-$ {0,1}^eta;            (* TODO check if this is ok -- should it be -2 above? *)
@@ -1048,25 +1062,36 @@ Definition Gi_rb_bad_map : Comp bool :=
   let firstInput := to_list v in (* fixed *)
   let nextInput := to_list v' in (* extra input to refresh the v *)
   let keyInput := to_list v'' ++ zeroes in
-  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound *)
-  (* TODO is this right, here? *)
-  let lastInput := keyInput in  (* won't be a dup of any previous *)
+  let outputsAsInputs := map (fun v => to_list v) bits in
+  (* took the last block off, so don't need firstn anymore *)
   (* keyInput isn't a dup; firstInput is fixed, and inline nextInput into compMap *)
   ret (hasDups _ (keyInput :: firstInput :: nextInput :: outputsAsInputs)).
 
+(* absorb v' into compMap *)
 Definition Gi_rb_bad_map_inline : Comp bool :=
-  [_, v] <-$2 Instantiate;
-  (* absorb v' into compMap *)
-  bits <-$ compMap _ (fun _ => {0,1}^eta) (forNats blocksPerCall); (* ? *)
+  v <-$ RndV;
+  bits <-$ compMap _ (fun _ => {0,1}^eta) (forNats blocksPerCall); 
   v'' <-$ {0,1}^eta;            (* TODO check if this is ok -- should it be -2 above? *)
-  (* not quite right -- blocksPerCall could be 1 -- TODO fix "last elem" everywhere *)
+  (* not quite right -- blocksPerCall could be 1 -- TODO fix "last elem" everywhere? *)
   let firstInput := to_list v in (* fixed *)
   let keyInput := to_list v'' ++ zeroes in
-  let outputsAsInputs := firstn (blocksPerCall - 1) (map (fun v => to_list v) bits) in (* only the outputs (so v' is not duplicated) -- we need to remove the last output because that isn't used as an input. OR we can leave it in and get a slightly worse bound *)
-  (* TODO is this right, here? *)
-  let lastInput := keyInput in  (* won't be a dup of any previous *)
+  let outputsAsInputs := map (fun v => to_list v) bits in
   (* keyInput isn't a dup; firstInput is fixed, and inline nextInput into compMap *)
   ret (hasDups _ (keyInput :: firstInput :: outputsAsInputs)).
+
+(* keyInput cannot collide with any other input, so remove it and the listifying *)
+Definition Gi_rb_bad_map_no_keyinput : Comp bool :=
+  v <-$ RndV;                   (* is {0,1}^eta, but should I leave it fixed?? TODO*)
+  bits <-$ compMap _ (fun _ => {0,1}^eta) (forNats blocksPerCall); 
+  ret (hasDups _ (v :: bits)).
+
+(* v is randomly sampled here... but sometimes it's fixed (as in PRF_DRBG)? TODO *)
+(* seems too simple *)
+Definition Gi_rb_bad_map_inline_v : Comp bool :=
+  bits <-$ compMap (Bvector_EqDec eta) (fun _ => {0,1}^eta) (forNats (S blocksPerCall)); 
+  ret (hasDups (Bvector_EqDec eta) bits).
+
+(* some of these inlinings can probably be done better in a different order or simultaneously *)
 
 (* todo: get it to a point where I can apply Adam's lemma with a different size *)
 (* specifically figure out how much of it i can reuse.
@@ -1122,6 +1147,18 @@ Proof.
   intros.
 Admitted.
 
+Lemma Gi_rb_bad_eq_7 : 
+    Pr [Gi_rb_bad_map_inline] = Pr [Gi_rb_bad_map_no_keyinput].
+Proof.
+  intros.
+Admitted.
+
+Lemma Gi_rb_bad_eq_8 : 
+    Pr [Gi_rb_bad_map_no_keyinput] = Pr [Gi_rb_bad_map_inline_v].
+Proof.
+  intros.
+Admitted.
+
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
@@ -1131,15 +1168,29 @@ Proof.
   rewrite Gi_rb_bad_eq_2.
   rewrite Gi_rb_bad_eq_3.
   rewrite Gi_rb_bad_eq_4.
-  rewrite Gi_rb_bad_eq_5.
+  rewrite Gi_rb_bad_eq_5.       (* questionable *)
   rewrite Gi_rb_bad_eq_6.
-  unfold Gi_rb_bad_map_inline.
-  Opaque hasDups.
-  fcf_inline_first.
-  (* apply Adam's collision bound here *)
+  rewrite Gi_rb_bad_eq_7.
+  rewrite Gi_rb_bad_eq_8.
+  unfold Gi_rb_bad_map_inline_v.
   
-  admit.
-Qed.                            (* for purposes of graphing *)
+  Opaque hasDups.
+  unfold Pr_collisions.
+  Check dupProb.
+  generalize dupProb.
+  intros dupProb.
+
+(* TODO there's a more general lemma *)
+  assert (length (forNats (S blocksPerCall)) = S blocksPerCall).
+  { admit. }
+  rewrite <- H at 2.
+  (* apply Adam's collision bound here *)
+  apply dupProb.
+
+  (* didn't need either of these (work from PRF_DRBG) TODO *)
+  (* apply FixedInRndList_prob. *)
+  (* apply dupProb_const. *)
+Qed.
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
 (* Gi_rf 0:  RF  PRF PRF
@@ -1236,8 +1287,8 @@ Proof.
   unfold Gi_prg.
   comp_skip.
   (* comp_skip. (* ? *) *)
-
-Admitted.
+  admit.
+Qed.
 
 (* ------------------------------- *)
 
