@@ -888,6 +888,7 @@ Admitted.
 (* ------ *Identical until bad section *)
 
 (* TODO better theorem name, saner variable names *)
+(* TODO this one isn't correct? use the below one *)
 Theorem oracleCompMap_eq_until_bad : forall (i : nat) b b0,
 (* 1. hasDups rb = hasDups rf
    2. hasDups rf? = false -> 
@@ -949,6 +950,35 @@ Proof.
 
 Admitted.
 
+(* TODO: this is the real lemma *)
+Theorem PRF_Adv_eq_until_bad : forall (i : nat),
+   comp_spec 
+     (fun a b : bool * list (Blist * Bvector eta) =>
+        let (adv_rb, state_rb) := a in
+        let (adv_rf, state_rf) := b in
+        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+        dupsInIthCallInputs i state_rb = dupsInIthCallInputs (S i) state_rf /\
+        (dupsInIthCallInputs i state_rb = false -> (* should this mention (S i)? *)
+         state_rb = state_rf /\ adv_rb = adv_rf))
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
+     ((PRF_Adversary (S i)) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+Proof.
+  intros.
+  unfold PRF_Adversary.
+  simpl.
+  fcf_inline_first.
+  fcf_skip.
+  fcf_simp.
+  * 
+    (* this just pushed the lemma back further into here -- what should this spec be?? *)
+    fcf_skip.
+
+Admitted.
+
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
 (* uses provided oracle on call number i
    i = 2
@@ -963,14 +993,11 @@ Proof.
   intros.
   unfold Gi_rb_bad. unfold Gi_rf_bad.
   fcf_to_prhl_eq.
-  simpl.
   fcf_inline_first.
-  fcf_skip.
-  fcf_simp.
   fcf_skip.
   (* different spec if you do `fcf_to_prhl` only, and in this location *)
   *
-    apply oracleCompMap_eq_until_bad.
+    apply PRF_Adv_eq_until_bad.
     (* TODO split out this lemma. also see what adam does *)
     (* in PRF_DRBG, this lemma is very important for adam; it has a long proof and he uses it in both of the identical until bad assumptions. *)
     (* TODO: check if it's true, see if it can be used below *)
@@ -978,16 +1005,11 @@ Proof.
     (* only difference: one uses rb_oracle, other uses randomFunc oracle *)
     (* also, adam's spec actually includes hasDups *)
   *
-    destruct b2.
-    fcf_inline_first.
+    destruct b0.
     intuition.
-    (* oh, here we have dupsInIthCallInputs i vs. dupsInIthCallInputs (S i) *)
-    (* a0 = l = their respective bits *)
-    fcf_irr_l.
-    fcf_irr_r.
     fcf_simp.
+    rewrite H2.
     simpl.
-    rewrite H4.
     fcf_reflexivity.
 Qed.
 
@@ -1004,31 +1026,34 @@ Proof.
   (* it's NOT fcf_to_prhl_eq *)
   unfold Gi_rb_bad.
   unfold Gi_rf_bad.
-
-  unfold PRF_Adversary.
-  unfold oracleCompMap_outer.
-  simpl.
-  fcf_inline_first.
   fcf_skip.
-  fcf_simp.
-  fcf_skip.
-
   *
-    apply oracleCompMap_eq_until_bad.
+    apply PRF_Adv_eq_until_bad.
     (* but is this the right specification? *)
-
   *
     fcf_simp.
     intuition.
-    fcf_inline_first.
+    fcf_spec_ret.
+
+    pairInv.
+    apply H3 in H6.
+    intuition.
+    subst.
+    rewrite H2.
+    reflexivity.
+
+    pairInv.
+    rewrite H2.
+    rewrite <- H2 in H6.
+    apply H3 in H6.
+    intuition.
+    subst.
+    fcf_reflexivity.
     (* oh, adam included the adversary return value in his comp_spec *)
 (* do we actually know that the bits are equal though? or just that the adversary can't distinguish? :/ *)
     (* this is clearly true since it set snd to false... *)
-
-(* the comp_specs here are different? *)
 (* also, probably need to reason about dupsInIthCallInputs *)
-  
-Admitted.
+Qed.
 
 (* TODO 1. figure out what adam's comp_spec means X and how it's being used X
    - the postconditions are basically exactly what we need there, so trivial. 
