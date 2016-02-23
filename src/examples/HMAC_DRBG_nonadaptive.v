@@ -888,16 +888,46 @@ Admitted.
 (* ------ *Identical until bad section *)
 
 (* TODO better theorem name, saner variable names *)
-Theorem oracleCompMap_eq_until_bad : forall (i : nat) b b0 b1 a,
-       comp_spec
+Theorem oracleCompMap_eq_until_bad : forall (i : nat) b b0,
 (* 1. hasDups rb = hasDups rf
    2. hasDups rf? = false -> 
 the rb and rf states are equal (?) and the adversary outputs are equal
 what about the output in bits?? maybe we need that for equal adv outputs
-
-rf output = rb output? *)
+or rf output = rb output? *)
+(*  comp_spec
+      (* they are equal when this function is applied to one of the results? both of them?
+       or the function is true on the both of them? *)
+      (* also this isn't computational? *)
+      (fun y1 y2 : bool * (list (D * Bvector eta)) =>
+      (*    let adv1 := fst y1 in *)
+      (*    let adv2 := fst y2 in *)
+      (*    let cache1 := snd y1 in *)
+      (*    let cache2 := snd y2 in *)
+      (*    let inputs1 := fst (split cache1) in *)
+      (*    let inputs2 := fst (split cache2) in *)
+      (*    (* the inputs should be the same anyway *) *)
+      (*    hasDups _ inputs1 = *)
+      (*    hasDups _ inputs2 /\ *)
+      (*    (hasDups _ inputs1 = false -> *)
+      (*     cache1 = cache2 /\ adv1 = adv2)) *)
+      (*    (* randomFunc_withDups has no dups in its inputs -> its inputs and outputs are exactly the same as the one for random inputs and outputs & adversary cannot distinguish them. *) *) 
+         hasDups _ (fst (split (snd y1))) =
+         hasDups _ (fst (split (snd y2))) /\
+         (hasDups _ (fst (split (snd y1))) = false ->
+          snd y1 = snd y2 /\ fst y1 = fst y2))
+      (PRF_A _ _ randomFunc_withDups nil)
+      (PRF_A _ _ 
+             (fun (ls : list (D * Bvector eta)) (x : D) =>
+         r <-$ { 0 , 1 }^eta; ret (r, (x, r) :: ls)) nil). *)
+    comp_spec
      (fun a0 b2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
-      a0 = (a, b1) <-> b2 = (a, b1))
+        let (bits_rb, state_rb) := a0 in
+        let (bits_rf, state_rf) := b2 in
+        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+        dupsInIthCallInputs i state_rb = dupsInIthCallInputs (S i) state_rf /\
+        (dupsInIthCallInputs i state_rb = false -> (* should this mention (S i)? *)
+         state_rb = state_rf /\ bits_rb = bits_rf))
      ((z <--$
        oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
@@ -940,20 +970,26 @@ Proof.
   fcf_skip.
   (* different spec if you do `fcf_to_prhl` only, and in this location *)
   *
-    
-    
-
+    apply oracleCompMap_eq_until_bad.
     (* TODO split out this lemma. also see what adam does *)
     (* in PRF_DRBG, this lemma is very important for adam; it has a long proof and he uses it in both of the identical until bad assumptions. *)
     (* TODO: check if it's true, see if it can be used below *)
     (* is it true? this doesn't include the dupsInNthInput stuff. but do we even need that if the RB stuff beforehand is the same? *)
     (* only difference: one uses rb_oracle, other uses randomFunc oracle *)
     (* also, adam's spec actually includes hasDups *)
-    apply oracleCompMap_eq_until_bad.
-  * 
-
-
-Admitted.
+  *
+    destruct b2.
+    fcf_inline_first.
+    intuition.
+    (* oh, here we have dupsInIthCallInputs i vs. dupsInIthCallInputs (S i) *)
+    (* a0 = l = their respective bits *)
+    fcf_irr_l.
+    fcf_irr_r.
+    fcf_simp.
+    simpl.
+    rewrite H4.
+    fcf_reflexivity.
+Qed.
 
       (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
          differences: 1. PRF re-keyed using RF vs. randomly sampled. but PRF re-keyed using something of length > eta, so it is effectively randomly sampled.
@@ -983,12 +1019,11 @@ Proof.
 
   *
     fcf_simp.
+    intuition.
     fcf_inline_first.
-    (* why the evars in H3?? *)
-    inversion H3. clear H3.
-    fcf_skip.
-
-    
+    (* oh, adam included the adversary return value in his comp_spec *)
+(* do we actually know that the bits are equal though? or just that the adversary can't distinguish? :/ *)
+    (* this is clearly true since it set snd to false... *)
 
 (* the comp_specs here are different? *)
 (* also, probably need to reason about dupsInIthCallInputs *)
