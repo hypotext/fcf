@@ -885,35 +885,75 @@ Proof.
 
 Admitted.
 
-(* ------ Identical until bad section *)
+(* ------ *Identical until bad section *)
+
+(* TODO better theorem name, saner variable names *)
+Theorem oracleCompMap_eq_until_bad : forall (i : nat) b b0 b1 a,
+       comp_spec
+(* 1. hasDups rb = hasDups rf
+   2. hasDups rf? = false -> 
+the rb and rf states are equal (?) and the adversary outputs are equal
+what about the output in bits?? maybe we need that for equal adv outputs
+
+rf output = rb output? *)
+     (fun a0 b2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
+      a0 = (a, b1) <-> b2 = (a, b1))
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil)
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' (S i)) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+Proof.
+  intros.
+
+Admitted.
 
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
+(* uses provided oracle on call number i
+   i = 2
+                      0  1  2   3   4
+   Gi_rb_bad i =     RB RB RB PRF PRF
+   Gi_rf_bad (S i) = RB RB RB RF  PRF
+   bad event = duplicates in input on call number i *)
 Lemma Gi_rb_rf_return_bad_same :  forall (i : nat),
     Pr  [x <-$ Gi_rb_bad i; ret snd x ] ==
     Pr  [x <-$ Gi_rf_bad (S i); ret snd x ].
 Proof.
   intros.
   unfold Gi_rb_bad. unfold Gi_rf_bad.
+  fcf_to_prhl_eq.
   simpl.
   fcf_inline_first.
   fcf_skip.
-  fcf_skip.
   fcf_simp.
   fcf_skip.
-  fcf_to_prhl.              (* true? *)
-  * admit.
-  * clear H1 H H0. (* as a test; don't actually clear these *)
-    fcf_simp.
-    fcf_inline_first.
-    fcf_skip.
-    simpl.
-    fcf_simp.
-    simpl.
-    destruct i.
-    fcf_reflexivity.
-    fcf_reflexivity.
-(* did this use the comp_spec relation proved before it? maybe implicitly after fcf_skip? *)
-Qed.
+  (* different spec if you do `fcf_to_prhl` only, and in this location *)
+  *
+    
+    
+
+    (* TODO split out this lemma. also see what adam does *)
+    (* in PRF_DRBG, this lemma is very important for adam; it has a long proof and he uses it in both of the identical until bad assumptions. *)
+    (* TODO: check if it's true, see if it can be used below *)
+    (* is it true? this doesn't include the dupsInNthInput stuff. but do we even need that if the RB stuff beforehand is the same? *)
+    (* only difference: one uses rb_oracle, other uses randomFunc oracle *)
+    (* also, adam's spec actually includes hasDups *)
+    apply oracleCompMap_eq_until_bad.
+  * 
+
+
+Admitted.
 
       (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
          differences: 1. PRF re-keyed using RF vs. randomly sampled. but PRF re-keyed using something of length > eta, so it is effectively randomly sampled.
@@ -924,10 +964,45 @@ Theorem Gi_rb_rf_no_bad_same : forall (i : nat) (a : bool),
    evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_bad (S i)) (a, false).
 Proof.
   intros.
-  fcf_to_prhl.
+  fcf_to_prhl.                  (* note the auto-specification here *)
+  (* it's NOT fcf_to_prhl_eq *)
   unfold Gi_rb_bad.
   unfold Gi_rf_bad.
+
+  unfold PRF_Adversary.
+  unfold oracleCompMap_outer.
+  simpl.
+  fcf_inline_first.
+  fcf_skip.
+  fcf_simp.
+  fcf_skip.
+
+  *
+    apply oracleCompMap_eq_until_bad.
+    (* but is this the right specification? *)
+
+  *
+    fcf_simp.
+    fcf_inline_first.
+    (* why the evars in H3?? *)
+    inversion H3. clear H3.
+    fcf_skip.
+
+    
+
+(* the comp_specs here are different? *)
+(* also, probably need to reason about dupsInIthCallInputs *)
+  
 Admitted.
+
+(* TODO 1. figure out what adam's comp_spec means X and how it's being used X
+   - the postconditions are basically exactly what we need there, so trivial. 
+   - but is it that easy here?
+2. figure out what the comp_spec in HMAC_DRBG should be
+   - basically the same as adam's??
+3. and how it should be used (and if it discharges the obligations)
+4. what auxiliary lemmas i need for the identical until bads (e.g. key input)
+5. figure out how adam proves his comp_spec *)
 
 (* Applying the fundamental lemma here *)
 Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),

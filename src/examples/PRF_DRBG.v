@@ -115,8 +115,7 @@ Section PRF_DRBG.
 
   (* The constructed adversary against the PRF.
 (takes something of type D -> Bvector eta, tries to guess whether it's RF or PRF)
-the adversary can know the initial v, but not the K
-   *)
+the adversary can know the initial v, but not the K   *)
   Definition PRF_A : OracleComp D (Bvector eta) bool :=
     ls <--$ PRF_DRBG_f_G2 v_init l;
     $ A ls.
@@ -395,6 +394,7 @@ Print PRF_A.
 Print PRF_DRBG_f_G2.
 
   (* The "equal until bad" specification for randomFunc_withDups and the oracle that always produces a new random value.  This specification forms the core of the proofs of the two parts of the fundamental lemma in the following two theorems. *)
+(* spec meaning "what function relates their outputs" or "what is the postcondition" *)
   Theorem PRF_A_randomFunc_eq_until_bad : 
     comp_spec
       (* they are equal when this function is applied to one of the results? both of them?
@@ -500,35 +500,44 @@ Print PRF_DRBG_f_G2.
     destruct (in_dec (EqDec_dec D_EqDec) d l0); intuition.
   Qed.
 
+  (* ------- identical until bad section *)
+
   Theorem PRF_DRBG_G3_2_3_badness_same : 
     Pr  [x <-$ PRF_DRBG_G3_2; ret snd x ] ==
     Pr  [x <-$ PRF_DRBG_G3_3; ret snd x ].
   Proof.    
     unfold PRF_DRBG_G3_2, PRF_DRBG_G3_3.
+    (* the dups stuff is in the game, not the adversary call *)
     fcf_inline fcf_left.
     fcf_inline fcf_right.
     fcf_to_prhl_eq.
     fcf_skip.
-    apply PRF_A_randomFunc_eq_until_bad. (* identical until bad *)
-    
+
+    unfold PRF_A.
+    (* TODO: this theorem gets used in BOTH identical until bad assumptions *)
+    apply PRF_A_randomFunc_eq_until_bad. (* identical until bad spec (I have a similar one on oracleCompMap_inner *)
+
+    simpl in H1.
+    inversion H1. clear H1.
     fcf_simp.
-    intuition.
-    (* simpl in *. *)
+    simpl.
+    (* simpl in *.  *) (* yields b = l0 *)
+    (* we're using H2 -- first postcondition of comp_spec, unqualified -- eq probability of returning bad *)
     fcf_spec_ret.
   Qed.
 
   Theorem PRF_DRBG_G3_2_3_eq_until_bad : 
     forall a : bool,
       evalDist PRF_DRBG_G3_2 (a, false) == evalDist PRF_DRBG_G3_3 (a, false).
-
+  Proof.
     intuition.
     unfold PRF_DRBG_G3_2, PRF_DRBG_G3_3.
-    fcf_to_prhl.                (* proved via moving to comp_spec with iff! *)
+    fcf_to_prhl.                (* proved via moving to comp_spec with iff, note the spec *)
     fcf_skip.
     apply PRF_A_randomFunc_eq_until_bad.
     (* nested identical until bad -- this is the big comp_spec above. has (bad = false) as an assumption *)
     fcf_simp.
-    fcf_spec_ret.
+    fcf_spec_ret.               (* note what this tactic does -- escapes the comp_spec, splits the tuple into equality *)
 
     simpl in *; pairInv; intuition; subst;
     trivial.
@@ -565,6 +574,8 @@ Print PRF_DRBG_f_G2.
     (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- how to prove this? esp b/c the two games aren't in exactly the "identical until bad" form *)
     apply PRF_DRBG_G3_2_3_eq_until_bad.    
   Qed.
+
+  (* ------- end identical until bad section *)
 
   Theorem PRF_DRBG_G3_3_G4_eq :
     Pr[ x <-$ PRF_DRBG_G3_3; ret (fst x) ] == Pr[ PRF_DRBG_G4 ].
