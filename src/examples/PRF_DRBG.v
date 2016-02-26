@@ -393,6 +393,8 @@ Check (PRF_A _ _ (fun _ _ => x <-$ {0, 1}^eta; ret (x, tt)) tt).
 Print PRF_A.
 Print PRF_DRBG_f_G2.
 
+  (* ------- identical until bad section *)
+
   (* The "equal until bad" specification for randomFunc_withDups and the oracle that always produces a new random value.  This specification forms the core of the proofs of the two parts of the fundamental lemma in the following two theorems. *)
 (* spec meaning "what function relates their outputs" or "what is the postcondition" *)
   Theorem PRF_A_randomFunc_eq_until_bad : 
@@ -426,65 +428,107 @@ Print PRF_DRBG_f_G2.
     (* TODO what is the next line? comment each assumption/conclusion in english *)
     (* Check fcf_oracle_eq_until_bad. *)
     Locate fcf_oracle_eq_until_bad.
+    Check fcf_oracle_eq_until_bad.
+    (* there's a separate theorem about oracles and eq_until_bad? *)
     eapply (fcf_oracle_eq_until_bad
               (fun x => hasDups _ (fst (split x)))
               (fun x => hasDups _ (fst (split x))) eq);
+      (* why was it applied with these arguments? *)
     intuition.
-    apply PRF_A_wf.
+    (* what are the remaining obligations?? *)
+    (* before:
+
+   comp_spec
+     (fun y1 y2 : bool * list (D * Bvector eta) =>
+      hasDups D_EqDec (fst (split (snd y1))) =
+      hasDups D_EqDec (fst (split (snd y2))) /\
+      (hasDups D_EqDec (fst (split (snd y1))) = false ->
+       snd y1 = snd y2 /\ fst y1 = fst y2))
+     (PRF_A (list (D * Bvector eta))
+        (list_EqDec (pair_EqDec D_EqDec (Bvector_EqDec eta)))
+        randomFunc_withDups nil)
+     (PRF_A (list (D * Bvector eta))
+        (list_EqDec (pair_EqDec D_EqDec (Bvector_EqDec eta)))
+        (fun (ls : list (D * Bvector eta)) (x : D) =>
+         r <-$ { 0 , 1 }^eta; ret (r, (x, r) :: ls)) nil)
+
+after:
+
+subgoal 4 (ID 4424) is:
+ comp_spec
+   (fun y1 y2 : Bvector eta * list (D * Bvector eta) =>
+    hasDups D_EqDec (fst (split (snd y1))) =
+    hasDups D_EqDec (fst (split (snd y2))) /\
+    (hasDups D_EqDec (fst (split (snd y1))) = false ->
+     snd y1 = snd y2 /\ fst y1 = fst y2)) (randomFunc_withDups x1 a)
+   (r <-$ { 0 , 1 }^eta; ret (r, (a, r) :: x2))
+
+^ PRF_A went away!
+
+subgoal 5 (ID 4465) is:
+ hasDups D_EqDec (fst (split b)) = true <-- this is true now? can we use subgoal 4?
+subgoal 6 (ID 4578) is:
+ hasDups D_EqDec (fst (split b)) = true *)
+
+    - apply PRF_A_wf.
     
-    unfold randomFunc_withDups.
+    - unfold randomFunc_withDups.
     destruct ( arrayLookup D_EqDec a b);
     fcf_well_formed.
 
-    fcf_well_formed.
+    - fcf_well_formed.
 
-    subst.
+    - subst.
+      Check PRF_A.
+      (* the two oracles (randomFunc_withDups) and (r <-$ {0,1]^eta...)
+       and the PRF_A is the oracleComp
+       and the bad event is still the hasDups stuff *)
     unfold randomFunc_withDups.
     case_eq (arrayLookup _ x2 a); intuition. 
-    fcf_irr_r.
-    fcf_simp.
-    fcf_spec_ret; simpl.
- 
-    remember (split x2) as z.
-    destruct z.
-    simpl in *.
-    trivial.
-    simpl in *.
-    remember (split x2) as z.
-    destruct z.
-    simpl in *.
-    destruct (in_dec (EqDec_dec D_EqDec) a l0); intuition.
-    discriminate.
-    rewrite notInArrayLookupNone in H.
-    discriminate.
-    intuition.
-    rewrite unzip_eq_split in H3.
-    remember (split x2) as z.
-    destruct z.
-    pairInv.
-    simpl in *.
-    intuition.
+    * fcf_irr_r.
+      fcf_simp.
+      fcf_spec_ret; simpl.
+      
+      remember (split x2) as z.
+      destruct z.
+      simpl in *.
+      trivial.
+      simpl in *.
+      remember (split x2) as z.
+      destruct z.
+      simpl in *.
+      destruct (in_dec (EqDec_dec D_EqDec) a l0); intuition.
+      discriminate.
+      rewrite notInArrayLookupNone in H.
+      discriminate.
+      intuition.
+      rewrite unzip_eq_split in H3.
+      remember (split x2) as z.
+      destruct z.
+      pairInv.
+      simpl in *.
+      intuition.
+      
+      simpl in *.
+      remember (split x2) as z.
+      destruct z.
+      simpl in *.
+      destruct (in_dec (EqDec_dec D_EqDec) a l0).
+      discriminate.
+      rewrite notInArrayLookupNone in H.
+      discriminate.
+      intuition.
+      rewrite unzip_eq_split in H3.
+      remember (split x2) as z.
+      destruct z.
+      pairInv.
+      simpl in *.
+      intuition.
     
-    simpl in *.
-    remember (split x2) as z.
-    destruct z.
-    simpl in *.
-    destruct (in_dec (EqDec_dec D_EqDec) a l0).
-    discriminate.
-    rewrite notInArrayLookupNone in H.
-    discriminate.
-    intuition.
-    rewrite unzip_eq_split in H3.
-    remember (split x2) as z.
-    destruct z.
-    pairInv.
-    simpl in *.
-    intuition.
-    
-    fcf_skip.
-    fcf_spec_ret.
+    * fcf_skip.
+      fcf_spec_ret.
 
-    unfold randomFunc_withDups in *.
+    - unfold randomFunc_withDups in *.
     fcf_simp_in_support.
     simpl.
     remember (split c0) as z.
@@ -492,15 +536,13 @@ Print PRF_DRBG_f_G2.
     simpl in *.
     destruct (in_dec (EqDec_dec D_EqDec) d l0); intuition.
 
-    fcf_simp_in_support.
+    - fcf_simp_in_support.
     simpl in *.
     remember (split c0) as z.
     destruct z.
     simpl in *.
     destruct (in_dec (EqDec_dec D_EqDec) d l0); intuition.
   Qed.
-
-  (* ------- identical until bad section *)
 
   Theorem PRF_DRBG_G3_2_3_badness_same : 
     Pr  [x <-$ PRF_DRBG_G3_2; ret snd x ] ==

@@ -947,6 +947,38 @@ or rf output = rb output? *)
         (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
 Proof.
   intros.
+  unfold oracleCompMap_inner.
+
+(* TODO: might need to use oracle identical until bad? 
+many layers of oraclecomps
+oraclecomps: oraclecompmap_inner, Oi_oc', GenUpdate (various forms), Gen_loop
+  (adam only has the equivalent of Gen_loop)
+actual oracles: rb, rf
+
+TODO: 
+- discharge admit below
+- figure out oracle id until bad
+- figure out adam's proof of comp_spec
+
+- figure out how to deal with call segmentation
+- if there are no dups, then RF behaves exactly like RB -- key length extension doesn't matter, v doesn't matter? am i missing something? how do i show this?? 
+
+no dups -> reason about RF match and RF state 
+- also fix this:
+ dupsInIthCallInputs i state_rb = dupsInIthCallInputs (S i) state_rf 
+are the indices right? we want dups in the ...
+
+(* uses provided oracle on call number i
+   i = 2
+                      0  1  2   3   4
+   Gi_rb_bad i =     RB RB RB PRF PRF
+   Gi_rf_bad (S i) = RB RB RB RF  PRF
+   Gi_rb_bad (S i) = RB RB RB RB  PRF
+   bad event = duplicates in input on call number i *)
+
+is this wrong??
+shouldn't we be relating (Gi_rf_bad i) with (Gi_rb_bad i)??
+*)
 
 Admitted.
 
@@ -960,6 +992,13 @@ Theorem PRF_Adv_eq_until_bad : forall (i : nat),
         let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
         dupsInIthCallInputs i state_rb = dupsInIthCallInputs (S i) state_rf /\
         (dupsInIthCallInputs i state_rb = false -> (* should this mention (S i)? *)
+         (* pretty sure this is true -- if there are no duplicates, then the random function behaves exactly like RB, so the key is randomly sampled AND the v (going into the PRF) is also randomly sampled. so the outputs should be the same.
+
+in fact, if there are no dups, PRF_Adv rf i = PRF_Adv rb (S i).
+
+so, this means the comp_spec above is true?
+
+does PRHL act like giving each the same "tape" of randomness for equality? *)
          state_rb = state_rf /\ adv_rb = adv_rf))
      ((PRF_Adversary i) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
@@ -973,11 +1012,36 @@ Proof.
   fcf_inline_first.
   fcf_skip.
   fcf_simp.
-  * 
-    (* this just pushed the lemma back further into here -- what should this spec be?? *)
-    fcf_skip.
+  (* simpl. *)
+  (* this just pushed the lemma back further into here -- what should this spec be?? *)
+  fcf_skip.
+  apply oracleCompMap_eq_until_bad. (* pretty sure this is correct *)
 
-Admitted.
+  simpl in H3.
+  destruct b2.
+  intuition.
+  
+  remember a0 as bits_rb.
+  remember l as bits_rf.
+
+  (* need to show that adversary can't distinguish the bits -- are they the same? *)
+  (* see H5 *)
+  
+  fcf_skip.
+  (* TODO: look at proof of PRF_A_randomFunc_eq_until_bad *)
+
+  - instantiate (1 := (fun x y => x = y)). (* eq -- just for testing, not sure if right *)
+    (* if this isn't right, what assumption do i need? *)
+    simpl in *.
+    (* might need to use oracle id until bad? *)
+    (* TODO *)
+
+    admit.
+
+  - simpl in *.
+    subst.
+    fcf_spec_ret.
+Qed.                            (* not truly qed due to the instantiation with = *)
 
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
 (* uses provided oracle on call number i
@@ -1341,6 +1405,7 @@ Lemma Gi_rf_rb_close : forall (i : nat), (* not true for i = 0 (and not needed) 
 Proof.
   intros.
   rewrite Gi_normal_rb_eq. (* put Gi_prg into the same form using RB oracle *)
+  (* TODO this might be wrong, maybe Gi_prg (S i) = Gi_rb (S i) *)
 
   rewrite Gi_rf_return_bad_eq. 
   rewrite Gi_rb_return_bad_eq. 
