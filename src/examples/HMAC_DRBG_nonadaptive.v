@@ -786,9 +786,8 @@ Admitted.
 (* base case theorem (adam's) TODO *)
 
 (* Step 1 *)
-(* let i = 3. 
-Gi_prf i: RB RB PRF PRF PRF
-Gi_rf i:  RB RB RF  PRF PRF 
+(* Gi_prf 2: RB RB PRF PRF PRF
+   Gi_rf 2:  RB RB RF  PRF PRF 
 need to use `Gi_prf i` instead of `Gi_prg i` because this matches the form of 
 `Gi_rf` closer so we can match the form of PRF_Advantage*)
 Lemma Gi_prf_rf_close_i : forall (i : nat),
@@ -827,12 +826,20 @@ Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 
 (* TODO make sure this is true, some important theorems depend on it *)
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
+(* Gi_prg 0: PRF PRF PRF PRF
+   Gi_prf 0: PRF PRF PRF PRF
+   Gi_prg 2: RB RB PRF PRF
+   Gi_prf 2: RB RB PRF PRF *)
 Lemma Gi_normal_prf_eq : forall (i : nat),
-    Pr[Gi_prg i] == Pr[Gi_prf (S i)].
+    Pr[Gi_prg i] == Pr[Gi_prf i].
 Proof.
   intros.
   unfold Gi_prg.
   unfold Gi_prf.
+  unfold oracleMap.
+  unfold Oi_prg.
+  unfold PRF_Adversary.
+  unfold Oi_oc'.
 Admitted.
 
 (* expose the bad event (dups) *)
@@ -855,7 +862,7 @@ Gi_rb 0 : RB PRF PRF...
 (* might have misnumbered something here? *)
 (* using random bits as the oracle for the ith call = the (i+1)th hybrid *)
 Lemma Gi_normal_rb_eq : forall (i : nat),
-    Pr[Gi_prg (S i)] == Pr[Gi_rb (S i)].
+    Pr[Gi_prg (S i)] == Pr[Gi_rb i].
 Proof.
   intros.
   unfold Gi_prg.
@@ -926,14 +933,14 @@ or rf output = rb output? *)
         let (bits_rf, state_rf) := b2 in
         let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
         let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
-        dupsInIthCallInputs (S i) state_rb = dupsInIthCallInputs (S i) state_rf /\
-        (dupsInIthCallInputs (S i) state_rb = false -> (* should this mention (S i)? *)
+        dupsInIthCallInputs i state_rb = dupsInIthCallInputs i state_rf /\
+        (dupsInIthCallInputs i state_rb = false -> (* should this mention i? *)
          state_rb = state_rf /\ bits_rb = bits_rf))
      ((z <--$
        oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' (S i)) 
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
          (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
         rb_oracle nil)
@@ -941,7 +948,7 @@ or rf output = rb output? *)
        oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' (S i)) 
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
          (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
         (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
@@ -990,8 +997,8 @@ Theorem PRF_Adv_eq_until_bad : forall (i : nat),
         let (adv_rf, state_rf) := b in
         let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
         let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
-        dupsInIthCallInputs (S i) state_rb = dupsInIthCallInputs (S i) state_rf /\
-        (dupsInIthCallInputs (S i) state_rb = false -> (* should this mention (S i)? *)
+        dupsInIthCallInputs i state_rb = dupsInIthCallInputs i state_rf /\
+        (dupsInIthCallInputs i state_rb = false -> (* should this mention i? *)
          (* pretty sure this is true -- if there are no duplicates, then the random function behaves exactly like RB, so the key is randomly sampled AND the v (going into the PRF) is also randomly sampled. so the outputs should be the same.
 
 in fact, if there are no dups, PRF_Adv rf i = PRF_Adv rb (S i).
@@ -1000,9 +1007,9 @@ so, this means the comp_spec above is true?
 
 does PRHL act like giving each the same "tape" of randomness for equality? *)
          state_rb = state_rf /\ adv_rb = adv_rf))
-     ((PRF_Adversary (S i)) (list (Blist * Bvector eta))
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
-     ((PRF_Adversary (S i)) (list (Blist * Bvector eta))
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv))
         (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
 Proof.
@@ -1051,8 +1058,8 @@ Qed.                            (* not truly qed due to the instantiation with =
    Gi_rf_bad (S i) = RB RB RB RF  PRF
    bad event = duplicates in input on call number i *)
 Lemma Gi_rb_rf_return_bad_same :  forall (i : nat),
-    Pr  [x <-$ Gi_rb_bad (S i); ret snd x ] ==
-    Pr  [x <-$ Gi_rf_bad (S i); ret snd x ].
+    Pr  [x <-$ Gi_rb_bad i; ret snd x ] ==
+    Pr  [x <-$ Gi_rf_bad i; ret snd x ].
 Proof.
   intros.
   unfold Gi_rb_bad. unfold Gi_rf_bad.
@@ -1084,7 +1091,7 @@ Qed.
 
 (* TODO need one of those complex comp_specs *)
 Theorem Gi_rb_rf_no_bad_same : forall (i : nat) (a : bool),
-   evalDist (Gi_rb_bad (S i)) (a, false) == evalDist (Gi_rf_bad (S i)) (a, false).
+   evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_bad i) (a, false).
 Proof.
   intros.
   fcf_to_prhl.                  (* note the auto-specification here *)
@@ -1130,8 +1137,8 @@ Qed.
 
 (* Applying the fundamental lemma here *)
 Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
-| Pr[x <-$ Gi_rf_bad (S i); ret fst x] - Pr[x <-$ Gi_rb_bad (S i); ret fst x] | <=
-                                              Pr[x <-$ Gi_rb_bad (S i); ret snd x].
+| Pr[x <-$ Gi_rf_bad i; ret fst x] - Pr[x <-$ Gi_rb_bad i; ret fst x] | <=
+                                              Pr[x <-$ Gi_rb_bad i; ret snd x].
 Proof.
   intros. rewrite ratDistance_comm.
   fcf_fundamental_lemma.
@@ -1308,7 +1315,7 @@ Definition Gi_rb_bad_map_inline_v : Comp bool :=
 
 (* TODO: write that these games have the same probability, then rewrite below *)
 (* should be easy *)
-Lemma Gi_rb_bad_map_inline_v_eq_1 : forall (i : nat),
+Lemma Gi_rb_bad_eq_1 : forall (i : nat),
     Pr [x <-$ Gi_rb_bad i; ret snd x] = Pr [Gi_rb_bad_no_adv i].
 Proof.
   intros.
@@ -1415,11 +1422,15 @@ Gi_prg 1:    RB  PRF PRF
 Gi_rf  2:    RB  RF  PRF 
 Gi_prg 2:    RB  RB  PRF *)
 Lemma Gi_rf_rb_close : forall (i : nat), (* not true for i = 0 (and not needed) *)
-  | Pr[Gi_rf (S i)] - Pr[Gi_prg (S i)] | <= Pr_collisions.
+  | Pr[Gi_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions.
 Proof.
   intros.
   rewrite Gi_normal_rb_eq. (* put Gi_prg into the same form using RB oracle *)
   (* TODO this might be wrong, maybe Gi_prg (S i) = Gi_rb (S i) *)
+  (* shouldn't we be relating
+     RB RB RF PRF with  <- Gi_rf 2
+     RB RB RB PRF ? <-- Gi_prg 3 = Gi_rb 2
+ *)
 
   rewrite Gi_rf_return_bad_eq. 
   rewrite Gi_rb_return_bad_eq. 
@@ -1459,7 +1470,8 @@ Theorem Gi_Gi_plus_1_close :
 Proof.
   unfold Gi_Gi_plus_1_bound. intros.
   eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
-  rewrite Gi_normal_prf_eq.
+  rewrite Gi_normal_prf_eq.    (* changed this *)
+  Print Gi_prf.
   apply Gi_prf_rf_close.
   apply Gi_rf_rb_close.
 Qed.
