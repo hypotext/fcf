@@ -416,8 +416,10 @@ Print PRF_DRBG_f_G2.
       (*     cache1 = cache2 /\ adv1 = adv2)) *)
       (*    (* randomFunc_withDups has no dups in its inputs -> its inputs and outputs are exactly the same as the one for random inputs and outputs & adversary cannot distinguish them. *) *)
          (* TODO how was this proved? *)
+         (* same probability of bad *)
          hasDups _ (fst (split (snd y1))) =
          hasDups _ (fst (split (snd y2))) /\
+         (* no bad -> identical output distributions *)
          (hasDups _ (fst (split (snd y1))) = false ->
           snd y1 = snd y2 /\ fst y1 = fst y2))
       (PRF_A _ _ randomFunc_withDups nil)
@@ -425,17 +427,27 @@ Print PRF_DRBG_f_G2.
              (fun (ls : list (D * Bvector eta)) (x : D) =>
          r <-$ { 0 , 1 }^eta; ret (r, (x, r) :: ls)) nil).
   Proof.
+    (* oracles both start out in "good" state of `nil` *)
     (* TODO what is the next line? comment each assumption/conclusion in english *)
     (* Check fcf_oracle_eq_until_bad. *)
     Locate fcf_oracle_eq_until_bad.
     Check fcf_oracle_eq_until_bad.
     (* there's a separate theorem about oracles and eq_until_bad? *)
+    (* why this predicate? *)
     eapply (fcf_oracle_eq_until_bad
               (fun x => hasDups _ (fst (split x)))
               (fun x => hasDups _ (fst (split x))) eq);
       (* why was it applied with these arguments? *)
     intuition.
-    (* what are the remaining obligations?? *)
+    (* what are the remaining obligations?? 
+1. prove that the oraclecomp (PRF_A) is well formed
+2. prove that the oracles (RF and RB) are well formed
+3. prove that that the comp_spec holds on the two oracles
+   ^ i don't see why this is useful or why the conclusion is useful
+4. RF: if it starts out bad, it stays bad
+5. RB: if it starts out bad, it stays bad 
+
+so, how come we didn't have to reason about PRF_A? *)
     (* before:
 
    comp_spec
@@ -484,7 +496,9 @@ subgoal 6 (ID 4578) is:
        and the PRF_A is the oracleComp
        and the bad event is still the hasDups stuff *)
     unfold randomFunc_withDups.
-    case_eq (arrayLookup _ x2 a); intuition. 
+    case_eq (arrayLookup _ x2 a); intuition.
+
+      (* is a duplicate *)
     * fcf_irr_r.
       fcf_simp.
       fcf_spec_ret; simpl.
@@ -525,7 +539,8 @@ subgoal 6 (ID 4578) is:
       simpl in *.
       intuition.
     
-    * fcf_skip.
+    *                           (* not a duplicate -- behaves like RB *)
+      fcf_skip.
       fcf_spec_ret.
 
     - unfold randomFunc_withDups in *.
@@ -534,14 +549,14 @@ subgoal 6 (ID 4578) is:
     remember (split c0) as z.
     destruct z.
     simpl in *.
-    destruct (in_dec (EqDec_dec D_EqDec) d l0); intuition.
+    destruct (in_dec (EqDec_dec D_EqDec) d l0). intuition. intuition.
 
     - fcf_simp_in_support.
     simpl in *.
     remember (split c0) as z.
     destruct z.
     simpl in *.
-    destruct (in_dec (EqDec_dec D_EqDec) d l0); intuition.
+    destruct (in_dec (EqDec_dec D_EqDec) d l0). intuition. intuition.
   Qed.
 
   Theorem PRF_DRBG_G3_2_3_badness_same : 

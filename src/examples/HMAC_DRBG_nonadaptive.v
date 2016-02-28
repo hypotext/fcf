@@ -614,6 +614,14 @@ Definition dupsInIthCallInputs (i : nat) (state : list (Blist * Bvector eta)) : 
   let inputs_of_ith_call := nth i nil inputs_byCall in
   hasDups _ inputs_of_ith_call.
 
+Definition dupsInIthCallInputs_only (i : nat) (inputs : list Blist) : bool :=
+  (* all the inputs are in one big list, so break it up by oracle call *)
+  (* blocksPerCall inputs + 2 for the v and k re-updating *)
+  let inputs_byCall := segment (blocksPerCall + 2) inputs in
+  (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  let inputs_of_ith_call := nth i nil inputs_byCall in
+  hasDups _ inputs_of_ith_call.
+
 (* ith game: use RF oracle *)
 Definition Gi_rf_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
@@ -894,39 +902,57 @@ Admitted.
 
 (* ------ *Identical until bad section *)
 
+Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
+    comp_spec
+     (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
+        (* let (bits_rb, state_rb) := a0 in *)
+        (* let (bits_rf, state_rf) := b2 in *)
+        (* let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in *)
+        (* let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in *)
+        dupsInIthCallInputs_only i (fst (split (snd y1))) = dupsInIthCallInputs_only i (fst (split (snd y2))) /\
+        (dupsInIthCallInputs_only i (fst (split (snd y1))) = false -> 
+         snd y1 = snd y2 /\ fst y1 = fst y2))
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil)
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+Proof.
+  intros.
+  eapply (fcf_oracle_eq_until_bad
+            (fun x => dupsInIthCallInputs_only i (fst (split x)))
+            (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
+
+  - fcf_well_formed. admit.
+  - intros. unfold rb_oracle. fcf_well_formed.
+  - intros. unfold randomFunc. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
+  - (* hard *)
+    (* does this goal look true? *)
+    (* should i be applying oracle_eq_until_bad in this thm or the outer one? *)
+    intros.
+    subst. clear H1.
+    (* can we really completely ignore GenUpdate AND Gen_loop??? *)
+    unfold randomFunc.
+    admit. 
+  - intros. admit.
+  - intros. admit.
+
+Qed.
+
 (* TODO better theorem name, saner variable names *)
 (* TODO this one isn't correct? use the below one *)
 Theorem oracleCompMap_eq_until_bad : forall (i : nat) b b0,
-(* 1. hasDups rb = hasDups rf
-   2. hasDups rf? = false -> 
-the rb and rf states are equal (?) and the adversary outputs are equal
-what about the output in bits?? maybe we need that for equal adv outputs
-or rf output = rb output? *)
-(*  comp_spec
-      (* they are equal when this function is applied to one of the results? both of them?
-       or the function is true on the both of them? *)
-      (* also this isn't computational? *)
-      (fun y1 y2 : bool * (list (D * Bvector eta)) =>
-      (*    let adv1 := fst y1 in *)
-      (*    let adv2 := fst y2 in *)
-      (*    let cache1 := snd y1 in *)
-      (*    let cache2 := snd y2 in *)
-      (*    let inputs1 := fst (split cache1) in *)
-      (*    let inputs2 := fst (split cache2) in *)
-      (*    (* the inputs should be the same anyway *) *)
-      (*    hasDups _ inputs1 = *)
-      (*    hasDups _ inputs2 /\ *)
-      (*    (hasDups _ inputs1 = false -> *)
-      (*     cache1 = cache2 /\ adv1 = adv2)) *)
-      (*    (* randomFunc_withDups has no dups in its inputs -> its inputs and outputs are exactly the same as the one for random inputs and outputs & adversary cannot distinguish them. *) *) 
-         hasDups _ (fst (split (snd y1))) =
-         hasDups _ (fst (split (snd y2))) /\
-         (hasDups _ (fst (split (snd y1))) = false ->
-          snd y1 = snd y2 /\ fst y1 = fst y2))
-      (PRF_A _ _ randomFunc_withDups nil)
-      (PRF_A _ _ 
-             (fun (ls : list (D * Bvector eta)) (x : D) =>
-         r <-$ { 0 , 1 }^eta; ret (r, (x, r) :: ls)) nil). *)
     comp_spec
      (fun a0 b2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
         let (bits_rb, state_rb) := a0 in
@@ -934,7 +960,7 @@ or rf output = rb output? *)
         let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
         let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
         dupsInIthCallInputs i state_rb = dupsInIthCallInputs i state_rf /\
-        (dupsInIthCallInputs i state_rb = false -> (* should this mention i? *)
+        (dupsInIthCallInputs i state_rb = false -> 
          state_rb = state_rf /\ bits_rb = bits_rf))
      ((z <--$
        oracleCompMap_inner
@@ -954,6 +980,7 @@ or rf output = rb output? *)
         (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
 Proof.
   intros.
+
   unfold oracleCompMap_inner.
 
 (* TODO: might need to use oracle identical until bad? 
@@ -988,6 +1015,52 @@ shouldn't we be relating (Gi_rf_bad i) with (Gi_rb_bad i)??
 *)
 
 Admitted.
+
+Theorem PRF_Adv__oracle_eq_until_bad : forall (i : nat),
+   comp_spec 
+     (fun y1 y2 : bool * list (Blist * Bvector eta) =>
+        dupsInIthCallInputs_only i (fst (split (snd y1))) = dupsInIthCallInputs_only i (fst (split (snd y2))) /\
+        (dupsInIthCallInputs_only i (fst (split (snd y1))) = false ->
+         snd y1 = snd y2 /\ fst y1 = fst y2))
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+Proof.
+  intros.
+  eapply (fcf_oracle_eq_until_bad
+            (fun x => dupsInIthCallInputs_only i (fst (split x)))
+            (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
+
+  - fcf_well_formed. unfold Instantiate. fcf_well_formed.
+    unfold RndK. fcf_well_formed.
+    unfold RndV. fcf_well_formed.
+    intros. admit.
+  - unfold rb_oracle. fcf_well_formed.
+  - unfold randomFunc. destruct (arrayLookup eqdbl a b); fcf_well_formed.
+  - (* hard *)
+    (* does this goal look true? *)
+    (* should i be applying oracle_eq_until_bad in this thm or the outer one? *)
+    (* TODO: dupsInIthCallInputs_only is not the same type as hasDups. *)
+    subst. clear H0.
+    (* can we really completely ignore PRF_Adv AND GenUpdate AND Gen_loop??? *)
+    unfold randomFunc.
+
+    destruct (arrayLookup eqdbl x2 a).
+    Focus 2.
+    * unfold rb_oracle.
+      fcf_skip. admit. admit.
+      fcf_spec_ret.
+      (* ??? *)
+      (* fcf_irr_l. *)
+      (* fcf_irr_r. *)
+      (* fcf_spec_ret. *)
+      (* simpl. *)
+      admit.
+  - admit.
+  - admit.
+Qed.
 
 (* TODO: this is the real lemma *)
 Theorem PRF_Adv_eq_until_bad : forall (i : nat),

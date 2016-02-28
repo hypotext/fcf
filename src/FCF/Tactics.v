@@ -18,7 +18,7 @@ Notation fcf_left := leftc.
 
 (** ** fcf_inline *)
 (** The fcf_inline tactic applies monad associativity to replace (x <- (y <- p1; p2); p3) with (y <- p1; x <- p2; p3).  Note that the fcf_inline_first will repeatedly invoke this tactic to inline the first nested program on both sides of the relation. *)
-(** Supporting theory: evalDist_assoc (probability), comp_spec_assoc (program logic) *)
+(** Supporting thoery: evalDist_assoc (probability), comp_spec_assoc (program logic) *)
 Ltac fcf_inline := comp_inline.
 
 (** ** fcf_swap *)
@@ -213,7 +213,7 @@ Theorem fcf_spec_seq :
 Qed.
 
 (** ** fcf_oracle_eq *)
-(** The fcf_oracl_eq theorem is used to replace an oracle with an observationally equivalent oracle.  This theorem accepts a relational predicate that specifies an invariant on the states of the oracles.  The resulting proof obligations will be to show that the invariant holds on the initial state, and the when the invariant holds on any state, the oracles produce identical output for all inputs and the invariant still holds on the resulting state. *)
+(** The fcf_oracle_eq theorem is used to replace an oracle with an observationally equivalent oracle.  This theorem accepts a relational predicate that specifies an invariant on the states of the oracles.  The resulting proof obligations will be to show that the invariant holds on the initial state, and when the invariant holds on any state, the oracles produce identical output for all inputs and the invariant still holds on the resulting state. *)
 Theorem fcf_oracle_eq :
   forall {S1 S2 : Set}(P : S1 -> S2 -> Prop)(A B C : Set) (c : OracleComp A B C) 
          (eqdb : EqDec B) (eqdc : EqDec C) 
@@ -221,12 +221,16 @@ Theorem fcf_oracle_eq :
          (eqds1 : EqDec S1) (eqds2 : EqDec S2) (s1 : S1) 
          (s2 : S2),
     P s1 s2 ->
+
+    (* oracles *)
     (forall (a : A) (x1 : S1) (x2 : S2),
        P x1 x2 ->
        comp_spec
          (fun (y1 : B * S1) (y2 : B * S2) =>
             fst y1 = fst y2 /\ P (snd y1) (snd y2)) 
          (o1 x1 a) (o2 x2 a)) ->
+
+    (* oracleComps *)
     comp_spec
       (fun (a : C * S1) (b : C * S2) => fst a = fst b /\ P (snd a) (snd b))
       (c S1 eqds1 o1 s1) (c S2 eqds2 o2 s2).
@@ -238,6 +242,19 @@ Qed.
 
 (** ** fcf_oracle_eq_until_bad *)
 (** The fcf_oracle_eq_until_bad theorem is similar to fcf_oracle_eq, except it allows the state of the oracles to go "bad", and the resulting fact is that the oracles are indistinguishable unless this bad event occurs.  This fact can be used with the fundamental lemma to bound the distance between a pair of program/oracle interactions. *)
+
+(* - what oracle am i applying this to?
+- what's the bad event?
+- what does indistinguishability of an oracle mean?
+- how do i use this lemma (or the above lemma)?
+- what is a program/oracle interaction? (program = OracleComp?)
+
+id until bad:
+- probability of bad is same in both
+- if bad does not happen, then the distributions of the outputs are the same
+
+btw the proof for this does not actually use the fundamental lemma 
+what do i do for multiple layers of oraclecomp?? *)
 Theorem fcf_oracle_eq_until_bad : 
   forall {S1 S2 : Set}(bad1 : S1 -> bool)
          (bad2 : S2 -> bool)(inv : S1 -> S2 -> Prop)(A B C : Set) (c : OracleComp A B C),
@@ -247,18 +264,26 @@ Theorem fcf_oracle_eq_until_bad :
            (eqds1 : EqDec S1) (eqds2 : EqDec S2),
       (forall (a : S1) (b : A), bad1 a = true -> well_formed_comp (o1 a b)) ->
       (forall (a : S2) (b : A), bad2 a = true -> well_formed_comp (o2 a b)) ->
+
       (forall (x1 : S1) (x2 : S2) (a : A),
          inv x1 x2 ->
-         bad1 x1 = bad2 x2 ->
+         bad1 x1 = bad2 x2 ->   (* bad event happened/didn't happen in both init states *)
          comp_spec
            (fun (y1 : B * S1) (y2 : B * S2) =>
+              (* bad event happened/didn't happen in both end states *)
+              (* following 2 lemmas ensure "starts bad -> ends bad" *)
               bad1 (snd y1) = bad2 (snd y2) /\
+              (*  *)
               (bad1 (snd y1) = false -> inv (snd y1) (snd y2) /\ fst y1 = fst y2))
+           (* oracles *)
            (o1 x1 a) (o2 x2 a)) ->
+
+      (* if the bad event happens in the input state c0 of the first oracle, and oracle1 (when run on initial state c0 and input d) could possibly return output `a` and output state b, then the bad event is true in the output state of the first oracle *)
       (forall (a : B) (b c0 : S1) (d : A),
          bad1 c0 = true -> In (a, b) (getSupport (o1 c0 d)) -> bad1 b = true) ->
       (forall (a : B) (b c0 : S2) (d : A),
          bad2 c0 = true -> In (a, b) (getSupport (o2 c0 d)) -> bad2 b = true) ->
+
       forall (s1 : S1) (s2 : S2),
         inv s1 s2 ->
         bad1 s1 = bad2 s2 ->
@@ -266,6 +291,7 @@ Theorem fcf_oracle_eq_until_bad :
           (fun (y1 : C * S1) (y2 : C * S2) =>
              bad1 (snd y1) = bad2 (snd y2) /\
              (bad1 (snd y1) = false -> inv (snd y1) (snd y2) /\ fst y1 = fst y2))
+          (* oracleComps *)
           (c S1 eqds1 o1 s1) (c S2 eqds2 o2 s2).
   
   intuition.
