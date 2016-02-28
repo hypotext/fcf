@@ -901,6 +901,8 @@ Proof.
 Admitted.
 
 (* ------ *Identical until bad section *)
+(* two versions of each thm: one experimentally applying oracle_eq_until_bad, one not *)
+(* trying to figure out which OracleComps can be ignored (PRF_Adv, oracleCompMap_outer, _inner, Oi_oc, GenUpdate, Gen_loop *)
 
 Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
     comp_spec
@@ -1063,6 +1065,7 @@ Proof.
 Qed.
 
 (* TODO: this is the real lemma *)
+(* perhaps we should use comp_spec with **hasDups* for inner PRF_DRBGm and prove that that implies comp_spec with dupsInIthCallInputs *)
 Theorem PRF_Adv_eq_until_bad : forall (i : nat),
    comp_spec 
      (fun a b : bool * list (Blist * Bvector eta) =>
