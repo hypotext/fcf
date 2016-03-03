@@ -676,6 +676,15 @@ the adversary can know the initial v, but not the K
 Definition PRF_Advantage_Game i : Rat := 
   PRF_Advantage RndK ({0,1}^eta) f eqdbl eqdbv (PRF_Adversary i).
 
+Print PRF_Advantage.
+Print PRF_G_A.
+
+
+Print PRF_Advantage.
+Print PRF_G_A.
+Print PRF_G_B.
+
+
 (* should be the same for all i, arbitrarily choose 0 *)
 Definition PRF_Advantage_i := PRF_Advantage_Game 0.
 
@@ -802,7 +811,6 @@ Lemma Gi_prf_rf_close_i : forall (i : nat),
   | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Game i.
 Proof.
   intros i.
-  unfold PRF_Advantage_i.
   (* don't need to unfold *)
   unfold Gi_prf.
   unfold Gi_rf.
@@ -902,58 +910,11 @@ Admitted.
 
 (* ------ *Identical until bad section *)
 (* two versions of each thm: one experimentally applying oracle_eq_until_bad, one not *)
-(* trying to figure out which OracleComps can be ignored (PRF_Adv, oracleCompMap_outer, _inner, Oi_oc, GenUpdate, Gen_loop *)
+(* trying to figure out which OracleComps can be ignored (PRF_Adv, oracleCompMap_outer, _inner, Oi_oc, GenUpdate, Gen_loop) *)
 
-Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
-    comp_spec
-     (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
-        (* let (bits_rb, state_rb) := a0 in *)
-        (* let (bits_rf, state_rf) := b2 in *)
-        (* let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in *)
-        (* let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in *)
-        dupsInIthCallInputs_only i (fst (split (snd y1))) = dupsInIthCallInputs_only i (fst (split (snd y2))) /\
-        (dupsInIthCallInputs_only i (fst (split (snd y1))) = false -> 
-         snd y1 = snd y2 /\ fst y1 = fst y2))
-     ((z <--$
-       oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil)
-     ((z <--$
-       oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
-Proof.
-  intros.
-  eapply (fcf_oracle_eq_until_bad
-            (fun x => dupsInIthCallInputs_only i (fst (split x)))
-            (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
-
-  - fcf_well_formed. admit.
-  - intros. unfold rb_oracle. fcf_well_formed.
-  - intros. unfold randomFunc. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
-  - (* hard *)
-    (* does this goal look true? *)
-    (* should i be applying oracle_eq_until_bad in this thm or the outer one? *)
-    intros.
-    subst. clear H1.
-    (* can we really completely ignore GenUpdate AND Gen_loop??? *)
-    unfold randomFunc.
-    admit. 
-  - intros. admit.
-  - intros. admit.
-
-Qed.
+(* TODO: might need to push these specs back further into Oi_oc and GenUpdate, then apply Adam's result in Gen_loop *)
 
 (* TODO better theorem name, saner variable names *)
-(* TODO this one isn't correct? use the below one *)
 Theorem oracleCompMap_eq_until_bad : forall (i : nat) b b0,
     comp_spec
      (fun a0 b2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
@@ -999,25 +960,122 @@ TODO:
 - figure out how to deal with call segmentation
 - if there are no dups, then RF behaves exactly like RB -- key length extension doesn't matter, v doesn't matter? am i missing something? how do i show this?? 
 
-no dups -> reason about RF match and RF state 
-- also fix this:
- dupsInIthCallInputs i state_rb = dupsInIthCallInputs (S i) state_rf 
-are the indices right? we want dups in the ...
-
-(* uses provided oracle on call number i
-   i = 2
-                      0  1  2   3   4
-   Gi_rb_bad i =     RB RB RB PRF PRF
-   Gi_rf_bad (S i) = RB RB RB RF  PRF
-   Gi_rb_bad (S i) = RB RB RB RB  PRF
-   bad event = duplicates in input on call number i *)
-
-is this wrong??
-shouldn't we be relating (Gi_rf_bad i) with (Gi_rb_bad i)??
-*)
+no dups -> reason about RF match and RF state *)
 
 Admitted.
 
+(* version of the theorem above, experimentally applying oracle_eq_until_bad *)
+Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
+    comp_spec
+     (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
+        (* let (bits_rb, state_rb) := a0 in *)
+        (* let (bits_rf, state_rf) := b2 in *)
+        (* let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in *)
+        (* let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in *)
+        dupsInIthCallInputs_only i (fst (split (snd y1))) = dupsInIthCallInputs_only i (fst (split (snd y2))) /\
+        (dupsInIthCallInputs_only i (fst (split (snd y1))) = false -> 
+         snd y1 = snd y2 /\ fst y1 = fst y2))
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil)
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+Proof.
+  intros.
+  eapply (fcf_oracle_eq_until_bad
+            (fun x => dupsInIthCallInputs_only i (fst (split x)))
+            (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
+
+  - fcf_well_formed. admit.
+  - intros. unfold rb_oracle. fcf_well_formed.
+  - intros. unfold randomFunc. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
+  - (* hard *)
+    (* does this goal look true? *)
+    (* should i be applying oracle_eq_until_bad in this thm or the outer one? *)
+    intros.
+    subst. clear H1.
+    (* can we really completely ignore GenUpdate AND Gen_loop? *)
+    unfold randomFunc.
+    admit. 
+  - intros. admit.
+  - intros. admit.
+
+Qed.
+
+(* TODO: this is the real lemma *)
+(* TODO: perhaps we should use comp_spec with **hasDups* for inner PRF_DRBG and prove that that implies comp_spec with dupsInIthCallInputs *)
+Theorem PRF_Adv_eq_until_bad : forall (i : nat),
+   comp_spec 
+     (fun a b : bool * list (Blist * Bvector eta) =>
+        let (adv_rb, state_rb) := a in
+        let (adv_rf, state_rf) := b in
+        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+        dupsInIthCallInputs i state_rb = dupsInIthCallInputs i state_rf /\
+        (dupsInIthCallInputs i state_rb = false ->
+         (* true -- if there are no duplicates, then the random function behaves exactly like RB, so the key is randomly sampled AND the v (going into the PRF) is also randomly sampled. so the outputs should be the same.
+
+in fact, if there are no dups, PRF_Adv rf i = PRF_Adv rb i.
+
+so, this means the comp_spec above is true?
+
+does PRHL act like giving each the same "tape" of randomness for equality? *)
+         state_rb = state_rf /\ adv_rb = adv_rf))
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
+     ((PRF_Adversary i) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+Proof.
+  intros.
+  unfold PRF_Adversary.
+  simpl.
+  fcf_inline_first.
+  fcf_skip.
+  fcf_simp.
+  (* simpl. *)
+  (* this just pushed the lemma back further into here -- what should this spec be?? *)
+  fcf_skip.
+  apply oracleCompMap_eq_until_bad. (* pretty sure this is correct *)
+
+  simpl in H3.
+  destruct b2.
+  intuition.
+  
+  remember a0 as bits_rb.
+  remember l as bits_rf.
+
+  (* need to show that adversary can't distinguish the bits -- are they the same? *)
+  (* see H5 *)
+  
+  fcf_skip.
+  (* TODO: look at proof of PRF_A_randomFunc_eq_until_bad *)
+
+  - instantiate (1 := (fun x y => x = y)). (* eq -- for testing, not sure if right *)
+    (* if this isn't right, what assumption do i need? *)
+    simpl in *.
+    (* might need to use oracle id until bad? *)
+    (* TODO *)
+
+    admit.
+
+  - simpl in *.
+    subst.
+    fcf_spec_ret.
+Qed.
+
+(* Version of the theorem above, experimentally applying oracle_eq_until_bad *)
 Theorem PRF_Adv__oracle_eq_until_bad : forall (i : nat),
    comp_spec 
      (fun y1 y2 : bool * list (Blist * Bvector eta) =>
@@ -1064,74 +1122,13 @@ Proof.
   - admit.
 Qed.
 
-(* TODO: this is the real lemma *)
-(* perhaps we should use comp_spec with **hasDups* for inner PRF_DRBGm and prove that that implies comp_spec with dupsInIthCallInputs *)
-Theorem PRF_Adv_eq_until_bad : forall (i : nat),
-   comp_spec 
-     (fun a b : bool * list (Blist * Bvector eta) =>
-        let (adv_rb, state_rb) := a in
-        let (adv_rf, state_rf) := b in
-        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
-        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
-        dupsInIthCallInputs i state_rb = dupsInIthCallInputs i state_rf /\
-        (dupsInIthCallInputs i state_rb = false -> (* should this mention i? *)
-         (* pretty sure this is true -- if there are no duplicates, then the random function behaves exactly like RB, so the key is randomly sampled AND the v (going into the PRF) is also randomly sampled. so the outputs should be the same.
-
-in fact, if there are no dups, PRF_Adv rf i = PRF_Adv rb (S i).
-
-so, this means the comp_spec above is true?
-
-does PRHL act like giving each the same "tape" of randomness for equality? *)
-         state_rb = state_rf /\ adv_rb = adv_rf))
-     ((PRF_Adversary i) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
-     ((PRF_Adversary i) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv))
-        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
-Proof.
-  intros.
-  unfold PRF_Adversary.
-  simpl.
-  fcf_inline_first.
-  fcf_skip.
-  fcf_simp.
-  (* simpl. *)
-  (* this just pushed the lemma back further into here -- what should this spec be?? *)
-  fcf_skip.
-  apply oracleCompMap_eq_until_bad. (* pretty sure this is correct *)
-
-  simpl in H3.
-  destruct b2.
-  intuition.
-  
-  remember a0 as bits_rb.
-  remember l as bits_rf.
-
-  (* need to show that adversary can't distinguish the bits -- are they the same? *)
-  (* see H5 *)
-  
-  fcf_skip.
-  (* TODO: look at proof of PRF_A_randomFunc_eq_until_bad *)
-
-  - instantiate (1 := (fun x y => x = y)). (* eq -- just for testing, not sure if right *)
-    (* if this isn't right, what assumption do i need? *)
-    simpl in *.
-    (* might need to use oracle id until bad? *)
-    (* TODO *)
-
-    admit.
-
-  - simpl in *.
-    subst.
-    fcf_spec_ret.
-Qed.                            (* not truly qed due to the instantiation with = *)
 
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
 (* uses provided oracle on call number i
    i = 2
                       0  1  2   3   4
+   Gi_rf_bad i =     RB RB RF PRF  PRF
    Gi_rb_bad i =     RB RB RB PRF PRF
-   Gi_rf_bad (S i) = RB RB RB RF  PRF
    bad event = duplicates in input on call number i *)
 Lemma Gi_rb_rf_return_bad_same :  forall (i : nat),
     Pr  [x <-$ Gi_rb_bad i; ret snd x ] ==
@@ -1146,12 +1143,8 @@ Proof.
   *
     Check PRF_Adv_eq_until_bad.
     apply PRF_Adv_eq_until_bad.
-    (* TODO split out this lemma. also see what adam does *)
-    (* in PRF_DRBG, this lemma is very important for adam; it has a long proof and he uses it in both of the identical until bad assumptions. *)
-    (* TODO: check if it's true, see if it can be used below *)
     (* is it true? this doesn't include the dupsInNthInput stuff. but do we even need that if the RB stuff beforehand is the same? *)
     (* only difference: one uses rb_oracle, other uses randomFunc oracle *)
-    (* also, adam's spec actually includes hasDups *)
   *
     destruct b0.
     intuition.
@@ -1161,11 +1154,10 @@ Proof.
     fcf_reflexivity.
 Qed.
 
-      (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
+(* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
          differences: 1. PRF re-keyed using RF vs. randomly sampled. but PRF re-keyed using something of length > eta, so it is effectively randomly sampled.
-         2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter (TODO how to show this?) *)
+         2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter *)
 
-(* TODO need one of those complex comp_specs *)
 Theorem Gi_rb_rf_no_bad_same : forall (i : nat) (a : bool),
    evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_bad i) (a, false).
 Proof.
@@ -1196,20 +1188,7 @@ Proof.
     intuition.
     subst.
     fcf_reflexivity.
-    (* oh, adam included the adversary return value in his comp_spec *)
-(* do we actually know that the bits are equal though? or just that the adversary can't distinguish? :/ *)
-    (* this is clearly true since it set snd to false... *)
-(* also, probably need to reason about dupsInIthCallInputs *)
 Qed.
-
-(* TODO 1. figure out what adam's comp_spec means X and how it's being used X
-   - the postconditions are basically exactly what we need there, so trivial. 
-   - but is it that easy here?
-2. figure out what the comp_spec in HMAC_DRBG should be
-   - basically the same as adam's??
-3. and how it should be used (and if it discharges the obligations)
-4. what auxiliary lemmas i need for the identical until bads (e.g. key input)
-5. figure out how adam proves his comp_spec *)
 
 (* Applying the fundamental lemma here *)
 Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
@@ -1218,6 +1197,7 @@ Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
 Proof.
   intros. rewrite ratDistance_comm.
   fcf_fundamental_lemma.
+  Check fundamental_lemma_h.
 
   (* first assumption: they have same probability of returning bad *)
   - apply Gi_rb_rf_return_bad_same.
@@ -1490,13 +1470,13 @@ Qed.
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
 (* Gi_rf 0:  RF  PRF PRF
-Gi_prg 0:    PRF PRF PRF
+Gi_prg 1:    RB PRF PRF
 
-Gi_rf  1:    RF  PRF PRF
-Gi_prg 1:    RB  PRF PRF
+Gi_rf  1:    RB  RF PRF
+Gi_prg 2:    RB  RB  PRF
 
-Gi_rf  2:    RB  RF  PRF 
-Gi_prg 2:    RB  RB  PRF *)
+Gi_rf  2:    RB  RB  RF
+Gi_prg 3:    RB  RB  RB *)
 Lemma Gi_rf_rb_close : forall (i : nat), (* not true for i = 0 (and not needed) *)
   | Pr[Gi_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions.
 Proof.
@@ -1550,6 +1530,7 @@ Proof.
   Print Gi_prf.
   apply Gi_prf_rf_close.
   apply Gi_rf_rb_close.
+Check Gi_rf_rb_close.
 Qed.
 
 (* ------------------------------- *)
