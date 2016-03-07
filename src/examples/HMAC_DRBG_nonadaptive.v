@@ -163,10 +163,10 @@ Fixpoint Gen_loop_rb_intermediate (k : Bvector eta) (v : Bvector eta) (n : nat)
 Definition GenUpdate_rb_intermediate (state : KV) (n : nat) 
   : Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  v' <-$ {0,1}^eta;
+  v' <-$ {0,1}^eta;             (* is this actually unnecessary? *)
   [bits, v''] <-$2 Gen_loop_rb_intermediate k v' n;
-  k' <-$ {0,1}^eta;
-  ret (bits, (k', v'')).
+  (* k' <-$ {0,1}^eta; *)
+  ret (bits, (k, v'')).
 
 (* final versions (without unnecessary (k, v) updating) *)
 Fixpoint Gen_loop_rb (n : nat) : Comp (list (Bvector eta)) :=
@@ -482,8 +482,8 @@ Definition GenUpdate_rb_intermediate_oc (state : KV) (n : nat)
   [k, v] <-2 state;
   v'' <--$ $ {0,1}^eta;
   [bits, v'] <--$2 $ Gen_loop_rb_intermediate k v n;
-  k' <--$ $ {0,1}^eta;
-  $ ret (bits, (k', v'')).
+  (* k' <--$ $ {0,1}^eta; *)
+  $ ret (bits, (k, v'')).
 
 (* same as Oi_prg but each GenUpdate in it has been converted to OracleComp *)
 (* number of calls starts at 0 and ends at q. e.g.
@@ -815,7 +815,7 @@ Proof.
   unfold Gi_prf.
   unfold Gi_rf.
   unfold PRF_Advantage_Game.
-  reflexivity. (* TODO how was this proven automatically? *)
+  reflexivity. 
 Qed.
 
 Lemma Gi_prf_rf_close : forall (i : nat),
@@ -824,6 +824,7 @@ Proof.
   intros.
   eapply leRat_trans.
   apply Gi_prf_rf_close_i.
+  unfold PRF_Advantage_i.
   apply PRF_Advantages_lte.
 Qed.
 
@@ -840,23 +841,163 @@ Definition Gi_Gi_plus_1_bound := PRF_Advantage_i + Pr_collisions.
 
 (* These are all lemmas to rewrite games so I can apply identical until bad *)
 
+Definition fst3 {A B C : Type} (abc : A * B * C) : A :=
+  let (ab, c) := abc in
+  let (a, b) := ab in
+  a.
+
+Open Scope nat.
+(* easier version: hardcoded l and i *)
+Theorem Gi_normal_prf_eq_compspec_ez : forall (k1 k2 v : Bvector eta),
+    (* i <= length l -> *)
+   comp_spec
+     (fun (x2 : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x2 = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg 2) (O, (k1, v)) (1::1::1::nil) )
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' 2) 
+         (O, (k2, v)) (1::1::1::nil) ) unit unit_EqDec
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+
+  remember (1 :: 1 :: nil) as ls'.
+  unfold oracleMap.
+  simpl.
+  fcf_inline_first.
+  fcf_irr_l.
+  fcf_inline_first.
+  Print Oi_oc'.
+  Print Oi_prg.
+  (* TODO can I make GenUpdate_rb_intermediate and GenUpdate_rb_intermediate_oc simpler? *)
+  fcf_skip. admit. admit.
+
+fcf_inline_first.
+
+(* back to compFold again, but what's the extra stuff happening in the latter? *)
+(* the new output and state in compFold are useful! *)
+
+fcf_simp.
+fcf_inline_first.
+remember (1 :: 1 :: nil) as ls'.
+fcf_irr_r.                      (* why is this here? *)
+fcf_inline_first.
+fcf_irr_r.
+fcf_simp.
+simpl.
+fcf_inline_first.
+fcf_simp.
+simpl.
+fcf_inline_first.
+fcf_simp.
+
+(* ok, so it was equivalent?? what is all the extraneous stuff (and the irr's)? *)
+(* but do they have the same b as output? they probably don't. what to do about this? *)
+subst.
+
+
+  (* unfold oracleMap. *)
+  (* unfold oracleCompMap_inner. *)
+  (* unfold Oi_prg. *)
+  (* unfold Oi_oc'. *)
+
+Admitted.
+
+Theorem Gi_normal_prf_eq_compspec : forall (k1 k2 v : Bvector eta) (i : nat) l,
+    i <= length l ->
+   comp_spec
+     (fun (x2 : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x2 = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg i) (O, (k1, v)) l)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+        (f_oracle f eqdbv k1) tt).
+(* maybe i need to generalize the O in the initial state first? then will it be inductive? also, it is true?? i is hardcoded (should it be destructed?) and O is the starting value of callsSoFar *)
+(* on paper: 
+- inputs equal on callsSoFar < i, callsSoFar = i, and callsSoFar > i
+  (and each depends on previous's inputs being equal)
+- theorem about splitting on i and recombining the inputs?
+- seems like a lot of work, but this kind of proof shows up a lot and this could be re-used
+ *)
+Proof.
+  intros.
+  (* destruct l. *)
+  unfold oracleMap.
+  unfold oracleCompMap_inner.
+  unfold Oi_prg.
+  (* also thm about compFold vs. oracleCompMap_inner? (maybe adam's version has useful theorems proven about it? what's its name?) *)
+  unfold Oi_oc'.
+
+(* should destruct l? and i? and callsSoFar ranges from 0 to (length l) - 1? *)
+
+(* maybe just prove stuff about behavior of the Oi's? *)
+
+Admitted.
+Close Scope nat.
 (* TODO make sure this is true, some important theorems depend on it *)
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
 (* Gi_prg 0: PRF PRF PRF PRF
    Gi_prf 0: PRF PRF PRF PRF
    Gi_prg 2: RB RB PRF PRF
    Gi_prf 2: RB RB PRF PRF *)
+(* TODO: start proving this lemma first? how do i prove it?
+need to reason that passing in PRF oracle to GenUpdate_oc is equivalent to just using GenUpdate (there's also a GenUpdate_PRF_oc) *)
 Lemma Gi_normal_prf_eq : forall (i : nat),
     Pr[Gi_prg i] == Pr[Gi_prf i].
 Proof.
   intros.
   unfold Gi_prg.
   unfold Gi_prf.
-  unfold oracleMap.
-  unfold Oi_prg.
   unfold PRF_Adversary.
-  unfold Oi_oc'.
-Admitted.
+
+  fcf_inline_first.
+  comp_skip.
+  Opaque oracleMap.
+  simpl.
+  fcf_inline_first.
+
+  remember x as k.
+  fcf_irr_r. admit.             (* why is this here? *)
+  fcf_inline_first.
+  comp_skip.
+  comp_simp.
+
+  (* the z stuff simplifies into "A bits" *)
+  (* comp_spec on the oracleMap and oracleCompMap_inner? *)
+  simpl.
+  fcf_inline_first.
+  fcf_inline_first.
+  fcf_to_prhl_eq.
+  fcf_skip.
+
+  instantiate (1 := fun x y => fst x = fst3 y).
+  -
+    Transparent oracleMap.
+    apply Gi_normal_prf_eq_compspec.
+    admit.                      (* TODO this assumption needs to be added everywhere *)
+
+  - fcf_simp.
+    simpl in H4.
+    subst.
+    simpl.
+    fcf_inline_first.
+    fcf_simp.
+    fcf_inline_first.
+    destruct u.
+    fcf_ident_expand_l.         (* lol *)
+    fcf_skip.
+    fcf_simp.
+    fcf_reflexivity.
+Qed.
 
 (* expose the bad event (dups) *)
 Lemma Gi_rf_return_bad_eq : forall (i : nat),
