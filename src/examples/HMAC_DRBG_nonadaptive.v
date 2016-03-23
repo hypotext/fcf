@@ -205,6 +205,23 @@ Definition G1_prg : Comp bool :=
   [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
   A (head_bits :: tail_bits).
 
+(* TODO: backtracking resistance? for nonadaptive adversary *)
+(* Definition G1_prg_br : Comp bool :=
+  blocksForEachCall <- A1; (* implicitly compromises after that # calls *)
+  [k, v] <-$2 Instantiate;
+  [head_bits, state'] <-$2 GenUpdate_noV (k, v) (head blocksForEachCall);
+  [tail_bits, state''] <-$2 oracleMap _ _ GenUpdate state' (tail blocksForEachCall);
+  [k', v'] <-$ UpdateV state'';
+  A2 (head_bits :: tail_bits, (k', v')). *)
+
+(* rand bits *)
+(* Definition G2_prg_br : Comp bool :=
+  blocksForEachCall <- A1;
+  [bits, state'] <-$2 oracleMap _ _ GenUpdate_rb (k, v) blocksPerCall;
+  k <- {0,1}^eta;
+  v <- {0,1}^eta;
+  A2 (head_bits :: tail_bits, (k, v)). *)
+
 (* --------------------- *)
 (* Prove v-update move equivalence *)
 
@@ -679,7 +696,6 @@ Definition PRF_Advantage_Game i : Rat :=
 Print PRF_Advantage.
 Print PRF_G_A.
 
-
 Print PRF_Advantage.
 Print PRF_G_A.
 Print PRF_G_B.
@@ -1050,7 +1066,6 @@ Proof.
 Admitted.
 
 (* ------ *Identical until bad section *)
-(* two versions of each thm: one experimentally applying oracle_eq_until_bad, one not *)
 (* trying to figure out which OracleComps can be ignored (PRF_Adv, oracleCompMap_outer, _inner, Oi_oc, GenUpdate, Gen_loop) *)
 
 (* TODO: might need to push these specs back further into Oi_oc and GenUpdate, then apply Adam's result in Gen_loop *)
@@ -1134,24 +1149,50 @@ Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
         (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
 Proof.
   intros.
+  (* TODO review this *)
   eapply (fcf_oracle_eq_until_bad
             (fun x => dupsInIthCallInputs_only i (fst (split x)))
             (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
 
-  - fcf_well_formed. admit.
+  - fcf_well_formed. unfold oracleCompMap_inner. admit.
   - intros. unfold rb_oracle. fcf_well_formed.
-  - intros. unfold randomFunc. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
-  - (* hard *)
-    (* does this goal look true? *)
-    (* should i be applying oracle_eq_until_bad in this thm or the outer one? *)
-    intros.
-    subst. clear H1.
-    (* can we really completely ignore GenUpdate AND Gen_loop? *)
-    unfold randomFunc.
-    admit. 
-  - intros. admit.
-  - intros. admit.
+  - unfold randomFunc. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
+  - subst.
+    Check dupsInIthCallInputs_only.
+    (* would the input to hasDups be the right type? *)
+    unfold randomFunc, rb_oracle.
+    (* need to make a version of randomFunc that adds the input to the state, even when we find it. *)
+    (* It still looks like dupsInIthCollInputs_only may be more complicated than necessary (for this proof, at least).  The arguments below assume we have replaced it with hasDups. *)
 
+    (* Once that is done, we just need to case split *)
+    case_eq (arrayLookup eqdbl x2 a); intuition.
+    (* bad case *)
+    fcf_irr_l.
+    fcf_spec_ret.
+    simpl.
+    remember (split x2) as z.
+    destruct z.
+    simpl.
+    (* Once we switch to a version of randomFunc that keeps track of duplicate calls, we can show that both sides of the equation are true because when we have (a :: l), and when we have (arrayLookup a l = Some b1) *)
+    admit.
+
+    simpl in H3.
+    remember (split x2) as z. destruct z.
+    simpl in *.
+    (* contradiction in hypotheses, hasDups (a :: l) = false, but we know a is in l *)
+    admit.
+    (* same contradiction *)
+    admit.
+
+    (* not bad case---equality is perserved *)
+    fcf_skip.
+    fcf_spec_ret.
+
+    - (* once we have duplicates, we will always have duplicates.  *)
+      admit.
+    - (*same as above *)
+      admit.
+    
 Qed.
 
 (* TODO: this is the real lemma *)
@@ -1190,6 +1231,42 @@ Proof.
   fcf_skip.
   apply oracleCompMap_eq_until_bad. (* pretty sure this is correct *)
 
+  (* ------ *)
+  fcf_simp.
+  intuition.
+  rename b1 into state_rb_.
+  rename l0 into state_rf_.
+  rename a0 into bits_rb_.
+  rename l into bits_rf_.
+
+  (* case_eq shows up in both *)
+  Print Ltac case_eq.
+  Locate Ltac case_eq.
+  (* TODO what is this? *)
+
+  case_eq (dupsInIthCallInputs i state_rb_); intuition.
+
+  (* duplicates exist, computations are irrelevant *)
+  - 
+    fcf_irr_l.
+    fcf_irr_r.
+    rename a into adv_rb_.
+    rename b1 into adv_rf_.
+    fcf_spec_ret.
+    (* true=false in hypotheses *)
+    (* dupsInIthCallInputs i state_rb_ = true (by case_eq) and false (by assumption in postcondition) *)
+    congruence.
+
+  (* no duplicates, equality is preserved *)
+  (* automatically applied dups = false to get that the states and outputs are the same *)
+  - subst.
+    (* note that the code for both is now the same *)
+    fcf_skip.
+    fcf_spec_ret.
+Qed.
+
+  (* My old attempt *)
+(*
   simpl in H3.
   destruct b2.
   intuition.
@@ -1215,54 +1292,7 @@ Proof.
     subst.
     fcf_spec_ret.
 Qed.
-
-(* Version of the theorem above, experimentally applying oracle_eq_until_bad *)
-Theorem PRF_Adv__oracle_eq_until_bad : forall (i : nat),
-   comp_spec 
-     (fun y1 y2 : bool * list (Blist * Bvector eta) =>
-        dupsInIthCallInputs_only i (fst (split (snd y1))) = dupsInIthCallInputs_only i (fst (split (snd y2))) /\
-        (dupsInIthCallInputs_only i (fst (split (snd y1))) = false ->
-         snd y1 = snd y2 /\ fst y1 = fst y2))
-     ((PRF_Adversary i) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
-     ((PRF_Adversary i) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv))
-        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
-Proof.
-  intros.
-  eapply (fcf_oracle_eq_until_bad
-            (fun x => dupsInIthCallInputs_only i (fst (split x)))
-            (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
-
-  - fcf_well_formed. unfold Instantiate. fcf_well_formed.
-    unfold RndK. fcf_well_formed.
-    unfold RndV. fcf_well_formed.
-    intros. admit.
-  - unfold rb_oracle. fcf_well_formed.
-  - unfold randomFunc. destruct (arrayLookup eqdbl a b); fcf_well_formed.
-  - (* hard *)
-    (* does this goal look true? *)
-    (* should i be applying oracle_eq_until_bad in this thm or the outer one? *)
-    (* TODO: dupsInIthCallInputs_only is not the same type as hasDups. *)
-    subst. clear H0.
-    (* can we really completely ignore PRF_Adv AND GenUpdate AND Gen_loop??? *)
-    unfold randomFunc.
-
-    destruct (arrayLookup eqdbl x2 a).
-    Focus 2.
-    * unfold rb_oracle.
-      fcf_skip. admit. admit.
-      fcf_spec_ret.
-      (* ??? *)
-      (* fcf_irr_l. *)
-      (* fcf_irr_r. *)
-      (* fcf_spec_ret. *)
-      (* simpl. *)
-      admit.
-  - admit.
-  - admit.
-Qed.
-
+*)
 
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
 (* uses provided oracle on call number i
