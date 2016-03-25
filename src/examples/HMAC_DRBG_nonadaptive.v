@@ -71,7 +71,7 @@ Hypothesis eqDecState : EqDec KV.
 Variable eqdbv : EqDec (Bvector eta).
 Variable eqdbl : EqDec Blist.
 
-(* injection is Vector.to_list. TODO prove this *)
+(* injection is to_list. TODO prove this *)
 Variable injD : Bvector eta -> Blist.
 Hypothesis injD_correct :
   forall r1 r2, injD r1 = injD r2 -> r1 = r2.
@@ -96,7 +96,7 @@ Fixpoint Gen_loop (k : Bvector eta) (v : Bvector eta) (n : nat)
   match n with
   | O => (nil, v)
   | S n' =>
-    let v' := f k (Vector.to_list v) in
+    let v' := f k (to_list v) in
     let (bits, v'') := Gen_loop k v' n' in
     (v' :: bits, v'')           (* TODO change mine from (v ::) to (v ++), *or* prove indistinguishable (add another game in the beginning) *)
   end.
@@ -161,14 +161,6 @@ Fixpoint Gen_loop_rb_intermediate (k : Bvector eta) (v : Bvector eta) (n : nat)
     ret (v' :: bits, v'')
   end.
 
-Definition GenUpdate_rb_intermediate (state : KV) (n : nat) 
-  : Comp (list (Bvector eta) * KV) :=
-  [k, v] <-2 state;
-  v' <-$ {0,1}^eta;             (* is this actually unnecessary? *)
-  [bits, v''] <-$2 Gen_loop_rb_intermediate k v' n;
-  (* k' <-$ {0,1}^eta; *)
-  ret (bits, (k, v'')).
-
 (* final versions (without unnecessary (k, v) updating) *)
 Fixpoint Gen_loop_rb (n : nat) : Comp (list (Bvector eta)) :=
   match n with
@@ -178,6 +170,12 @@ Fixpoint Gen_loop_rb (n : nat) : Comp (list (Bvector eta)) :=
     bits <-$ Gen_loop_rb n';
     ret (v' :: bits)
   end.
+
+(* passes the state around to match the types in Oi_oc' *)
+Definition GenUpdate_rb_intermediate (state : KV) (n : nat) 
+  : Comp (list (Bvector eta) * KV) :=
+  bits <-$ Gen_loop_rb n;
+  ret (bits, state).
 
 Definition GenUpdate_rb_oracle (tt : unit) (n : nat) : Comp (list (Bvector eta) * unit) :=
   bits <-$ Gen_loop_rb n;
@@ -480,12 +478,13 @@ with this, the bad event would be (hasDups (combine-triple? (nth OracleCallState
 (*   k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *) *)
 (*   $ ret (bits, (k', v')). *)
 
-(* doesn't use the oracle *)
+(* should use the oracle and ignore the passed-in k *)
 Definition GenUpdate_noV_oc (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta)  (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  [bits, v'] <-2 Gen_loop k v n;
-  k' <- f k (to_list v' ++ zeroes);
+  [bits, v'] <--$2 Gen_loop_oc v n;
+  (* TODO what's the state type here? and the global GenUpdate_oc return type? *)
+  k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
   $ ret (bits, (k', v')).
 
 (* doesn't use the oracle, uses the PRF *)
@@ -497,15 +496,12 @@ Definition GenUpdate_PRF_oc (state : KV) (n : nat) :
   k' <- f k (to_list v' ++ zeroes);
   $ ret (bits, (k', v'')).
 
-(* doesn't use the oracle *)
+(* doesn't use the state or oracle *)
 (* intermediates have unnecessary state and updating of the state to match earlier ones *)
 Definition GenUpdate_rb_intermediate_oc (state : KV) (n : nat) 
   : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
-  [k, v] <-2 state;
-  v'' <--$ $ {0,1}^eta;
-  [bits, v'] <--$2 $ Gen_loop_rb_intermediate k v n;
-  (* k' <--$ $ {0,1}^eta; *)
-  $ ret (bits, (k, v'')).
+  bits <--$ $ Gen_loop_rb n;    (* promote comp to oraclecomp, then remove from o.c. *)
+  $ ret (bits, state).
 
 (* same as Oi_prg but each GenUpdate in it has been converted to OracleComp *)
 (* number of calls starts at 0 and ends at q. e.g.
@@ -525,16 +521,15 @@ there should be (S numCalls) games, so games are numbered from 0 through numCall
 Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
   [callsSoFar, state] <-2 sn;
-  [k, v] <-2 state;
   let GenUpdate_choose := 
       if lt_dec callsSoFar i (* callsSoFar < i *)
       then GenUpdate_rb_intermediate_oc
-      else if beq_nat callsSoFar i (* callsSoFar = i *)
-           then GenUpdate_oc    (* uses provided oracle (PRF or RF) *)
       else if beq_nat callsSoFar O 
            then GenUpdate_noV_oc  (* first call does not update v *)
+      else if beq_nat callsSoFar i (* callsSoFar = i *)
+           then GenUpdate_oc    (* uses provided oracle (PRF or RF) *)
       else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
-  [bits, state'] <--$2 GenUpdate_choose (k, v) n;
+  [bits, state'] <--$2 GenUpdate_choose state n;
   $ ret (bits, (S callsSoFar, state')).
 
 (* oracleCompMap_inner repeatedly applies the given oracle on the list of inputs (given an initial oracle state), collecting the outputs and final state *)
@@ -554,7 +549,7 @@ Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set}
 but the type here is oraclecomp so by definition i can't access the oracle state... *)
     [resList, state''] <--$2 oracleCompMap_inner _ _ oracleComp state' inputs';
     (* wait, the results aren't in the right order -- need resList ++ [res] *)
-    $ ret (resList ++ (res :: nil), state'')
+    $ ret (res :: resList, state'')
   end.
 (* compare to oc_compMap *)
 
@@ -864,13 +859,138 @@ Definition fst3 {A B C : Type} (abc : A * B * C) : A :=
   a.
 
 Open Scope nat.
+
+Ltac simplify :=
+  repeat (try simpl; try fcf_inline_first; try fcf_simp).
+
+(* n = 1, i = 0 *)
+(* expect: PRF / PRF, but doesn't work?*)
+(* n = 1, i = 1 -- expect RB / RB and *does* work *)
+(* n = 2, i = 1 -- expect RB / PRF, but have no clue what's going on here *)
+Theorem Gi_normal_prf_eq_compspec_n1i0 : forall (k1 k2 v : Bvector eta),
+    (* i <= length l -> *)
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg O) (O, (k1, v)) (1::nil) )
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv))
+         (Oi_oc' O) 
+         (O, (k2, v)) (1::nil) ) unit unit_EqDec
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+  unfold oracleMap.
+  simplify.
+
+  fcf_spec_ret.
+Qed.                            (* fixed two bugs -- v-update order and oracle use *)
+
+(* next: n2i1, n2i2 *)
+(* it works for list [0,0], [1;0], and [1;1] *)
+Theorem Gi_normal_prf_eq_compspec_n2i0 : forall (k1 k2 v : Bvector eta),
+    (* i <= length l -> *)
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg O) (O, (k1, v)) (1::1::nil) )
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv))
+         (Oi_oc' O) 
+         (O, (k2, v)) (1::1::nil) ) unit unit_EqDec
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+  unfold oracleMap.
+  simplify.
+  Print oracleMap.
+  (* the fold goes backward, so uses ++; i use :: in oracleCompMap_inner *)
+  fcf_spec_ret.
+Qed.
+
+(* works for list [0,0], [1;0], and [1;1]? *)
+(* expect RB / PRF *)
+(* [0;0]: yes
+[0;1]: yes, after fixing rb
+[1;0]: yes, but with the comp_skip/admit stuff
+[1;1]: yes, same as above *)
+Theorem Gi_normal_prf_eq_compspec_n2i1 : forall (k1 k2 v : Bvector eta),
+    (* i <= length l -> *)
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg 1) (O, (k1, v)) (1::1::nil) )
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv))
+         (Oi_oc' 1) 
+         (O, (k2, v)) (1::1::nil) ) unit unit_EqDec
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+  unfold oracleMap.
+  simplify.
+  unfold GenUpdate_rb_intermediate.
+  unfold Gen_loop_rb.
+  simplify.
+  comp_skip. admit. admit.      (* what is this? *)
+  simplify.
+  fcf_spec_ret.
+Qed.
+
+(* expect RB / RB *)
+(* [1;1]: yes, but with two comp_skip/admits and unfolds *)
+Theorem Gi_normal_prf_eq_compspec_n2i2 : forall (k1 k2 v : Bvector eta),
+    (* i <= length l -> *)
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg 2) (O, (k1, v)) (1::1::nil) )
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv))
+         (Oi_oc' 2) 
+         (O, (k2, v)) (1::1::nil) ) unit unit_EqDec
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+  unfold oracleMap.
+  simplify.
+  unfold GenUpdate_rb_intermediate.
+  unfold Gen_loop_rb.
+  simplify.
+  comp_skip. admit. admit.      (* what is this? *)
+  simplify.
+  unfold GenUpdate_rb_intermediate.
+  unfold Gen_loop_rb.
+  simplify.
+  comp_skip. admit. admit.
+  simplify.
+  fcf_spec_ret.
+Qed.
+
 (* easier version: hardcoded l and i *)
+(* case i = 2, n = 3 -- pretty general *)
 Theorem Gi_normal_prf_eq_compspec_ez : forall (k1 k2 v : Bvector eta),
     (* i <= length l -> *)
    comp_spec
-     (fun (x2 : list (list (Bvector eta)) * (nat * KV))
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-      fst x2 = fst3 y)
+      fst x = fst3 y)
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg 2) (O, (k1, v)) (1::1::1::nil) )
      ((oracleCompMap_inner
@@ -881,55 +1001,29 @@ Theorem Gi_normal_prf_eq_compspec_ez : forall (k1 k2 v : Bvector eta),
         (f_oracle f eqdbv k1) tt).
 Proof.
   intros.
-
-  remember (1 :: 1 :: nil) as ls'.
   unfold oracleMap.
-  simpl.
-  fcf_inline_first.
-  fcf_irr_l.
-  fcf_inline_first.
-  Print Oi_oc'.
-  Print Oi_prg.
-  (* TODO can I make GenUpdate_rb_intermediate and GenUpdate_rb_intermediate_oc simpler? *)
-  fcf_skip. admit. admit.
+  simplify.
+  unfold GenUpdate_rb_intermediate.
+  unfold Gen_loop_rb.
+  simplify.
+  comp_skip. admit. admit.
+  simplify.
 
-fcf_inline_first.
+  unfold GenUpdate_rb_intermediate.
+  unfold Gen_loop_rb.
+  simplify.
+  comp_skip. admit. admit.
+  simplify.
 
-(* back to compFold again, but what's the extra stuff happening in the latter? *)
-(* the new output and state in compFold are useful! *)
-
-fcf_simp.
-fcf_inline_first.
-remember (1 :: 1 :: nil) as ls'.
-fcf_irr_r.                      (* why is this here? *)
-fcf_inline_first.
-fcf_irr_r.
-fcf_simp.
-simpl.
-fcf_inline_first.
-fcf_simp.
-simpl.
-fcf_inline_first.
-fcf_simp.
-
-(* ok, so it was equivalent?? what is all the extraneous stuff (and the irr's)? *)
-(* but do they have the same b as output? they probably don't. what to do about this? *)
-subst.
-
-
-  (* unfold oracleMap. *)
-  (* unfold oracleCompMap_inner. *)
-  (* unfold Oi_prg. *)
-  (* unfold Oi_oc'. *)
-
-Admitted.
+  fcf_spec_ret.
+Qed.
 
 Theorem Gi_normal_prf_eq_compspec : forall (k1 k2 v : Bvector eta) (i : nat) l,
-    i <= length l ->
+    (* i <= length l -> *)
    comp_spec
-     (fun (x2 : list (list (Bvector eta)) * (nat * KV))
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-      fst x2 = fst3 y)
+      fst x = fst3 y)
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg i) (O, (k1, v)) l)
      ((oracleCompMap_inner
@@ -941,6 +1035,7 @@ Theorem Gi_normal_prf_eq_compspec : forall (k1 k2 v : Bvector eta) (i : nat) l,
 (* maybe i need to generalize the O in the initial state first? then will it be inductive? also, it is true?? i is hardcoded (should it be destructed?) and O is the starting value of callsSoFar *)
 (* on paper: 
 - inputs equal on callsSoFar < i, callsSoFar = i, and callsSoFar > i
+ (inputs -- do you mean the bits output?)
   (and each depends on previous's inputs being equal)
 - theorem about splitting on i and recombining the inputs?
 - seems like a lot of work, but this kind of proof shows up a lot and this could be re-used
