@@ -1096,7 +1096,6 @@ Proof.
   -
     Transparent oracleMap.
     apply Gi_normal_prf_eq_compspec.
-    admit.                      (* TODO this assumption needs to be added everywhere *)
 
   - fcf_simp.
     simpl in H4.
@@ -1238,6 +1237,19 @@ Proof.
     (* output bits, Oi_oc' state, and oracle input/output state *)
 
     unfold oracleCompMap_inner.
+ 
+    (* maybe we should prove something about the state that goes into oracleCompMap_inner / relate to dupsInIth? prove that the corresponding output in the state is indeed exactly that from the ith run, and segment produces n lists of length blocks 
+
+comp_spec hasDups (one run with RB) (one run with RF)
+-> comp_spec dupsInIthCallInputs_only (oracleCompMap RB) (oracleCompMap RF)
+
+for the latter, show that dupsInIthCallInputs_only i (run) results in exactly the output from one run (i) with RB, with some internal state. the state that goes into the one run should be uniformly randomly sampled KV. 
+
+dupsInIthCall: the state that's going into the next call is (nat, KV). if it's the ith call, then the state that's going in is uniformly randomly sampled, as required
+
+means we have to reason about `segment` *)
+    Print dupsInIthCallInputs_only.
+    (* segment isn't even defined... *)
     (* do a smaller example? use adam's version? what stuff did he prove about it? *)
     SearchAbout oc_compMap.
     (* so Oi_oc' makes no sense without the i passed in from the state carried by oraclecompmap *)
