@@ -2024,9 +2024,14 @@ Qed.
 (* Backtracking resistance, using indistinguishability proof *)
 
 (* Adversary, split into two *)
-Parameter A1 : Comp nat.
+Parameter A1 : Comp nat.        (* currently unused *)
 Parameter A2 : list (list (Bvector eta)) -> KV -> Comp bool.
 (* Also the adversary is slightly different from the one above. How do we re-use the adv? *)
+
+Definition G1_prg_original_dup : Comp bool := (* copy of G1_prg_original *)
+  [k, v] <-$2 Instantiate;
+  [bits, _] <-$2 oracleMap _ _ GenUpdate_original (k, v) maxCallsAndBlocks;
+  A bits.
 
 Definition G1_br_original : Comp bool :=
   (* blocksForEachCall <-$ A1; (* implicitly compromises after that # calls *) *)
@@ -2044,19 +2049,28 @@ Definition G1_br : Comp bool :=
   (* again, don't need tail here *)
   (* v update moved to beginning of each GenUpdate *)
   [k', v'] <-2 state'';
-  v'' <- f k (to_list v');
+  v'' <- f k (to_list v');      (* update v *)
   A2 (head_bits :: tail_bits) (k', v''). 
+
+(* in general, how do we relate different adversaries in FCF? *)
 
 (* A2 still cannot distinguish *)
 (* how do I reuse the previous work? it depended on the adversary result, it wasn't an equivalence rewriting on the inside two lines *)
 (* how would i even do this proof from scratch? would have to prove that PRF -> RF and RF -> RB yield equivalence etc. for A2 bits (k, v') <-- state *)
 (* also, what about the extra UpdateV probabilities? *)
-Definition G1a_br : Comp bool :=
+
+(* we don't know that Pr[G1_br] == Pr[G1_prg_dup]; that would be like assuming the state gives the adversary no extra info, which is like assuming what we want to prove? *)
+(* all of our proof about G1_prg depended on the *adversary*, not the computations (but maybe they should have). *)
+(* can we do the PRF_Advantage step in G1_br and reuse the RF->RB work from G1_prg? need to rephrase in terms of PRF_Adversary *)
+Definition G1_prg_dup : Comp bool := (* copy of G1_prg *)
   [k, v] <-$2 Instantiate;
+  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerCall;
+  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
+  A (head_bits :: tail_bits).
+
+Definition G2_prg_dup : Comp bool := (* copy of G2_prg *)
   bits <-$ compMap _ GenUpdate_rb maxCallsAndBlocks;
-  v' <-$ {0,1}^eta;              (* this should also be replaced? *)
-  (* was formerly v' <- f k v; *)
-  A2 bits (k, v'). 
+  A bits.
 
 (* ideal world *)
 (* 1a and 2: v ~ {0,1} -> f v ~ {0,1}? maybe assume it *)
@@ -2066,18 +2080,27 @@ Definition G2_br : Comp bool :=
   bits <-$ compMap _ GenUpdate_rb maxCallsAndBlocks;
   A2 bits (k, v).
 
+Lemma G2_prg_br_eq :
+  Pr[G2_prg_dup] == Pr[G2_br].
+Proof.
+  unfold G2_prg_dup, G2_br.
+  unfold Instantiate.
+  simplify.
+  fcf_irr_r. unfold RndK. fcf_well_formed.
+  simplify.
+  fcf_irr_r. unfold RndV. fcf_well_formed.
+  simplify.
+  fcf_skip.
+  unfold RndK, RndV in *.
+  (* should A2 be somehow constructed from A? *)
+  (* also this isn't necessarily true unless A2 is constructed from A. A2 could just do dumb things. certainly Pr[best A2] == Pr[best A] (actually could it improve the adversary to give it more randomness?? probably not, if you're giving it a constant amt) *)
+  (* Print Notation (Pr [ _ ]). *)
+Admitted.
+
 (* 2 and 2a are clearly equivalent? (k,v) gives no information about bits, so remove k, v *)
-(* this is where the indistinguishability proof ends -- don't know how to use this as an intermediate stage. is it possible to do G1_br ->(?) G1_prg -> G2_prg -> G2_br? *)
-
-(* Definition G1_prg : Comp bool :=
-  [k, v] <-$2 Instantiate;
-  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerCall;
-  [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
-  A (head_bits :: tail_bits).
-
-Definition G2_prg : Comp bool :=
-  bits <-$ compMap _ GenUpdate_rb maxCallsAndBlocks;
-  A bits. *)
+(* this is where the indistinguishability proof ends -- don't know how to use this as an intermediate stage. is it possible to do G1_br ->(?) G1_prg -> G2_prg -> G2_br?
+or somehow interleave so that we know the probability is "squeezed" to be small?
+G1_br ->(?) G1_prg -> G2_br -> G2_prg *)
 
 (* TODO other equivalence/bounding theorems *)
 
