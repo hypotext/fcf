@@ -1122,6 +1122,24 @@ Lemma Gi_rf_return_bad_eq : forall (i : nat),
 Proof.
 Admitted.
 
+Definition randomFunc_withDups ls x :=
+  y <-$ 
+    (match (arrayLookup _ ls x) with 
+     | Some y => ret y 
+     | None => {0,1}^eta 
+     end); 
+  ret (y, (x, y) :: ls).
+
+(* ith game: use RF oracle *)
+Definition Gi_rf_dups_bad (i : nat) : Comp (bool * bool) :=
+  [b, state] <-$2 PRF_Adversary i _ _ randomFunc_withDups nil;
+  ret (b, dupsInIthCallInputs i state). 
+
+Lemma Gi_rf_dups_return_bad_eq : forall (i : nat),
+    Pr[x <-$ Gi_rf_bad i; ret fst x] == Pr[x <-$ Gi_rf_dups_bad i; ret fst x].
+Proof.
+Admitted.
+
 (* expose the bad event (dups) *)
 Lemma Gi_rb_return_bad_eq : forall (i : nat),
     Pr[Gi_rb i] == Pr[x <-$ Gi_rb_bad i; ret fst x].
@@ -1185,18 +1203,6 @@ TODO:
 - figure out how to deal with call segmentation
 - if there are no dups, then RF behaves exactly like RB -- key length extension doesn't matter, v doesn't matter? am i missing something? how do i show this?? 
 no dups -> reason about RF match and RF state *)
-
-  Definition randomFunc_withDups ls x :=
-    y <-$ 
-      (match (arrayLookup _ ls x) with 
-        | Some y => ret y 
-        | None => {0,1}^eta 
-       end); 
-    ret (y, (x, y) :: ls).
-  (* *** TODO: add another game below replacing RF with RFWD in PRF_A. See PRF_DRBG.v *)
-  (* Definition PRF_DRBG_G3_1 := *)
-  (*   [b, _] <-$2 PRF_A _ _ (randomFunc_withDups) nil; *)
-  (*   ret b. *)
 
 (* this theorem is unused; it's more similar to hasDups now *)
 Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
@@ -1400,8 +1406,7 @@ Qed.
 
 (* should use hasDups instead, and randomFunc_withdups. not using them here so it'll unify / prove existing stuff *)
 
-(* TODO: this is the real lemma *)
-(* TODO: perhaps we should use comp_spec with **hasDups* for inner PRF_DRBG and prove that that implies comp_spec with dupsInIthCallInputs *)
+(* TODO: this lemma is still being used below :-/ should it be?? *)
 Theorem PRF_Adv_eq_until_bad : forall (i : nat),
    comp_spec 
      (fun a b : bool * list (Blist * Bvector eta) =>
@@ -1495,21 +1500,34 @@ Definition GenUpdate_oc_call_2
 (*   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil; *)
 (*   ret (b, dupsInIthCallInputs i state). *)
 
-(* in fact, here we can re-use the collisions work, since rb_oracle is # O in dupsInIth *)
-Lemma Gi_rb_bad_eq_1 : forall (i : nat),
+(* TODO: in fact, here we can re-use the collisions work, since rb_oracle is # O in dupsInIth *)
+(* could generalize this more generic theorem to any inputted oracle *)
+Lemma Gi_rb_bad_eq : forall (i : nat),
     Pr  [x <-$ Gi_rb_bad i; ret snd x ] == Pr  [GenUpdate_oc_call_2 rb_oracle ].
 Proof.
   intros.
   unfold Gi_rb_bad.
+  unfold GenUpdate_oc_call_2.
+  simplify.
+  fcf_to_prhl_eq.
+  comp_skip.
+  simplify.
+  comp_skip.
+  simplify.
+
+  unfold dupsInIthCallInputs.
+  (* TODO do small examples *)
+  
+  unfold PRF_Adversary.
 
 Admitted.
 
 (* TODO change this to use randomFune_withDups *)
-Lemma Gi_rf_bad_eq_1 : forall (i : nat),
-    Pr  [x <-$ Gi_rf_bad i; ret snd x ] == Pr  [GenUpdate_oc_call_2 randomFunc_withDups ].
+Lemma Gi_rf_bad_eq : forall (i : nat),
+    Pr  [x <-$ Gi_rf_dups_bad i; ret snd x ] == Pr  [GenUpdate_oc_call_2 randomFunc_withDups ].
 Proof.
   intros.
-  unfold Gi_rf_bad.
+  unfold Gi_rf_dups_bad.
 
 Admitted.
 
@@ -1522,27 +1540,26 @@ Admitted.
    bad event = duplicates in input on call number i *)
 Lemma Gi_rb_rf_return_bad_same :  forall (i : nat),
     Pr  [x <-$ Gi_rb_bad i; ret snd x ] ==
-    Pr  [x <-$ Gi_rf_bad i; ret snd x ].
+    Pr  [x <-$ Gi_rf_dups_bad i; ret snd x ].
 Proof.
   intros.
+  rewrite Gi_rb_bad_eq.
+  rewrite Gi_rf_bad_eq.
+
   unfold Gi_rb_bad. unfold Gi_rf_bad.
   fcf_to_prhl_eq.
   fcf_inline_first.
   fcf_skip.
   (* different spec if you do `fcf_to_prhl` only, and in this location *)
   *
-    Check PRF_Adv_eq_until_bad.
-    (* TODO change to randomFunc_withDups and add intermediate game/lemma *)
-    apply PRF_Adv_eq_until_bad.
-    (* is it true? this doesn't include the dupsInNthInput stuff. but do we even need that if the RB stuff beforehand is the same? *)
-    (* only difference: one uses rb_oracle, other uses randomFunc oracle *)
-  *
-    destruct b0.
-    intuition.
-    fcf_simp.
-    rewrite H2.
-    simpl.
-    fcf_reflexivity.
+    admit.                      (* TODO -- different spec on GenUpdate_oc *)
+  (* * *)
+  (*   destruct b0. *)
+  (*   intuition. *)
+  (*   fcf_simp. *)
+  (*   rewrite H2. *)
+  (*   simpl. *)
+  (*   fcf_reflexivity. *)
 Qed.
 
 (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" -- the two are basically the same if the bad event doesn't happen, so it's true.
@@ -1550,13 +1567,13 @@ Qed.
          2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter *)
 
 Theorem Gi_rb_rf_no_bad_same : forall (i : nat) (a : bool),
-   evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_bad i) (a, false).
+   evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_dups_bad i) (a, false).
 Proof.
   intros.
   fcf_to_prhl.                  (* note the auto-specification here *)
   (* it's NOT fcf_to_prhl_eq *)
   unfold Gi_rb_bad.
-  unfold Gi_rf_bad.
+  unfold Gi_rf_dups_bad.
   fcf_skip.
   *
     apply PRF_Adv_eq_until_bad.
@@ -1583,7 +1600,7 @@ Qed.
 
 (* Applying the fundamental lemma here *)
 Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
-| Pr[x <-$ Gi_rf_bad i; ret fst x] - Pr[x <-$ Gi_rb_bad i; ret fst x] | <=
+| Pr[x <-$ Gi_rf_dups_bad i; ret fst x] - Pr[x <-$ Gi_rb_bad i; ret fst x] | <=
                                               Pr[x <-$ Gi_rb_bad i; ret snd x].
 Proof.
   intros. rewrite ratDistance_comm.
@@ -1886,6 +1903,7 @@ Proof.
 
   rewrite Gi_rf_return_bad_eq. 
   rewrite Gi_rb_return_bad_eq. 
+  rewrite Gi_rf_dups_return_bad_eq.
 
   rewrite Gi_rb_rf_identical_until_bad.
   apply Gi_rb_bad_collisions.
