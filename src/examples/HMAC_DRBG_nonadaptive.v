@@ -863,10 +863,14 @@ Open Scope nat.
 Ltac simplify :=
   repeat (try simpl; try fcf_inline_first; try fcf_simp).
 
+(* These examples take a long time to check because of `simplify`. Commented out for now. *)
+
 (* n = 1, i = 0 *)
 (* expect: PRF / PRF, but doesn't work?*)
 (* n = 1, i = 1 -- expect RB / RB and *does* work *)
 (* n = 2, i = 1 -- expect RB / PRF, but have no clue what's going on here *)
+
+(*
 Theorem Gi_normal_prf_eq_compspec_n1i0 : forall (k1 k2 v : Bvector eta),
     (* i <= length l -> *)
    comp_spec
@@ -1017,6 +1021,7 @@ Proof.
 
   fcf_spec_ret.
 Qed.
+*)
 
 Theorem Gi_normal_prf_eq_compspec : forall (k1 k2 v : Bvector eta) (i : nat) l,
     (* i <= length l -> *)
@@ -1188,118 +1193,12 @@ no dups -> reason about RF match and RF state *)
         | None => {0,1}^eta 
        end); 
     ret (y, (x, y) :: ls).
-
-  (* TODO: add another game below replacing RF with RFWD in PRF_A. See PRF_DRBG.v *)
+  (* *** TODO: add another game below replacing RF with RFWD in PRF_A. See PRF_DRBG.v *)
   (* Definition PRF_DRBG_G3_1 := *)
   (*   [b, _] <-$2 PRF_A _ _ (randomFunc_withDups) nil; *)
   (*   ret b. *)
-  
-(* version drilling down more, applying oracle eq until bad later. also fixed randomFunc *)
-Theorem oracleCompMap__eq_until_bad : forall (i : nat) b b0,
-    comp_spec
-     (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
-        let (bits_rb, state_rb) := y1 in
-        let (bits_rf, state_rf) := y2 in
-        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
-        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
 
-        dupsInIthCallInputs_only i inputs_rb = dupsInIthCallInputs_only i inputs_rf /\
-        (dupsInIthCallInputs_only i inputs_rb = false ->
-         bits_rb = bits_rf /\ state_rb = state_rf))
-     ((z <--$
-       oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil)
-     ((z <--$
-       oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        randomFunc_withDups nil).
-Proof.
-  (* eapply (fcf_oracle_eq_until_bad *)
-  (*           (fun x => dupsInIthCallInputs_only i (fst (split x))) *)
-  (*           (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition. *)
-  intros.
-  simpl.
-  comp_skip.
-  (* the ending computations are the same *)
-  - instantiate (1 := (fun x1 x2 => x1 = x2)).
-    (* TODO not true, use almost the same specification with dups and stuff *)
-    (* returns: list (list (Bvector eta)) * (nat * KV) *
-              list (Blist * Bvector eta) *)
-    (* output bits, Oi_oc' state, and oracle input/output state *)
-
-    unfold oracleCompMap_inner.
- 
-    (* maybe we should prove something about the state that goes into oracleCompMap_inner / relate to dupsInIth? prove that the corresponding output in the state is indeed exactly that from the ith run, and segment produces n lists of length blocks 
-
-comp_spec hasDups (one run with RB) (one run with RF)
--> comp_spec dupsInIthCallInputs_only (oracleCompMap RB) (oracleCompMap RF)
-
-for the latter, show that dupsInIthCallInputs_only i (run) results in exactly the output from one run (i) with RB, with some internal state. the state that goes into the one run should be uniformly randomly sampled KV. 
-
-dupsInIthCall: the state that's going into the next call is (nat, KV). if it's the ith call, then the state that's going in is uniformly randomly sampled, as required
-
-means we have to reason about `segment` *)
-    Print dupsInIthCallInputs_only.
-    (* segment isn't even defined... *)
-    (* do a smaller example? use adam's version? what stuff did he prove about it? *)
-    SearchAbout oc_compMap.
-    (* so Oi_oc' makes no sense without the i passed in from the state carried by oraclecompmap *)
-
-    (* hasDups applies to GenUpdate. so, figure out how to relate
-oracleCompMap/Oi_oc'+dupsInIthCalls with hasDups/GenUpdate
-
-some kind of embedded postcondition? 
-
-  match inputs with
-  | nil => $ ret (nil, state)
-        postcond: impossible, adversary has to make at least one call
-  | input :: inputs' => 
-    [res, state'] <--$2 oracleComp state input;
-        postcond: if n = i then (same relation but with hasDups instead of dupsInIthCall)
-                  else if n > i then ?
-                  else if n < i then equality (they're running the RB computation)
-        imagine we're just running this line, with some state (i, (k,v)). dups
-    [resList, state''] <--$2 oracleCompMap_inner _ _ oracleComp state' inputs';
-        postcond: ... related to the next?
-    $ ret (resList ++ (res :: nil), state'')
-        postcond: ... related to the prev?
-
-needs to *relate* the two computations
-can i induct on the number of calls?
-how to reason about loops?
-also is the oracle state accessible inside oracleCompMap_inner??
-
-email adam about this (e.g. it messes with Pr[Collisions])
-*)
-
-    unfold Oi_oc'.
-    
-    admit.
-
-  - fcf_simp.
-    fcf_spec_ret.
-    simpl.
-    inversion H1.
-    fcf_reflexivity.
-
-    inversion H1.
-    fcf_reflexivity.
-
-    inversion H1.
-    fcf_reflexivity.
-Qed.
-(* I have no idea what happened in the second case *)
-
-(* should use hasDups instead, and randomFunc_withdups. not using them here so it'll unify / prove existing stuff *)
+(* this theorem is unused; it's more similar to hasDups now *)
 Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
     comp_spec
      (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
@@ -1312,15 +1211,6 @@ Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
         (dupsInIthCallInputs_only i (fst (split (snd y1))) = false ->
          snd y1 = snd y2 /\ fst y1 = fst y2))
 
-        (* hasDups _ (fst (split (snd y1))) = hasDups _ (fst (split (snd y2))) /\ *)
-        (* (hasDups _ (fst (split (snd y1))) = false -> *)
-        (*  snd y1 = snd y2 /\ fst y1 = fst y2)) *)
-
-        (* hasDups _ inputs_rb = hasDups _ inputs_rf /\ *)
-        (* (hasDups _ inputs_rb = false -> *)
-        (*  bits_rb = bits_rf /\ state_rb = state_rf)) *)
-
-     (* could this be true if oracleCompMap_inner ignored the passed-in oracles and somehow violated the conditions? *)
      ((z <--$
        oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
@@ -1382,6 +1272,128 @@ Proof.
     - (*same as above *)
       admit.
 Qed.
+  
+(* version drilling down more, applying oracle eq until bad later. also fixed randomFunc *)
+
+Definition GenUpdate_oc_call
+           (oracle  : list (Blist * Bvector eta) -> Blist
+                      -> Comp (Bvector eta * list (Blist * Bvector eta)))
+         : Comp (list (Bvector eta) * list (Blist * Bvector eta)) :=
+  state <-$ Instantiate;
+  [res, state] <-$2 GenUpdate_oc state blocksPerCall _ _ oracle nil;
+  (* should the initial oracle state be nil? *)
+  [bits, kv] <-2 res; 
+  ret (bits, state).            (* don't need the ending KV state *)
+
+Theorem hasDups__eq_until_bad : 
+      comp_spec
+        (fun y1 y2 : list (Bvector eta) * list (Blist * Bvector eta) =>
+           let (bits_rb, state_rb) := y1 in
+           let (bits_rf, state_rf) := y2 in
+           let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+           let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+
+           hasDups _ inputs_rb = hasDups _ inputs_rf /\
+           (hasDups _ inputs_rb = false ->
+            bits_rb = bits_rf /\ state_rb = state_rf))
+        (GenUpdate_oc_call rb_oracle)
+        (GenUpdate_oc_call randomFunc_withDups).
+Proof.
+  unfold GenUpdate_oc_call.
+  (* eapply (fcf_oracle_eq_until_bad *)
+  (*           (fun x => dupsInIthCallInputs_only i (fst (split x))) *)
+  (*           (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition. *)
+  comp_skip.
+  unfold GenUpdate_oc.
+  simplify.
+
+  fcf_skip.                     (* with some predicate? TODO *)
+
+  simplify.
+
+  fcf_skip.
+
+(* TODO: we might have to do Pr_collisions-style inlining to make it look like Gen_loop_oc
+alternatively, apply fcf_oracle_eq_until_bad with +2 state entries? *)
+
+(* TODO: do small examples to verify that this is true *)
+  
+Admitted.
+
+Theorem oracleCompMap__eq_until_bad : forall (i : nat) b b0,
+      comp_spec
+        (fun y1 y2 : list (Bvector eta) * list (Blist * Bvector eta) =>
+           let (bits_rb, state_rb) := y1 in
+           let (bits_rf, state_rf) := y2 in
+           let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+           let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+
+           hasDups _ inputs_rb = hasDups _ inputs_rf /\
+           (hasDups _ inputs_rb = false ->
+            bits_rb = bits_rf /\ state_rb = state_rf))
+        (GenUpdate_oc_call rb_oracle)
+        (GenUpdate_oc_call randomFunc_withDups)
+      (* that would be an intermediate step; the outer step would be inlining the oracles and using those GenUpdates *)
+      -> 
+    comp_spec
+     (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
+        let (bits_rb, state_rb) := y1 in
+        let (bits_rf, state_rf) := y2 in
+        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+
+        dupsInIthCallInputs_only i inputs_rb = dupsInIthCallInputs_only i inputs_rf /\
+        (dupsInIthCallInputs_only i inputs_rb = false ->
+         bits_rb = bits_rf /\ state_rb = state_rf))
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil)
+     ((z <--$
+       oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (O, (b, b0)) maxCallsAndBlocks; [bits, _]<-2 z; $ ret bits)
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        randomFunc_withDups nil).
+Proof.
+(* TODO: do small examples to verify that this is true *)
+  intros i b b0 H_hasdups.
+  (* simpl. *)
+
+  unfold oracleCompMap_inner.
+
+  Print dupsInIthCallInputs_only.
+  (* do a smaller example? use adam's version? what stuff did he prove about it? *)
+  SearchAbout oc_compMap.
+
+  unfold Oi_oc'.
+
+  admit.
+
+    (* maybe we should prove something about the state that goes into oracleCompMap_inner / relate to dupsInIth? prove that the corresponding output in the state is indeed exactly that from the ith run, and segment produces n lists of length blocks 
+
+comp_spec hasDups (one run with RB) (one run with RF)
+-> comp_spec dupsInIthCallInputs_only (oracleCompMap RB) (oracleCompMap RF)
+
+for the latter, show that dupsInIthCallInputs_only i (run) results in exactly the output from one run (i) with RB, with some internal state. the state that goes into the one run should be uniformly randomly sampled KV. 
+
+dupsInIthCall: the state that's going into the next call is (nat, KV). if it's the ith call, then the state that's going in is uniformly randomly sampled, as required
+
+means we have to reason about `segment` 
+
+also, Oi_oc' makes no sense without the i passed in from the state carried by oraclecompmap
+
+also, didn't i do this reduction in Pr_collisions??
+*)
+Qed.
+
+(* should use hasDups instead, and randomFunc_withdups. not using them here so it'll unify / prove existing stuff *)
 
 (* TODO: this is the real lemma *)
 (* TODO: perhaps we should use comp_spec with **hasDups* for inner PRF_DRBG and prove that that implies comp_spec with dupsInIthCallInputs *)
@@ -1406,7 +1418,7 @@ does PRHL act like giving each the same "tape" of randomness for equality? *)
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
      ((PRF_Adversary i) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv))
-        (randomFunc ({ 0 , 1 }^eta) eqdbl) nil).
+        randomFunc_withDups nil).
 Proof.
   intros.
   unfold PRF_Adversary.
@@ -1417,7 +1429,8 @@ Proof.
   (* simpl. *)
   (* this just pushed the lemma back further into here -- what should this spec be?? *)
   fcf_skip.
-  apply oracleCompMap__oracle_eq_until_bad. (* pretty sure this is correct *)
+  apply oracleCompMap__eq_until_bad. (* pretty sure this is correct *)
+  apply hasDups__eq_until_bad.
 
   (* ------ *)
   fcf_simp.
@@ -1453,35 +1466,6 @@ Proof.
     fcf_spec_ret.
 Qed.
 
-  (* My old attempt *)
-(*
-  simpl in H3.
-  destruct b2.
-  intuition.
-  
-  remember a0 as bits_rb.
-  remember l as bits_rf.
-
-  (* need to show that adversary can't distinguish the bits -- are they the same? *)
-  (* see H5 *)
-  
-  fcf_skip.
-  (* TODO: look at proof of PRF_A_randomFunc_eq_until_bad *)
-
-  - instantiate (1 := (fun x y => x = y)). (* eq -- for testing, not sure if right *)
-    (* if this isn't right, what assumption do i need? *)
-    simpl in *.
-    (* might need to use oracle id until bad? *)
-    (* TODO *)
-
-    admit.
-
-  - simpl in *.
-    subst.
-    fcf_spec_ret.
-Qed.
-*)
-
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
 (* uses provided oracle on call number i
    i = 2
@@ -1501,6 +1485,7 @@ Proof.
   (* different spec if you do `fcf_to_prhl` only, and in this location *)
   *
     Check PRF_Adv_eq_until_bad.
+    (* TODO change to randomFunc_withDups and add intermediate game/lemma *)
     apply PRF_Adv_eq_until_bad.
     (* is it true? this doesn't include the dupsInNthInput stuff. but do we even need that if the RB stuff beforehand is the same? *)
     (* only difference: one uses rb_oracle, other uses randomFunc oracle *)
@@ -1579,6 +1564,9 @@ Definition Gi_rb_bad_no_adv (i : nat) : Comp bool :=
   [_, state] <-$2 callMapWith i _ _ rb_oracle nil;
   ret (dupsInIthCallInputs i state).
 
+(* **TODO: here is where Pr_collisions moves from dupsInIthCallInputs to hasDups! (1 of 2)
+can I reuse the same proof for both of them? note that we can do this O trick because the first oracle is always RB when we pass in RB oracle *)
+
 (* throw away all other inputs but the ones in the "ith" call ((k,v) are randomly sampled going into the hybrid ith call anyway) 
 TODO: make sure numbering is right and that the ith call exists, etc. *)
 Definition Gi_rb_bad_only_oracle : Comp bool :=
@@ -1586,6 +1574,8 @@ Definition Gi_rb_bad_only_oracle : Comp bool :=
   [_, state] <-$2 GenUpdate_oc (k, v) blocksPerCall _ _ rb_oracle nil;
   (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
   ret (dupsInIthCallInputs O state).
+
+(* **TODO: here is where Pr_collisions moves from dupsInIthCallInputs to hasDups! (2 of 2)*)
 
 (* next, inline the RB oracle (change oracle computation to normal computation) and get the inputs in terms of the outputs etc. modify the type so that it returns the two internal inputs to the oracle as well (which we need for the game) *)
 (* using Gen_loop_rb; need to slightly modify GenUpdate_rb_intermediate to get the calls 
