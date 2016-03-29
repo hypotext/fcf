@@ -1368,9 +1368,14 @@ Proof.
 
   unfold oracleCompMap_inner.
 
+  unfold dupsInIthCallInputs_only.
+  (* there's hasDups in that definition *)
   Print dupsInIthCallInputs_only.
   (* do a smaller example? use adam's version? what stuff did he prove about it? *)
-  SearchAbout oc_compMap.
+  (* prove a theorem about dupsInIthCallInputs on a run, not on both at once. what should it be? does it need to be expressed as a comp_spec? but it's not relational. so should it be Pr[...] = Pr[...]? no, we aren't returning bools anymore, but lists of bits. do i need to prove this at the top level, above PRF_A_eq_until_bad? *)
+  
+
+  (* fcf_spec_ret. *)
 
   unfold Oi_oc'.
 
@@ -1465,6 +1470,48 @@ Proof.
     fcf_skip.
     fcf_spec_ret.
 Qed.
+
+(* Definition GenUpdate_oc_call *)
+(*            (oracle  : list (Blist * Bvector eta) -> Blist *)
+(*                       -> Comp (Bvector eta * list (Blist * Bvector eta))) *)
+(*          : Comp (list (Bvector eta) * list (Blist * Bvector eta)) := *)
+(*   state <-$ Instantiate; *)
+(*   [res, state] <-$2 GenUpdate_oc state blocksPerCall _ _ oracle nil; *)
+(*   (* should the initial oracle state be nil? *) *)
+(*   [bits, kv] <-2 res;  *)
+(*   ret (bits, state).            (* don't need the ending KV state *) *)
+
+Definition GenUpdate_oc_call_2
+           (oracle  : list (Blist * Bvector eta) -> Blist
+                      -> Comp (Bvector eta * list (Blist * Bvector eta)))
+           : Comp bool :=
+  state <-$ Instantiate;
+  [res, state] <-$2 GenUpdate_oc state blocksPerCall _ _ oracle nil;
+  (* should the initial oracle state be nil? *)
+  [bits, kv] <-2 res;
+  ret (hasDups _ state).            (* don't need the ending KV state *)
+
+(* Definition Gi_rb_bad_2 (i : nat) : Comp (bool * bool) := *)
+(*   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil; *)
+(*   ret (b, dupsInIthCallInputs i state). *)
+
+(* in fact, here we can re-use the collisions work, since rb_oracle is # O in dupsInIth *)
+Lemma Gi_rb_bad_eq_1 : forall (i : nat),
+    Pr  [x <-$ Gi_rb_bad i; ret snd x ] == Pr  [GenUpdate_oc_call_2 rb_oracle ].
+Proof.
+  intros.
+  unfold Gi_rb_bad.
+
+Admitted.
+
+(* TODO change this to use randomFune_withDups *)
+Lemma Gi_rf_bad_eq_1 : forall (i : nat),
+    Pr  [x <-$ Gi_rf_bad i; ret snd x ] == Pr  [GenUpdate_oc_call_2 randomFunc_withDups ].
+Proof.
+  intros.
+  unfold Gi_rf_bad.
+
+Admitted.
 
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
 (* uses provided oracle on call number i
