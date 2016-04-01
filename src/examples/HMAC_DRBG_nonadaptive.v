@@ -869,8 +869,7 @@ Ltac simplify :=
 (* expect: PRF / PRF, but doesn't work?*)
 (* n = 1, i = 1 -- expect RB / RB and *does* work *)
 (* n = 2, i = 1 -- expect RB / PRF, but have no clue what's going on here *)
-
-(*
+(* the "zooming in" lemma would actually really help here; should I use it instead? *)
 Theorem Gi_normal_prf_eq_compspec_n1i0 : forall (k1 k2 v : Bvector eta),
     (* i <= length l -> *)
    comp_spec
@@ -890,10 +889,10 @@ Proof.
   intros.
   unfold oracleMap.
   simplify.
-
   fcf_spec_ret.
 Qed.                            (* fixed two bugs -- v-update order and oracle use *)
 
+(*
 (* next: n2i1, n2i2 *)
 (* it works for list [0,0], [1;0], and [1;1] *)
 Theorem Gi_normal_prf_eq_compspec_n2i0 : forall (k1 k2 v : Bvector eta),
@@ -985,7 +984,7 @@ Proof.
   comp_skip. admit. admit.
   simplify.
   fcf_spec_ret.
-Qed.
+Qed. 
 
 (* easier version: hardcoded l and i *)
 (* case i = 2, n = 3 -- pretty general *)
@@ -1476,6 +1475,10 @@ Proof.
     fcf_spec_ret.
 Qed.
 
+(* ------------------------------ *)
+(* Code above this is obsolete *)
+
+(* also we can inline the oracle and just use GenUpdate_rb for one? And GenUpdate_rf (nonexistent) is the trickier case *)
 Definition GenUpdate_oc_call_2
            (oracle  : list (Blist * Bvector eta) -> Blist
                       -> Comp (Bvector eta * list (Blist * Bvector eta)))
@@ -1489,27 +1492,6 @@ Definition GenUpdate_oc_call_2
 
 (* TODO: in fact, here we can re-use the collisions work, since rb_oracle is # O in dupsInIth *)
 (* could generalize this more generic theorem to any inputted oracle *)
-Lemma Gi_rb_bad_eq_snd : forall (i : nat),
-    Pr [x <-$ Gi_rb_bad i; ret snd x ] ==
-    Pr [x <-$ GenUpdate_oc_call_2 rb_oracle; ret snd x ].
-Proof.
-  intros.
-  unfold Gi_rb_bad.
-  unfold GenUpdate_oc_call_2.
-  simplify.
-  fcf_to_prhl_eq.
-  comp_skip.
-  simplify.
-  comp_skip.
-  simplify.
-
-  unfold dupsInIthCallInputs.
-  (* TODO do small examples *)
-  (* not _only? *)
-  
-  unfold PRF_Adversary.
-Admitted.
-
 (* TODO: is this true?? thanks Coq *)
 Lemma Gi_rb_bad_eq_fst : forall (i : nat),
     Pr [x <-$ Gi_rb_bad i; ret fst x ] ==
@@ -1518,19 +1500,130 @@ Proof.
   intros.
   unfold Gi_rb_bad.
   unfold GenUpdate_oc_call_2.
+  unfold PRF_Adversary.
+  unfold dupsInIthCallInputs.
+
+  simplify.
+  comp_skip.
+  simplify.
+  comp_skip.
   simplify.
   fcf_to_prhl_eq.
-  comp_skip.
+  fcf_irr_r.                    (* ? *)
   simplify.
-  comp_skip.
-  simplify.
+  fcf_skip.                    (* TODO actually promising -- what should the spec be? id until bad with the false on dups? *)
+  - Show Existentials.
 
-  unfold dupsInIthCallInputs.
+    instantiate (1 := (fun x y => fst3 x = (fst3 y)::nil)).
+    (* now, is this actually true?? might need to pull out this lemma, have the false stuff *)
+    (* wait this isn't true?? input on ith is the same... different predicate? *)
+    
+    admit.
+
+  - simplify.
+    fcf_irr_r.                  (* probably not true *)
+    admit.
+
+    simplify.
+    fcf_skip_eq.
+
+    simpl in *.
+    rewrite H4.
+    reflexivity.
+
+    simplify.
+    fcf_spec_ret.
+
   (* TODO do small examples *)
-  
-  unfold PRF_Adversary.
+Qed.
+
+(* TODO might need to add other stuff to this (eq until bad, not just this predicate) *)
+Lemma map_loop_eq_until_bad : forall (i : nat) b x0 x, (* TODO what are these vars *)
+   comp_spec
+     (fun
+        (y1 : list (list (Bvector eta)) * (nat * KV) *
+              list (Blist * Bvector eta))
+        (y2 : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta)) =>
+         (* TODO fix this *)
+         let (bits_rb, state_rb) := y1 in
+           let (bits_rf, state_rf) := y2 in
+           let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
+           let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+
+           hasDups _ inputs_rb = hasDups _ inputs_rf /\
+           (hasDups _ inputs_rb = false ->
+            bits_rb = bits_rf /\ state_rb = state_rf))
+        (GenUpdate_oc_call rb_oracle)
+        (GenUpdate_oc_call randomFunc_withDups).
+     )
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (x, x0)) maxCallsAndBlocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
+     ((Gen_loop_oc b blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle
+        ((to_list x0, b) :: nil)).
+Proof.
 
 Admitted.
+
+(* snd: probability of bad event (duplicates) *)
+Lemma Gi_rb_bad_eq_snd : forall (i : nat),
+    Pr [x <-$ Gi_rb_bad i; ret snd x ] ==
+    Pr [x <-$ GenUpdate_oc_call_2 rb_oracle; ret snd x ].
+Proof.
+  intros.
+  unfold Gi_rb_bad.
+  unfold GenUpdate_oc_call_2.
+  unfold PRF_Adversary.
+  unfold dupsInIthCallInputs.
+
+  simplify.
+  comp_skip.
+  simplify.
+  comp_skip.
+  simplify.
+  fcf_to_prhl_eq.
+  fcf_irr_r.                    (* ? *)
+  simplify.
+  fcf_skip.                    (* TODO actually promising -- what should the spec be? id until bad with the false on dups? *)
+  -
+    Show Existentials.
+    (* list (list (Bvector eta)) * (nat * KV) *
+            list (Blist * Bvector eta) ->
+            list (Bvector eta) * Bvector eta * list (Blist * Bvector eta) ->
+            Prop]  *)
+    instantiate (1 := (fun x y =>
+                         dupsInIthCallInputs_only i (fst3 x) = hasDups _ (fst3 y))).
+
+  (* predicate more like 
+
+dupsInIthInputs ... = hasDups ...
+
+ *)
+    (* now, is this actually true?? might need to pull out this lemma, have the false stuff *)
+    (* wait this isn't true?? input on ith is the same... different predicate? *)
+  (* why did dupsOnIthInput return the correct thing... *)
+    
+
+  - simplify.
+    fcf_irr_r.                  (* probably not true *)
+    admit.
+
+    simplify.
+    fcf_skip_eq.
+
+    simpl in *.
+    rewrite H4.
+    reflexivity.
+
+    simplify.
+    fcf_spec_ret.
+
+  (* TODO do small examples *)
+Qed.
 
 Lemma Gi_rf_bad_eq_fst : forall (i : nat),
     Pr [x <-$ Gi_rf_dups_bad i; ret fst x ] ==
@@ -1541,14 +1634,15 @@ Proof.
 
 Admitted.
 
-Lemma Gi_rf_bad_eq_snd : forall (i : nat),
+(* snd: probability of bad event (duplicates) *)
+(* Lemma Gi_rf_bad_eq_snd : forall (i : nat),
     Pr [x <-$ Gi_rf_dups_bad i; ret snd x ] ==
     Pr [x <-$ GenUpdate_oc_call_2 randomFunc_withDups; ret snd x ].
 Proof.
   intros.
   unfold Gi_rf_dups_bad.
 
-Admitted.
+Admitted. *)
 
 (* TODO update these comments. eliminates nat *)
 (* First assumption for id until bad: the two games have the same probability of returning bad *)
@@ -1573,6 +1667,8 @@ Admitted.
          differences: 1. PRF re-keyed using RF vs. randomly sampled. but PRF re-keyed using something of length > eta, so it is effectively randomly sampled.
          2. the v going into the next call (if it exists) is randomly sampled vs. resulting from a RF call, but it doesn't matter *)
 
+(* TODO: both of these proofs (in PRF_DRBG) rely on the PRF_Adv comp_spec lemma, which is proven by a bunch of casework. need another comp_spec lemma here on genupdate/prfadv? that adversary isn't even here anymore... *)
+
 Theorem Gi_rb_rf_no_bad_same : forall (a : bool),
    (* evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_dups_bad i) (a, false). *)
    evalDist (GenUpdate_oc_call_2 rb_oracle) (a, false) ==
@@ -1581,34 +1677,23 @@ Proof.
   intros.
   fcf_to_prhl.                  (* note the auto-specification here *)
 
-  (* TODO fix this proof *)
   (* it's NOT fcf_to_prhl_eq *)
-  unfold Gi_rb_bad.
-  unfold Gi_rf_dups_bad.
-  fcf_skip.
-  *
-    (* TODO fix this spec *)
-    (* apply PRF_Adv_eq_until_bad. *)
-    (* but is this the right specification? *)
-    admit.
-  (* * *)
-  (*   fcf_simp. *)
-  (*   intuition. *)
-  (*   fcf_spec_ret. *)
-
-  (*   pairInv. *)
-  (*   apply H3 in H6. *)
-  (*   intuition. *)
-  (*   subst. *)
-  (*   reflexivity. *)
-
-  (*   pairInv. *)
-  (*   rewrite H2. *)
-  (*   rewrite <- H2 in H6. *)
-  (*   apply H3 in H6. *)
-  (*   intuition. *)
-  (*   subst. *)
-  (*   fcf_reflexivity. *)
+  unfold GenUpdate_oc_call_2.
+  (* TODO don't we need the (a, false) specs here? obviously if every line returns the same thing then the result of the computation is the same *)
+  fcf_skip_eq.
+  unfold GenUpdate_oc.
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  fcf_skip_eq.
+  (* apply PRF_Adv_eq_until_bad. *)
+  admit.
+  simplify.
+  fcf_skip_eq.
+  admit.
+  simplify.
+  fcf_skip_eq.
+  fcf_spec_ret.
 Qed.
 
 (* Applying the fundamental lemma here *)
@@ -1618,6 +1703,7 @@ Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
 Proof.
   intros. rewrite ratDistance_comm.
 
+  (* TODO prove these three lemmas first? *)
   rewrite Gi_rb_bad_eq_fst.
   rewrite Gi_rf_bad_eq_fst.
   rewrite Gi_rb_bad_eq_snd.
@@ -1626,11 +1712,13 @@ Proof.
   (* TODO: confirm if these assumptions seem true *)
   (* first assumption: they have same probability of returning bad *)
   - apply Gi_rb_rf_return_bad_same.
+  (* shouldn't adam have proved this? *)
+  (* PRF_DRBG_G3_2_3_badness_same *)
   (* only this part deals with the bad event, so we should reduce to hasDups here *)
     
   (* "distribution of the value of interest is the same in c_1 and c_2 when the bad event does not happen" *)
   - apply Gi_rb_rf_no_bad_same.
-   (* what about the bad event here? it's still dupsInIthInputs_only spec PRF_Adv. can we change the spec?? *)
+   (* can reuse adam's proof here too? *)
 Qed.
 
 (* ----------- End identical until bad section *)
@@ -2049,7 +2137,7 @@ Definition G1_br : Comp bool :=
   (* again, don't need tail here *)
   (* v update moved to beginning of each GenUpdate *)
   [k', v'] <-2 state'';
-  v'' <- f k (to_list v');      (* update v *)
+  v'' <- f k' (to_list v');      (* update v *)
   A2 (head_bits :: tail_bits) (k', v''). 
 
 (* in general, how do we relate different adversaries in FCF? *)
@@ -2081,14 +2169,14 @@ Definition G2_br : Comp bool :=
   A2 bits (k, v).
 
 Lemma G2_prg_br_eq :
-  Pr[G2_prg_dup] == Pr[G2_br].
+  Pr[G2_br] <= Pr[G2_prg_dup].
 Proof.
   unfold G2_prg_dup, G2_br.
   unfold Instantiate.
   simplify.
-  fcf_irr_r. unfold RndK. fcf_well_formed.
+  fcf_irr_l. unfold RndK. fcf_well_formed.
   simplify.
-  fcf_irr_r. unfold RndV. fcf_well_formed.
+  fcf_irr_l. unfold RndV. fcf_well_formed.
   simplify.
   fcf_skip.
   unfold RndK, RndV in *.
