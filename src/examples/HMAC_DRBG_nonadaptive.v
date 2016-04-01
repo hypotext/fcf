@@ -627,6 +627,7 @@ Definition dupsInIthCallInputs (i : nat) (state : list (Blist * Bvector eta)) : 
   let inputs_of_ith_call := nth i nil inputs_byCall in
   hasDups _ inputs_of_ith_call.
 
+(* is this type wrong?? *)
 Definition dupsInIthCallInputs_only (i : nat) (inputs : list Blist) : bool :=
   (* all the inputs are in one big list, so break it up by oracle call *)
   (* blocksPerCall inputs + 2 for the v and k re-updating *)
@@ -1479,7 +1480,7 @@ Qed.
 (* Code above this is obsolete *)
 
 (* also we can inline the oracle and just use GenUpdate_rb for one? And GenUpdate_rf (nonexistent) is the trickier case *)
-Definition GenUpdate_oc_call_2
+Definition Game_GenUpdate_oc_call
            (oracle  : list (Blist * Bvector eta) -> Blist
                       -> Comp (Bvector eta * list (Blist * Bvector eta)))
            : Comp (bool * bool) :=
@@ -1495,11 +1496,11 @@ Definition GenUpdate_oc_call_2
 (* TODO: is this true?? thanks Coq *)
 Lemma Gi_rb_bad_eq_fst : forall (i : nat),
     Pr [x <-$ Gi_rb_bad i; ret fst x ] ==
-    Pr [x <-$ GenUpdate_oc_call_2 rb_oracle; ret fst x ].
+    Pr [x <-$ Game_GenUpdate_oc_call rb_oracle; ret fst x ].
 Proof.
   intros.
   unfold Gi_rb_bad.
-  unfold GenUpdate_oc_call_2.
+  unfold Game_GenUpdate_oc_call.
   unfold PRF_Adversary.
   unfold dupsInIthCallInputs.
 
@@ -1537,7 +1538,16 @@ Proof.
   (* TODO do small examples *)
 Qed.
 
+(* very similar to dupsInIthCallInputs_only *)
+Definition ithBlock {A : Type} (i : nat) (l : list A) : list A :=
+  (* all the inputs are in one big list, so break it up by oracle call *)
+  (* blocksPerCall inputs + 2 for the v and k re-updating *)
+  let byCall := segment (blocksPerCall + 2) l in
+  (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  nth i byCall nil.
+
 (* TODO might need to add other stuff to this (eq until bad, not just this predicate) *)
+
 Lemma map_loop_eq_until_bad : forall (i : nat) b x0 x, (* TODO what are these vars *)
    comp_spec
      (fun
@@ -1545,38 +1555,40 @@ Lemma map_loop_eq_until_bad : forall (i : nat) b x0 x, (* TODO what are these va
               list (Blist * Bvector eta))
         (y2 : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta)) =>
          (* TODO fix this *)
-         let (bits_rb, state_rb) := y1 in
-           let (bits_rf, state_rf) := y2 in
-           let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
-           let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+         let (bits_map_2, state_map) := y1 in 
+         let (bits_call_2, state_call) := y2 in
+         let (bits_map, _) := bits_map_2 in
+         let (bits_call, _) := bits_call_2 in
+         let (inputs_map, outputs_map) := (fst (split state_map), snd (split state_map)) in
+         let (inputs_call, output_call) := (fst (split state_call), snd (split state_call)) in
 
-           hasDups _ inputs_rb = hasDups _ inputs_rf /\
-           (hasDups _ inputs_rb = false ->
-            bits_rb = bits_rf /\ state_rb = state_rf))
-        (GenUpdate_oc_call rb_oracle)
-        (GenUpdate_oc_call randomFunc_withDups).
-     )
+         dupsInIthCallInputs_only i inputs_map = hasDups _ inputs_call /\
+         (dupsInIthCallInputs_only i inputs_map = false ->
+         (* get ones in ith block for both output and state *)
+          nth i bits_map nil = bits_call /\ ithBlock i state_map = state_call))
      ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i)
          (0%nat, (x, x0)) maxCallsAndBlocks) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil)
      ((Gen_loop_oc b blocksPerCall) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle
         ((to_list x0, b) :: nil)).
 Proof.
-
+  intros.
+  simplify.
+  
 Admitted.
 
 (* snd: probability of bad event (duplicates) *)
 Lemma Gi_rb_bad_eq_snd : forall (i : nat),
     Pr [x <-$ Gi_rb_bad i; ret snd x ] ==
-    Pr [x <-$ GenUpdate_oc_call_2 rb_oracle; ret snd x ].
+    Pr [x <-$ Game_GenUpdate_oc_call rb_oracle; ret snd x ].
 Proof.
   intros.
   unfold Gi_rb_bad.
-  unfold GenUpdate_oc_call_2.
+  unfold Game_GenUpdate_oc_call.
   unfold PRF_Adversary.
   unfold dupsInIthCallInputs.
 
@@ -1595,6 +1607,9 @@ Proof.
             list (Blist * Bvector eta) ->
             list (Bvector eta) * Bvector eta * list (Blist * Bvector eta) ->
             Prop]  *)
+    (* what's the extra Bvector eta?? it's the updated v (no k) *)
+    Print Gen_loop_oc.
+    simpl.
     instantiate (1 := (fun x y =>
                          dupsInIthCallInputs_only i (fst3 x) = hasDups _ (fst3 y))).
 
@@ -1627,7 +1642,7 @@ Qed.
 
 Lemma Gi_rf_bad_eq_fst : forall (i : nat),
     Pr [x <-$ Gi_rf_dups_bad i; ret fst x ] ==
-    Pr [x <-$ GenUpdate_oc_call_2 randomFunc_withDups; ret fst x ].
+    Pr [x <-$ Game_GenUpdate_oc_call randomFunc_withDups; ret fst x ].
 Proof.
   intros.
   unfold Gi_rf_dups_bad.
@@ -1637,7 +1652,7 @@ Admitted.
 (* snd: probability of bad event (duplicates) *)
 (* Lemma Gi_rf_bad_eq_snd : forall (i : nat),
     Pr [x <-$ Gi_rf_dups_bad i; ret snd x ] ==
-    Pr [x <-$ GenUpdate_oc_call_2 randomFunc_withDups; ret snd x ].
+    Pr [x <-$ Game_GenUpdate_oc_call randomFunc_withDups; ret snd x ].
 Proof.
   intros.
   unfold Gi_rf_dups_bad.
@@ -1655,11 +1670,11 @@ Admitted. *)
 Lemma Gi_rb_rf_return_bad_same :  
     (* Pr  [x <-$ Gi_rb_bad i; ret snd x ] == *)
     (* Pr  [x <-$ Gi_rf_dups_bad i; ret snd x ]. *)
-    Pr  [x <-$ GenUpdate_oc_call_2 rb_oracle; ret snd x ] ==
-    Pr  [x <-$ GenUpdate_oc_call_2 randomFunc_withDups; ret snd x ].
+    Pr  [x <-$ Game_GenUpdate_oc_call rb_oracle; ret snd x ] ==
+    Pr  [x <-$ Game_GenUpdate_oc_call randomFunc_withDups; ret snd x ].
 Proof.
   intros.
-  unfold GenUpdate_oc_call_2.   (* TODO rename this *)
+  unfold Game_GenUpdate_oc_call.   (* TODO rename this *)
 
 Admitted.
 
@@ -1671,14 +1686,14 @@ Admitted.
 
 Theorem Gi_rb_rf_no_bad_same : forall (a : bool),
    (* evalDist (Gi_rb_bad i) (a, false) == evalDist (Gi_rf_dups_bad i) (a, false). *)
-   evalDist (GenUpdate_oc_call_2 rb_oracle) (a, false) ==
-   evalDist (GenUpdate_oc_call_2 randomFunc_withDups) (a, false).
+   evalDist (Game_GenUpdate_oc_call rb_oracle) (a, false) ==
+   evalDist (Game_GenUpdate_oc_call randomFunc_withDups) (a, false).
 Proof.
   intros.
   fcf_to_prhl.                  (* note the auto-specification here *)
 
   (* it's NOT fcf_to_prhl_eq *)
-  unfold GenUpdate_oc_call_2.
+  unfold Game_GenUpdate_oc_call.
   (* TODO don't we need the (a, false) specs here? obviously if every line returns the same thing then the result of the computation is the same *)
   fcf_skip_eq.
   unfold GenUpdate_oc.
