@@ -593,6 +593,8 @@ Definition Gi_prf (i : nat) : Comp bool :=
 (* destruct l. *)
 (* simpl. *)
 
+(* [1,1,1,1,1] -> [[1,1,1] [1,1,1]] *)
+(* TODO put in lennart's version that proves termination *)
 Program Fixpoint segment {A : Type} (n : nat) (l : list A) {measure (length (skipn n l))}
   : list (list A) :=
   match l with
@@ -657,6 +659,20 @@ what about preceding/following RB and (especially) PRF inputs/outputs? *)
 Definition Gi_rb_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
   ret (b, dupsInIthCallInputs i state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+
+(* replace maxCallsAndBlocks with a list we can evaluate on *)
+Definition PRF_Adversary_l (i : nat) (l : list nat) : OracleComp Blist (Bvector eta) bool :=
+  bits <--$ oracleCompMap_outer _ _ (Oi_oc' i) l;
+  $ A bits.
+
+(* also replaced with hasDups: my hypothesis is that adam was right *)
+Definition Gi_rf_bad_l (i : nat) (l : list nat) : Comp (bool * bool) :=
+  [b, state] <-$2 PRF_Adversary_l i l _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
+  ret (b, hasDups _ state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+
+Definition Gi_rb_bad_l (i : nat) (l : list nat) : Comp (bool * bool) :=
+  [b, state] <-$2 PRF_Adversary_l i l _ _ rb_oracle nil;
+  ret (b, hasDups _ state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 (* Modeled after these definitions from PRF_DRBG.v *)
 (*   Fixpoint PRF_DRBG_f_G2 (v : D)(n : nat) :
@@ -1491,6 +1507,19 @@ Definition Game_GenUpdate_oc_call
   res <-$ A (bits :: nil);
   ret (res, hasDups _ state).            (* don't need the ending KV state *)
 
+(* replace blocksPerCall with an n we can evaluate on *)
+Definition Game_GenUpdate_oc_call_n
+           (oracle  : list (Blist * Bvector eta) -> Blist
+                      -> Comp (Bvector eta * list (Blist * Bvector eta)))
+           (n : nat)
+           : Comp (bool * bool) :=
+  state <-$ Instantiate;
+  [res, state] <-$2 GenUpdate_oc state n _ _ oracle nil;
+  (* should the initial oracle state be nil? *)
+  [bits, kv] <-2 res;
+  res <-$ A (bits :: nil);
+  ret (res, hasDups _ state).            (* don't need the ending KV state *)
+
 (* TODO: in fact, here we can re-use the collisions work, since rb_oracle is # O in dupsInIth *)
 (* could generalize this more generic theorem to any inputted oracle *)
 (* TODO: is this true?? thanks Coq *)
@@ -1547,7 +1576,8 @@ Definition ithBlock {A : Type} (i : nat) (l : list A) : list A :=
   nth i byCall nil.
 
 (* TODO might need to add other stuff to this (eq until bad, not just this predicate) *)
-
+(* TODO verify that this actually proves the upper theorem. postconditions are hard *)
+(* TODO do a small example *)
 Lemma map_loop_eq_until_bad : forall (i : nat) b x0 x, (* TODO what are these vars *)
    comp_spec
      (fun
@@ -1563,6 +1593,7 @@ Lemma map_loop_eq_until_bad : forall (i : nat) b x0 x, (* TODO what are these va
          let (inputs_call, output_call) := (fst (split state_call), snd (split state_call)) in
 
          dupsInIthCallInputs_only i inputs_map = hasDups _ inputs_call /\
+         (* hasDups instead *)
          (dupsInIthCallInputs_only i inputs_map = false ->
          (* get ones in ith block for both output and state *)
           nth i bits_map nil = bits_call /\ ithBlock i state_map = state_call))
@@ -1577,8 +1608,132 @@ Lemma map_loop_eq_until_bad : forall (i : nat) b x0 x, (* TODO what are these va
         ((to_list x0, b) :: nil)).
 Proof.
   intros.
+  unfold dupsInIthCallInputs_only.
   simplify.
   
+Admitted.
+
+Open Scope nat.
+
+
+Lemma Gi_rf_bad_eq_snd_test1 : 
+    Pr [x <-$ Gi_rb_bad_l 0 (1::nil); ret snd x ] ==
+    Pr [x <-$ Game_GenUpdate_oc_call_n rb_oracle 1; ret snd x ].
+Proof.
+  intros.
+  unfold Gi_rb_bad_l.
+  unfold PRF_Adversary_l.
+  unfold Game_GenUpdate_oc_call_n.
+  unfold Oi_oc'.
+  (* this might be using the wrong oracle? *)
+  Opaque GenUpdate_noV_oc.
+    simpl.
+    (* it's using GenUpdate_noV_oc -- where it should be using GenUpdate_oc? i thought i'd fixed this. does this work for n > 1 (and for certain i) though? *)
+    Transparent GenUpdate_noV_oc.
+    unfold GenUpdate_noV_oc.
+    unfold Gen_loop_oc.
+    (* oh -- doesn't update v. but is Pr Collisions still the same? *)
+
+  unfold GenUpdate_oc.  (* updates v, Generates one block (updates v once -- be more accurate), updates k *)
+  unfold Gen_loop_oc.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_skip.
+  Opaque hasDups.
+  simpl.
+  fcf_inline_first.
+  fcf_simp.
+  fcf_irr_l. admit.
+  Opaque evalDist_OC.
+  fcf_inline_first.
+  simpl.
+  fcf_to_prhl.
+  Transparent evalDist_OC.
+  simplify.
+
+  (* new *)
+  unfold rb_oracle.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_irr_r.
+  simplify.
+  fcf_irr_r.
+  simplify.
+  fcf_skip_eq. admit.
+  simplify.
+  fcf_to_probability. admit. admit.
+(* all vars are from the same distribution? but some aren't independent? *)
+  
+  (* isn't this equivalent to a0 = b2... *)
+(* hmm, looks like there's an extra element in the latter list -- why? extra update? *)
+(* also some of the elements are the same between them (b, x0) and some are different... why? *)
+(* TODO *)
+Admitted.
+
+Lemma Gi_rf_bad_eq_snd_test2 : 
+    Pr [x <-$ Gi_rb_bad_l 1 (1::nil); ret snd x ] ==
+    Pr [x <-$ Game_GenUpdate_oc_call_n rb_oracle 1; ret snd x ].
+Proof.
+  intros.
+  unfold Gi_rb_bad_l.
+  unfold PRF_Adversary_l.
+  unfold Game_GenUpdate_oc_call_n.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_irr_r. admit.             (* ?? *)
+  simplify.
+  fcf_irr_r. admit.
+  Opaque hasDups.
+  simplify.
+  fcf_to_prhl.
+  fcf_skip_eq. simpl in *. admit. (* ? *)
+  fcf_simp.
+  simpl.
+
+  (* why is it nil?? probably because the oracle didn't get called since i = 1. so, that confirms my hypothesis that i should just be using hasDups? *)
+Admitted.
+
+(* OVER length of first list, items in first list / ith items, and ? *)
+Lemma Gi_rf_bad_eq_snd_test3 : 
+    Pr [x <-$ Gi_rb_bad_l 1 (1::1::nil); ret snd x ] ==
+    Pr [x <-$ Game_GenUpdate_oc_call_n rb_oracle 1; ret snd x ].
+Proof.
+  intros.
+  unfold Gi_rb_bad_l.
+  unfold PRF_Adversary_l.
+  unfold Game_GenUpdate_oc_call_n.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_skip.
+  simplify.
+  fcf_skip.
+
+Print Ltac simplify.
+  fcf_simp.
+  Opaque Oi_oc'.
+  Opaque evalDist_OC.
+  fcf_inline_first.
+  fcf_irr_r. admit.
+  fcf_simp.
+  fcf_inline_first.
+  fcf_simp.
+
+  Transparent Oi_oc'.
+  fcf_to_prhl.
+
+  
+  (* simplify. *)
+  
+
+
 Admitted.
 
 (* snd: probability of bad event (duplicates) *)
@@ -1592,6 +1747,19 @@ Proof.
   unfold PRF_Adversary.
   unfold dupsInIthCallInputs.
 
+  Opaque rb_oracle.
+
+  (* WTP: The probability of the bad event happening is the same in both games.
+
+The probability of (dups in the ith block of the oracle's input state when GenUpdate is call n times with the oracle on the ith call) and the probability of (dups in the the oracle's input state when GenUpdate is called once with it) is the same in both games. (independent of oracle, actually -- should I abstract that out?)
+
+Is GenUpdate actually tracking the oracle's state?
+
+Postcondition:
+The probability of () and the probability of () is the same in both games.
+
+ *)
+
   simplify.
   comp_skip.
   simplify.
@@ -1600,45 +1768,40 @@ Proof.
   fcf_to_prhl_eq.
   fcf_irr_r.                    (* ? *)
   simplify.
-  fcf_skip.                    (* TODO actually promising -- what should the spec be? id until bad with the false on dups? *)
-  -
-    Show Existentials.
-    (* list (list (Bvector eta)) * (nat * KV) *
-            list (Blist * Bvector eta) ->
-            list (Bvector eta) * Bvector eta * list (Blist * Bvector eta) ->
-            Prop]  *)
-    (* what's the extra Bvector eta?? it's the updated v (no k) *)
-    Print Gen_loop_oc.
-    simpl.
-    instantiate (1 := (fun x y =>
-                         dupsInIthCallInputs_only i (fst3 x) = hasDups _ (fst3 y))).
+  fcf_skip.
+(* TODO actually promising -- what should the spec be? id until bad with the false on dups? *)
+(*   - *)
+(*     Show Existentials. *)
+(*     (* list (list (Bvector eta)) * (nat * KV) * *)
+(*             list (Blist * Bvector eta) -> *)
+(*             list (Bvector eta) * Bvector eta * list (Blist * Bvector eta) -> *)
+(*             Prop]  *) *)
+(*     (* what's the extra Bvector eta?? it's the updated v (no k) *) *)
+(*     Print Gen_loop_oc. *)
+(*     simpl. *)
+(*     (* instantiate (1 := (fun x y => *) *)
+(*     (*                      dupsInIthCallInputs_only i (fst3 x) = hasDups _ (fst3 y))). *) *)
 
-  (* predicate more like 
-
-dupsInIthInputs ... = hasDups ...
-
- *)
-    (* now, is this actually true?? might need to pull out this lemma, have the false stuff *)
-    (* wait this isn't true?? input on ith is the same... different predicate? *)
-  (* why did dupsOnIthInput return the correct thing... *)
-    
-
-  - simplify.
-    fcf_irr_r.                  (* probably not true *)
+  - apply map_loop_eq_until_bad.
+  
+  - simpl in *.
+    simplify.
+   (* can i swap lines in either computation? *)
+    fcf_irr_r. (* probably not true *)
     admit.
 
     simplify.
     fcf_skip_eq.
 
-    simpl in *.
-    rewrite H4.
-    reflexivity.
+    * (* doesn't seem provable? might need to reason abt hypotheses *)
+      admit.
 
-    simplify.
-    fcf_spec_ret.
+    * simplify.
 
-  (* TODO do small examples *)
-Qed.
+(* need to actually think about ithblock, dups, etc. + small examples + what the postcondition should be *)
+
+Transparent rb_oracle.
+Admitted.
 
 Lemma Gi_rf_bad_eq_fst : forall (i : nat),
     Pr [x <-$ Gi_rf_dups_bad i; ret fst x ] ==
