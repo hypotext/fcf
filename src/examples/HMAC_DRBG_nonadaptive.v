@@ -386,11 +386,11 @@ there should be (S numCalls) games, so games are numbered from 0 through numCall
 Definition Oi_prg (i : nat) (sn : nat * KV) (n : nat)
   : Comp (list (Bvector eta) * (nat * KV)) :=
   [callsSoFar, state] <-2 sn;
-  let GenUpdate_choose := if lt_dec callsSoFar i (* callsSoFar < i *)
+  let GenUpdate_choose := if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
                           then GenUpdate_rb_intermediate
                           (* first call does not update v, to make proving equiv. easier*)
                           else if beq_nat callsSoFar O then GenUpdate_noV
-                               else GenUpdate in
+                          else GenUpdate in
   (* note: have to use intermediate, not final GenUpdate_rb here *)
   [bits, state'] <-$2 GenUpdate_choose state n;
   ret (bits, (S callsSoFar, state')).
@@ -487,6 +487,14 @@ Definition GenUpdate_noV_oc (state : KV) (n : nat) :
   k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
   $ ret (bits, (k', v')).
 
+(* uses the PRF but does not update the V *)
+Definition GenUpdate_PRF_noV_oc (state : KV) (n : nat) :
+  OracleComp (list bool) (Bvector eta)  (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  [bits, v'] <-2 Gen_loop k v n;
+  k' <- f k (to_list v' ++ zeroes);
+  $ ret (bits, (k', v')).
+
 (* doesn't use the oracle, uses the PRF *)
 Definition GenUpdate_PRF_oc (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
@@ -518,14 +526,19 @@ G2: RB  RB  PRF
 G3: RB  RB  RB  <-- note that there is no oracle slot to replace here
     RB  RB  RB  <-- likewise
 there should be (S numCalls) games, so games are numbered from 0 through numCalls *)
+(* there is always an oracle slot to replace until i >= numCalls *)
+
+(* not entirely sure these are all the right cases / in the right order *)
+(* i: index for oracle; callsSoFar; n *)
 Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
   [callsSoFar, state] <-2 sn;
-  let GenUpdate_choose := 
-      if lt_dec callsSoFar i (* callsSoFar < i *)
-      then GenUpdate_rb_intermediate_oc
-      else if beq_nat callsSoFar O 
-           then GenUpdate_noV_oc  (* first call does not update v *)
+  let GenUpdate_choose :=
+      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
+      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
+           then GenUpdate_rb_intermediate_oc (* this implicitly has no v to update *)
+      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
+           then GenUpdate_noV_oc 
       else if beq_nat callsSoFar i (* callsSoFar = i *)
            then GenUpdate_oc    (* uses provided oracle (PRF or RF) *)
       else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
@@ -909,7 +922,6 @@ Proof.
   fcf_spec_ret.
 Qed.                            (* fixed two bugs -- v-update order and oracle use *)
 
-(*
 (* next: n2i1, n2i2 *)
 (* it works for list [0,0], [1;0], and [1;1] *)
 Theorem Gi_normal_prf_eq_compspec_n2i0 : forall (k1 k2 v : Bvector eta),
@@ -936,6 +948,8 @@ Proof.
   fcf_spec_ret.
 Qed.
 
+(* Regression tests! *)
+(*
 (* works for list [0,0], [1;0], and [1;1]? *)
 (* expect RB / PRF *)
 (* [0;0]: yes
@@ -964,7 +978,7 @@ Proof.
   unfold GenUpdate_rb_intermediate.
   unfold Gen_loop_rb.
   simplify.
-  comp_skip. admit. admit.      (* what is this? *)
+  fcf_skip. admit. admit.
   simplify.
   fcf_spec_ret.
 Qed.
@@ -1494,6 +1508,7 @@ Qed.
 
 (* ------------------------------ *)
 (* Code above this is obsolete *)
+(* Update: use Adam's code but with hasDups *)
 
 (* also we can inline the oracle and just use GenUpdate_rb for one? And GenUpdate_rf (nonexistent) is the trickier case *)
 Definition Game_GenUpdate_oc_call
@@ -1615,7 +1630,6 @@ Admitted.
 
 Open Scope nat.
 
-
 Lemma Gi_rf_bad_eq_snd_test1 : 
     Pr [x <-$ Gi_rb_bad_l 0 (1::nil); ret snd x ] ==
     Pr [x <-$ Game_GenUpdate_oc_call_n rb_oracle 1; ret snd x ].
@@ -1629,10 +1643,12 @@ Proof.
   Opaque GenUpdate_noV_oc.
     simpl.
     (* it's using GenUpdate_noV_oc -- where it should be using GenUpdate_oc? i thought i'd fixed this. does this work for n > 1 (and for certain i) though? *)
+    (* if there's only 1 call, we should definitely be using the oracle on that call, so we can correctly prove the one-call case (PRF -> RF -> RB) *)
     Transparent GenUpdate_noV_oc.
     unfold GenUpdate_noV_oc.
     unfold Gen_loop_oc.
     (* oh -- doesn't update v. but is Pr Collisions still the same? *)
+    (* (output are the same, state is different) *)
 
   unfold GenUpdate_oc.  (* updates v, Generates one block (updates v once -- be more accurate), updates k *)
   unfold Gen_loop_oc.
@@ -1666,9 +1682,9 @@ Proof.
   fcf_to_probability. admit. admit.
 (* all vars are from the same distribution? but some aren't independent? *)
   
-  (* isn't this equivalent to a0 = b2... *)
-(* hmm, looks like there's an extra element in the latter list -- why? extra update? *)
-(* also some of the elements are the same between them (b, x0) and some are different... why? *)
+  (* isn't this equivalent to a0 = b2? *)
+(* there's an extra element in the latter list -- extra update *)
+(* also some of the elements are the same between them (b, x0) and some are different *)
 (* TODO *)
 Admitted.
 
@@ -1687,7 +1703,7 @@ Proof.
   simplify.
   fcf_skip.
   simplify.
-  fcf_irr_r. admit.             (* ?? *)
+  fcf_irr_r. admit.             (* ? *)
   simplify.
   fcf_irr_r. admit.
   Opaque hasDups.
@@ -1697,7 +1713,7 @@ Proof.
   fcf_simp.
   simpl.
 
-  (* why is it nil?? probably because the oracle didn't get called since i = 1. so, that confirms my hypothesis that i should just be using hasDups? *)
+  (* the oracle state of the former (in Gi_rb_bad_l) is nil because the oracle didn't get called since i = 1. so, that confirms my hypothesis that i should just be using hasDups? *)
 Admitted.
 
 (* OVER length of first list, items in first list / ith items, and ? *)
@@ -1716,7 +1732,6 @@ Proof.
   simplify.
   fcf_skip.
 
-Print Ltac simplify.
   fcf_simp.
   Opaque Oi_oc'.
   Opaque evalDist_OC.
@@ -1728,11 +1743,6 @@ Print Ltac simplify.
 
   Transparent Oi_oc'.
   fcf_to_prhl.
-
-  
-  (* simplify. *)
-  
-
 
 Admitted.
 
