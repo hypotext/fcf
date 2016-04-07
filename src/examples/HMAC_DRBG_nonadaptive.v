@@ -669,7 +669,7 @@ Definition PRF_Adversary_l (i : nat) (l : list nat) : OracleComp Blist (Bvector 
 (* also replaced with hasDups: my hypothesis is that adam was right *)
 Definition Gi_rf_bad_l (i : nat) (l : list nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary_l i l _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
-  ret (b, hasDups _ (fst (split state))). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  ret (b, hasInputDups state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 Definition Gi_rb_bad_l (i : nat) (l : list nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary_l i l _ _ rb_oracle nil;
@@ -1201,22 +1201,23 @@ Admitted.
 (* ----------------------- *Identical until bad section *)
 (* trying to figure out which OracleComps can be ignored (PRF_Adv, oracleCompMap_outer, _inner, Oi_oc, GenUpdate, Gen_loop) *)
 
-(* TODO: might need to push these specs back further into Oi_oc and GenUpdate, then apply Adam's result in Gen_loop *)
-
 (* TODO: might need to use oracle identical until bad? 
 many layers of oraclecomps
 oraclecomps: oraclecompmap_inner, Oi_oc', GenUpdate (various forms), Gen_loop
   (adam only has the equivalent of Gen_loop)
-actual oracles: rb, rf
+actual oracles: rb, rf *)
 
-TODO: 
-- discharge admit below
-- figure out oracle id until bad
-- figure out adam's proof of comp_spec
+(* TODO: 4/7/16
 
-- figure out how to deal with call segmentation
-- if there are no dups, then RF behaves exactly like RB -- key length extension doesn't matter, v doesn't matter? am i missing something? how do i show this?? 
-no dups -> reason about RF match and RF state *)
+- think about the new proof with hasDups
+  - uh, can't we prove the hasDups on state -> GenUpdate_oc on state theorem....??? (e.g. the one in Gi_rb_collisions.) do i have to roll everything back AGAIN?
+    or should we just do adam's proof here???
+- finish OEUB proof
+  - review oracle_eq_until_bad
+  - understand adam's OEUB proof
+  - fix adam's old OEUB to work with randomFunc_withDups
+- understand adam's PRF_Adv proof
+*)
 
 Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
     comp_spec
