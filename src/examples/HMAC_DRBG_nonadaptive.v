@@ -607,9 +607,16 @@ Definition Gi_prf (i : nat) : Comp bool :=
 (* simpl. *)
 
 (* [1,1,1,1,1] -> [[1,1,1] [1,1,1]] *)
-(* TODO put in lennart's version that proves termination *)
-Program Fixpoint segment {A : Type} (n : nat) (l : list A) {measure (length (skipn n l))}
-  : list (list A) :=
+(* TODO debug lennart's proof that proves termination *)
+Open Scope nat.
+Lemma skipn_length' {X : Type}: forall n (l:list X), length (skipn n l) <= length l.
+Proof.
+  induction n; simpl; intros. omega.
+  destruct l. omega. specialize (IHn l); simpl. omega.
+Qed.
+
+Program Fixpoint segment {X : Type} (n : nat) (l : list X) {measure (length (skipn n l))}
+  : list (list X) :=
   match l with
   | nil => nil
   | _ :: _ =>
@@ -618,43 +625,24 @@ Program Fixpoint segment {A : Type} (n : nat) (l : list A) {measure (length (ski
     | S _ => firstn n l :: segment n (skipn n l)
     end
   end.
-Solve All Obligations.
+Solve All Obligations.          (* maybe the obligations are different? *)
 Next Obligation.
-  simpl.
-  destruct (skipn wildcard'1 wildcard'0). (* not true! obligations are too restrictive *)
-  (* TODO: pretty sure this version terminates... *)
-  admit.
-  simpl.
-  admit.
-Qed.
-Check segment.
+  clear segment; simpl.
+  rename wildcard' into a. rename wildcard'0 into l. rename wildcard'1 into n.
+  specialize (skipn_length' n l). intros.
+  (* omega. *)
+Admitted.
+Close Scope nat.
 
 (* Expose the bad events *)
 
-(* Bad event *)
-Definition dupsInIthCallInputs (i : nat) (state : list (Blist * Bvector eta)) : bool :=
-  (* throw away outputs *)
-  let inputs := fst (split state) in
-  (* all the inputs are in one big list, so break it up by oracle call *)
-  (* blocksPerCall inputs + 2 for the v and k re-updating *)
-  let inputs_byCall := segment (blocksPerCall + 2) inputs in
-  (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
-  let inputs_of_ith_call := nth i nil inputs_byCall in
-  hasDups _ inputs_of_ith_call.
-
-(* is this type wrong?? *)
-Definition dupsInIthCallInputs_only (i : nat) (inputs : list Blist) : bool :=
-  (* all the inputs are in one big list, so break it up by oracle call *)
-  (* blocksPerCall inputs + 2 for the v and k re-updating *)
-  let inputs_byCall := segment (blocksPerCall + 2) inputs in
-  (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
-  let inputs_of_ith_call := nth i nil inputs_byCall in
-  hasDups _ inputs_of_ith_call.
+Definition hasInputDups (state : list (Blist * Bvector eta)) : bool :=
+  hasDups _ (fst (split state)).
 
 (* ith game: use RF oracle *)
 Definition Gi_rf_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
-  ret (b, dupsInIthCallInputs i state). 
+  ret (b, hasInputDups state). 
 
 Definition rb_oracle (state : list (Blist * Bvector eta)) (input : Blist) :=
   output <-$ ({0,1}^eta);
@@ -671,7 +659,7 @@ INPUTS = v :: (first n of outputs)? *)
 what about preceding/following RB and (especially) PRF inputs/outputs? *)
 Definition Gi_rb_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ rb_oracle nil;
-  ret (b, dupsInIthCallInputs i state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  ret (b, hasInputDups state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 (* replace maxCallsAndBlocks with a list we can evaluate on *)
 Definition PRF_Adversary_l (i : nat) (l : list nat) : OracleComp Blist (Bvector eta) bool :=
@@ -681,7 +669,7 @@ Definition PRF_Adversary_l (i : nat) (l : list nat) : OracleComp Blist (Bvector 
 (* also replaced with hasDups: my hypothesis is that adam was right *)
 Definition Gi_rf_bad_l (i : nat) (l : list nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary_l i l _ _ (randomFunc ({0,1}^eta) eqdbl) nil;
-  ret (b, hasDups _ state). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
+  ret (b, hasDups _ (fst (split state))). (* assumes ith element will exist, otherwise hasDups nil (default) = false *)
 
 Definition Gi_rb_bad_l (i : nat) (l : list nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary_l i l _ _ rb_oracle nil;
@@ -721,11 +709,7 @@ Definition PRF_Advantage_Game i : Rat :=
 
 Print PRF_Advantage.
 Print PRF_G_A.
-
-Print PRF_Advantage.
-Print PRF_G_A.
 Print PRF_G_B.
-
 
 (* should be the same for all i, arbitrarily choose 0 *)
 Definition PRF_Advantage_i := PRF_Advantage_Game 0.
@@ -1163,7 +1147,7 @@ Definition randomFunc_withDups ls x :=
 (* ith game: use RF oracle *)
 Definition Gi_rf_dups_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ randomFunc_withDups nil;
-  ret (b, dupsInIthCallInputs i state). 
+  ret (b, hasInputDups state). 
 
 Lemma Gi_rf_dups_return_bad_eq : forall (i : nat),
     Pr[x <-$ Gi_rf_bad i; ret fst x] == Pr[x <-$ Gi_rf_dups_bad i; ret fst x].
@@ -1242,8 +1226,8 @@ Theorem oracleCompMap__oracle_eq_until_bad : forall (i : nat) b b0,
         (* let (bits_rf, state_rf) := y2 in *)
         (* let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in *)
         (* let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in *)
-        dupsInIthCallInputs_only i (fst (split (snd y1))) = dupsInIthCallInputs_only i (fst (split (snd y2))) /\
-        (dupsInIthCallInputs_only i (fst (split (snd y1))) = false ->
+        hasDups _ (fst (split (snd y1))) = hasDups _ (fst (split (snd y2))) /\
+        (hasDups _ (fst (split (snd y1))) = false ->
          snd y1 = snd y2 /\ fst y1 = fst y2))
 
      ((z <--$
@@ -1266,8 +1250,8 @@ Proof.
   intros.
   (* TODO review this *)
   eapply (fcf_oracle_eq_until_bad
-            (fun x => dupsInIthCallInputs_only i (fst (split x)))
-            (fun x => dupsInIthCallInputs_only i (fst (split x))) eq); intuition.
+            (fun x => hasDups _ (fst (split x)))
+            (fun x => hasDups _ (fst (split x))) eq); intuition.
 
  - fcf_well_formed. admit.
   - intros. unfold rb_oracle. fcf_well_formed.
@@ -1276,7 +1260,7 @@ Proof.
     subst.
     unfold randomFunc, rb_oracle.
     (* need to make a version of randomFunc that adds the input to the state, even when we find it. *)
-    (* It still looks like dupsInIthCollInputs_only may be more complicated than necessary (for this proof, at least).  The arguments below assume we have replaced it with hasDups. *)
+    (* It still looks like dupsInIthCallInputs_only may be more complicated than necessary (for this proof, at least).  The arguments below assume we have replaced it with hasDups. *)
 
     (* Once that is done, we just need to case split *)
     case_eq (arrayLookup eqdbl x2 a); intuition.
@@ -1308,17 +1292,19 @@ Proof.
       admit.
 Qed.
 
-Theorem oracleCompMap__eq_until_bad : forall (i : nat) b b0,
+(* doesn't check now that dups is added *)
+Theorem oracleCompMap__oracle_eq_until_bad_dups : forall (i : nat) b b0,
     comp_spec
      (fun y1 y2 : list (list (Bvector eta)) * list (Blist * Bvector eta) =>
-        let (bits_rb, state_rb) := y1 in
-        let (bits_rf, state_rf) := y2 in
-        let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
-        let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
+        (* TODO fix args *)
+        (* let (bits_rb, state_rb) := y1 in *)
+        (* let (bits_rf, state_rf) := y2 in *)
+        (* let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in *)
+        (* let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in *)
+        hasDups _ (fst (split (snd y1))) = hasDups _ (fst (split (snd y2))) /\
+        (hasDups _ (fst (split (snd y1))) = false ->
+         snd y1 = snd y2 /\ fst y1 = fst y2))
 
-        dupsInIthCallInputs_only i inputs_rb = dupsInIthCallInputs_only i inputs_rf /\
-        (dupsInIthCallInputs_only i inputs_rb = false ->
-         bits_rb = bits_rf /\ state_rb = state_rf))
      ((z <--$
        oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
@@ -1336,6 +1322,49 @@ Theorem oracleCompMap__eq_until_bad : forall (i : nat) b b0,
         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
         randomFunc_withDups nil).
 Proof.
+  intros.
+  (* TODO review this *)
+  eapply (fcf_oracle_eq_until_bad
+            (fun x => hasDups _ (fst (split x)))
+            (fun x => hasDups _ (fst (split x))) eq); intuition.
+
+ - fcf_well_formed. admit.
+  - intros. unfold rb_oracle. fcf_well_formed.
+  - intros. unfold randomFunc_withDups. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
+  - 
+    subst.
+    unfold randomFunc_withDups, rb_oracle.
+    (* need to make a version of randomFunc that adds the input to the state, even when we find it. *)
+    (* It still looks like dupsInIthCollInputs_only may be more complicated than necessary (for this proof, at least).  The arguments below assume we have replaced it with hasDups. *)
+
+    (* Once that is done, we just need to case split *)
+    case_eq (arrayLookup eqdbl x2 a); intuition.
+    (* bad case *)
+    fcf_irr_l.
+(*    fcf_spec_ret.
+    simpl.
+    remember (split x2) as z.
+    destruct z.
+    simpl.
+    (* Once we switch to a version of randomFunc that keeps track of duplicate calls, we can show that both sides of the equation are true because when we have (a :: l), and when we have (arrayLookup a l = Some b1) *)
+    admit.
+
+    simpl in H3.
+    remember (split x2) as z. destruct z.
+    simpl in *.
+    (* contradiction in hypotheses, hasDups (a :: l) = false, but we know a is in l *)
+    admit.
+    (* same contradiction *)
+    admit.
+
+    (* not bad case---equality is perserved *)
+    fcf_skip.
+    fcf_spec_ret.
+
+    - (* once we have duplicates, we will always have duplicates.  *)
+      admit.
+    - (*same as above *)
+      admit. *)
 Admitted.
 
 Theorem PRF_Adv_eq_until_bad : forall (i : nat),
@@ -1345,8 +1374,8 @@ Theorem PRF_Adv_eq_until_bad : forall (i : nat),
         let (adv_rf, state_rf) := b in
         let (inputs_rb, outputs_rb) := (fst (split state_rb), snd (split state_rb)) in
         let (inputs_rf, output_rf) := (fst (split state_rf), snd (split state_rf)) in
-        dupsInIthCallInputs i state_rb = dupsInIthCallInputs i state_rf /\
-        (dupsInIthCallInputs i state_rb = false ->
+        hasDups _ inputs_rb = hasDups _ inputs_rf /\
+        (hasDups _ inputs_rb = false ->
          (* true -- if there are no duplicates, then the random function behaves exactly like RB, so the key is randomly sampled AND the v (going into the PRF) is also randomly sampled. so the outputs should be the same.
 in fact, if there are no dups, PRF_Adv rf i = PRF_Adv rb i.
 so, this means the comp_spec above is true?
@@ -1365,7 +1394,7 @@ Proof.
   fcf_skip.
   fcf_simp.
   fcf_skip.
-  apply oracleCompMap__eq_until_bad.
+  apply oracleCompMap__oracle_eq_until_bad_dups.
 
   (* ------ *)
   fcf_simp.
@@ -1380,7 +1409,8 @@ Proof.
   Locate Ltac case_eq.
   (* TODO what is this? *)
 
-  case_eq (dupsInIthCallInputs i state_rb_); intuition.
+  (* case_eq (hasInputDups state_rb_); intuition. *)
+  case_eq (hasDups _ (fst (split (state_rb_)))); intuition.
 
   (* duplicates exist, computations are irrelevant *)
   - 
@@ -1390,7 +1420,7 @@ Proof.
     rename b1 into adv_rf_.
     fcf_spec_ret.
     (* true=false in hypotheses *)
-    (* dupsInIthCallInputs i state_rb_ = true (by case_eq) and false (by assumption in postcondition) *)
+    (* hasInputDups state_rb_ = true (by case_eq) and false (by assumption in postcondition) *)
     congruence.
 
   (* no duplicates, equality is preserved *)
@@ -1561,6 +1591,7 @@ Proof.
     destruct b0.
     intuition.
     fcf_simp.
+    unfold hasInputDups.
     rewrite H2.
     simpl.
     fcf_reflexivity.
@@ -1590,12 +1621,14 @@ Proof.
     fcf_spec_ret.
 
     pairInv.
+    unfold hasInputDups.
     apply H3 in H6.
     intuition.
     subst.
     reflexivity.
 
     pairInv.
+    unfold hasInputDups in *.
     rewrite H2.
     rewrite <- H2 in H6.
     apply H3 in H6.
@@ -1633,21 +1666,15 @@ Definition callMapWith (i : nat) : OracleComp Blist (Bvector eta) (list (list (B
 (* throw away the first input and the adversary, focus on bad event only *)
 Definition Gi_rb_bad_no_adv (i : nat) : Comp bool :=
   [_, state] <-$2 callMapWith i _ _ rb_oracle nil;
-  ret (dupsInIthCallInputs i state).
+  ret (hasInputDups state).
 
-(* **TODO: here is where Pr_collisions moves from dupsInIthCallInputs to hasDups! (1 of 2)
-can I reuse the same proof for both of them? note that we can do this O trick because the first oracle is always RB when we pass in RB oracle *)
-
-(* throw away all other inputs but the ones in the "ith" call ((k,v) are randomly sampled going into the hybrid ith call anyway) 
-TODO: make sure numbering is right and that the ith call exists, etc. *)
+(* throw away all other inputs/outputs but the ones in the "ith" call ((k,v) are randomly sampled going into the hybrid ith call anyway) *)
+(* the oracle's state is unaffected by computations around it  *)
 Definition Gi_rb_bad_only_oracle : Comp bool :=
   [k, v] <-$2 Instantiate;
-
   [_, state] <-$2 GenUpdate_oc (k, v) blocksPerCall _ _ rb_oracle nil;
-  (* there is only 1 call, so segment will return 1 list, and we get that (the 1st one) *)
-  ret (dupsInIthCallInputs O state).
-
-(* **TODO: here is where Pr_collisions moves from dupsInIthCallInputs to hasDups! (2 of 2)*)
+  (* this used to be dupsInIthInputCall O, so check that the lemmas about this are right *)
+  ret (hasInputDups state).
 
 (* next, inline the RB oracle (change oracle computation to normal computation) and get the inputs in terms of the outputs etc. modify the type so that it returns the two internal inputs to the oracle as well (which we need for the game) *)
 (* using Gen_loop_rb; need to slightly modify GenUpdate_rb_intermediate to get the calls 
