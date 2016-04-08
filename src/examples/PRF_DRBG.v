@@ -265,6 +265,9 @@ Check A.                        (* A : list (Bvector eta) -> Comp bool *)
   Definition PRF_DRBG_G3 :=
     [b, _] <-$2 PRF_A _ _ (randomFunc ({0,1}^eta) _) nil;
     ret b.
+
+Print PRF_DRBG_G2.
+
 Check (randomFunc ({0,1}^eta)).
 Print randomFunc.
 
@@ -431,8 +434,6 @@ Print PRF_DRBG_f_G2.
     (* TODO what is the next line? comment each assumption/conclusion in english *)
     (* Check fcf_oracle_eq_until_bad. *)
     Locate fcf_oracle_eq_until_bad.
-    Check fcf_oracle_eq_until_bad.
-    (* there's a separate theorem about oracles and eq_until_bad? *)
     (* why this predicate? *)
     eapply (fcf_oracle_eq_until_bad
               (fun x => hasDups _ (fst (split x)))
@@ -482,81 +483,105 @@ subgoal 5 (ID 4465) is:
 subgoal 6 (ID 4578) is:
  hasDups D_EqDec (fst (split b)) = true *)
 
-    - apply PRF_A_wf.
-    
-    - unfold randomFunc_withDups.
-    destruct ( arrayLookup D_EqDec a b);
+    - apply PRF_A_wf.           (* 1 *)
+
+    - unfold randomFunc_withDups. (* 2 *)
+    destruct (arrayLookup D_EqDec a b);
     fcf_well_formed.
 
-    - fcf_well_formed.
+    - fcf_well_formed.          (* 3 *)
 
-    - subst.
-      Check PRF_A.
-      (* the two oracles (randomFunc_withDups) and (r <-$ {0,1]^eta...)
-       and the PRF_A is the oracleComp
-       and the bad event is still the hasDups stuff *)
+    - subst.                    (* 4 *)
+      (* x1 = x2: oracle state 1 = oracle state 2 *)
     unfold randomFunc_withDups.
+    Print randomFunc_withDups.
+    (* x2 is the list, a is the element. change variable names *)
     case_eq (arrayLookup _ x2 a); intuition.
 
-      (* is a duplicate *)
+      (* is a duplicate (a is in x2) *)
+      (* now we need to prove that, given that a is in x2,
+         the postcondition holds: 
+         note that they both have state x2
+       *)
     * fcf_irr_r.
       fcf_simp.
+      (* note the simplified state here *)
+      (*  (ret (b, (a, b) :: x2))
+          (ret (b0, (a, b0) :: x2)) 
+         - we know a is in x2 for both
+         - b0 is some random bitvector, b is whatever the lookup returns for a *)
       fcf_spec_ret; simpl.
-      
-      remember (split x2) as z.
-      destruct z.
-      simpl in *.
-      trivial.
-      simpl in *.
-      remember (split x2) as z.
-      destruct z.
-      simpl in *.
-      destruct (in_dec (EqDec_dec D_EqDec) a l0); intuition.
-      discriminate.
-      rewrite notInArrayLookupNone in H.
-      discriminate.
-      intuition.
-      rewrite unzip_eq_split in H3.
-      remember (split x2) as z.
-      destruct z.
-      pairInv.
-      simpl in *.
-      intuition.
-      
-      simpl in *.
-      remember (split x2) as z.
-      destruct z.
-      simpl in *.
-      destruct (in_dec (EqDec_dec D_EqDec) a l0).
-      discriminate.
-      rewrite notInArrayLookupNone in H.
-      discriminate.
-      intuition.
-      rewrite unzip_eq_split in H3.
-      remember (split x2) as z.
-      destruct z.
-      pairInv.
-      simpl in *.
-      intuition.
+
+      (* note the 3 new goals *)
+      (* obviously hasDups (thing1 :: x2) = hasDups (thing2 :: x2), since `hasDups x2` *)
+      + remember (split x2) as z.
+        destruct z.
+        Print hasDups.
+        (* Print in_dec. *) (* looks gnarly *)
+        (* hasDups added and removed here! :^) *)
+        simpl in *.
+        trivial.
+
+      (* snd y1 = snd y2 (if there are no dups in the whole state, then the states are the same. but we know there are dups in x2, the tail of the state, so, contradiction!) *)
+      + simpl in *.
+        remember (split x2) as z.
+        destruct z.
+        simpl in *.
+        destruct (in_dec (EqDec_dec D_EqDec) a l0); intuition.
+        discriminate.
+        rewrite notInArrayLookupNone in H.
+        discriminate.
+        intuition.
+        rewrite unzip_eq_split in H3.
+        remember (split x2) as z.
+        destruct z.
+        pairInv.
+        simpl in *.
+        intuition.
+
+      (* fst y1 = fst y2 (exactly the same as above! if there are no dups in the whole state... but we know there are dups in the tail of the state, so, contradiction!) *)
+      + simpl in *.
+        remember (split x2) as z.
+        destruct z.
+        simpl in *.
+        destruct (in_dec (EqDec_dec D_EqDec) a l0).
+        discriminate.
+        rewrite notInArrayLookupNone in H.
+        discriminate.
+        intuition.
+        rewrite unzip_eq_split in H3.
+        remember (split x2) as z.
+        destruct z.
+        pairInv.
+        simpl in *.
+        intuition.
     
-    *                           (* not a duplicate -- behaves like RB *)
+    * (* not a duplicate -- behaves like RB -- a is not in x2 *)
       fcf_skip.
       fcf_spec_ret.
 
-    - unfold randomFunc_withDups in *.
-    fcf_simp_in_support.
-    simpl.
-    remember (split c0) as z.
-    destruct z.
-    simpl in *.
-    destruct (in_dec (EqDec_dec D_EqDec) d l0). intuition. intuition.
+    - (* want to prove: for both oracles, if the state starts bad, it stays bad *)
+      (* dups in c0 inputs, and when randomFunc_withDups is run with that state it returns output a and state b, there are dups in the inputs of that state *)
+      unfold randomFunc_withDups in *. (* 5 *)
+      (* NOTE this is a useful tactic *)
+      fcf_simp_in_support.
+      simpl.
+      remember (split c0) as z.
+      destruct z.
+      simpl in *.
+      destruct (in_dec (EqDec_dec D_EqDec) d l0).
+      intuition.             (* first element is dup *)
+      intuition. (* by H -- the existing state has dups *)
 
-    - fcf_simp_in_support.
-    simpl in *.
-    remember (split c0) as z.
-    destruct z.
-    simpl in *.
-    destruct (in_dec (EqDec_dec D_EqDec) d l0). intuition. intuition.
+    (* same proof *)
+    - fcf_simp_in_support.      (* 6 *)
+      simpl in *.
+      remember (split c0) as z.
+      destruct z.
+      simpl in *.
+      destruct (in_dec (EqDec_dec D_EqDec) d l0).
+      intuition.
+      intuition.
   Qed.
 
   Theorem PRF_DRBG_G3_2_3_badness_same : 
