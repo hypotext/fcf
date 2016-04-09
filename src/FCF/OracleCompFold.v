@@ -18,7 +18,10 @@ Fixpoint oc_compMap(A B C D : Set)(eqdb : EqDec B)(c : A -> OracleComp C D B)(ls
   end. 
 
 Theorem compMap_oc_spec : 
-  forall (C D : Set)(P2 : C -> D -> Prop)(A B : Set)(P1 : A -> B -> Prop)(eqdc : EqDec C)(eqdd : EqDec D)(E F S: Set)(eqds : EqDec S)(ls1 : list A)(ls2 : list B)(c1 : A -> Comp C)(c2 : B -> OracleComp E F D)o (s : S),
+  forall (C D : Set)(P2 : C -> D -> Prop)(A B : Set)(P1 : A -> B -> Prop)(eqdc : EqDec C)(eqdd : EqDec D)(E F S: Set)(eqds : EqDec S)
+         (ls1 : list A) (ls2 : list B) (c1 : A -> Comp C)
+         (c2 : B -> OracleComp E F D) o (s : S),
+
     list_pred P1 ls1 ls2 ->
     (forall a b z, P1 a b -> comp_spec (fun x y => P2 x (fst y)) (c1 a) (c2 b _ _ o z)) -> 
     comp_spec (fun a b => list_pred P2 a (fst b))
@@ -109,17 +112,33 @@ Theorem oc_compMap_wf :
   
 Qed.
 
+(* Fixpoint oc_compMap(A B C D : Set)(eqdb : EqDec B)(c : A -> OracleComp C D B)(ls : list A) : OracleComp C D (list B) :=
+  match ls with
+    | nil => $ (ret nil)
+    | a :: ls' =>
+      b <--$ c a;
+      lsb' <--$ oc_compMap _ c ls';
+      $ (ret (b :: lsb'))
+  end. *)
 
+(* TODO existing equivalences (two, below) between compFold and oc_compMap *)
 Theorem compFold_oc_equiv_h : 
-  forall (A B S : Set)(eqdb : EqDec B)(eqds : EqDec S)(O : S -> A -> Comp (B * S))(lsa : list A)(initS : S)(lsb : list B),
+  forall (A B S : Set) (eqdb : EqDec B) (eqds : EqDec S)
+         (O : S -> A -> Comp (B * S)) (lsa : list A) (initS : S) (lsb : list B),
     comp_spec eq 
               (compFold _
                         (fun (acc : list B * S) (d : A) =>
-                           [rs, s]<-2 acc; z <-$ O s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+                           [rs, s]<-2 acc; (* same form as oracleMap *)
+                           z <-$ O s d;
+                           [r, s0]<-2 z;
+                           ret (rs ++ r :: nil, s0))
                         (lsb, initS) lsa)
+
+              (* initS: oracle's initial state *)
               ([lsb', s'] <-$2 ((oc_compMap _ (fun a : A => query a) lsa) S _ O initS);
               ret (lsb ++ lsb', s')).
-
+(* lsb: compFold's acc (same lsb) *)
+Proof.
   induction lsa; intuition; simpl.
   
   fcf_inline_first.
@@ -138,18 +157,22 @@ Theorem compFold_oc_equiv_h :
   rewrite <- app_assoc.
   simpl.
   fcf_spec_ret.
-
 Qed.
 
 Theorem compFold_oc_equiv : 
-  forall (A B S : Set)(eqdb : EqDec B)(eqds : EqDec S)(O : S -> A -> Comp (B * S))(lsa : list A)(initS : S),
+  forall (A B S : Set) (eqdb : EqDec B) (eqds : EqDec S)
+         (O : S -> A -> Comp (B * S)) (lsa : list A) (initS : S),
     comp_spec eq 
               (compFold _
                         (fun (acc : list B * S) (d : A) =>
-                           [rs, s]<-2 acc; z <-$ O s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+                           [rs, s]<-2 acc;
+                           z <-$ O s d;
+                           [r, s0]<-2 z;
+                           ret (rs ++ r :: nil, s0))
                         (nil, initS) lsa)
-              ((oc_compMap _ (fun a : A => query a) lsa) S _ O initS).
 
+              ((oc_compMap _ (fun a : A => query a) lsa) S _ O initS).
+Proof.
   intuition.
   eapply comp_spec_eq_trans.
   eapply compFold_oc_equiv_h.
@@ -157,7 +180,6 @@ Theorem compFold_oc_equiv :
   fcf_skip.
   simpl.
   fcf_spec_ret.
-
 Qed.
 
 Theorem oc_compMap_qam :
@@ -178,5 +200,4 @@ Theorem oc_compMap_qam :
   intuition.
   econstructor.
   omega.
-
 Qed.

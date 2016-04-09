@@ -1,5 +1,5 @@
 
-(* Definitions related to pseudorandom functions.  This file copies some items from ConstructedFunc.v, so we probably need to refactor this in the future. *)
+(* Definitions related to pseudoradom functions.  This file copies some items from ConstructedFunc.v, so we probably need to refactor this in the future. *)
 
 Set Implicit Arguments.
 Require Import FCF.
@@ -9,13 +9,22 @@ Require Export Array.
 Local Open Scope list_scope.
 Local Open Scope array_scope.
 
+(* Fold a computation over a list *)
+(* 
+Fixpoint compFold(A B : Set)(eqd : EqDec B)(f : B -> A -> Comp B)(init : B)(ls : list A) :=
+  match ls with
+      | nil => ret init 
+      | a :: ls' =>
+        init' <-$ f init a;
+          compFold  _ f init' ls'
+  end. *)
+
 Definition oracleMap (D R S: Set) (eqds : EqDec S) (eqdr : EqDec R)
-           (oracle : S  -> D -> Comp (R * S)) (s : S) (ds : list D) :=
+                     (oracle : S  -> D -> Comp (R * S))(s : S)(ds : list D) :=
   compFold _ 
-  (fun acc d =>
-     [rs, s] <-2 acc;
-     [r, s] <-$2 oracle s d;
-     ret (rs ++ r :: nil, s)) 
+           (fun acc d => [rs, s] <-2 acc;
+            [r, s] <-$2 oracle s d;
+            ret (rs ++ r :: nil, s)) 
   (nil, s) ds.
 
 Theorem oracleMap_wf : 
@@ -45,8 +54,6 @@ Section RandomFunc.
   Hypothesis RndR_wf : well_formed_comp RndR.
   
     (* A random function *)
-  (* Note that it uses arrayLookup and follows the definition closely *)
-  (* RndR : Comp R <-- it's sufficient to sample uniformly at random from this? *)
   Definition randomFunc (f : (list (D * R))) (d : D) : Comp (R * list (D * R)) :=
       match (arrayLookup _ f d) with
         | None => (r <-$ RndR; ret (r, (d, r) :: f))
@@ -215,30 +222,6 @@ Section PRF_concrete.
 
   End PRF_NAI_concrete.
 
-  (* TODO: what's the difference between the various PRF definitions? which one should I use? which one does Adam use? *)
-  (* Does this section depend on previous sections? *)
-  (* Game-based definition:
-Let F : K x X -> Y
-Let Funs be set of all functions from X to Y
-
-b = 0: k <- K, f <- F(K, .)
-b = 1: f <- Funs[X,Y]
-
-adversary picks x (plaintext)
-we send f(x)
-adversary outputs 0 if PRF, 1 if rand
-
-https://crypto.stanford.edu/~dabo/cs255/lectures/PRP-PRF.pdf *)
-  (* Problem: How to define all (F : X -> Y)? How to uniformly sample? *)
-
-  Section PRF_concrete_game.
-    
-    Variable X Y : Type.
-    (* Variable Funs : Comp (X -> Y). *)
-  (* TODO: X -> Y : Type, but Comp : Set -> Type *)
-
-  End PRF_concrete_game.
-
   Section PRF_Full_concrete.
     
     Variable A : OracleComp D R bool.
@@ -259,9 +242,6 @@ https://crypto.stanford.edu/~dabo/cs255/lectures/PRP-PRF.pdf *)
     | Pr[PRF_G_A] - Pr[PRF_G_B] |.  
     
   End PRF_Full_concrete.
-
-Print PRF_Advantage.
-Print RndR_func.
 
   Section PRF_Finite_concrete.
 
