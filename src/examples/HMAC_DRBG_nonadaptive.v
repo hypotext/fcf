@@ -856,6 +856,7 @@ Ltac simplify :=
 
 (* These examples take a long time to check because of `simplify`. Commented out for now. *)
 
+(* TODO move all Gi_normal_prf_eq work into a separate file *)
 (*
 (* n = 1, i = 0 *)
 (* expect: PRF / PRF, but doesn't work?*)
@@ -1077,18 +1078,9 @@ Qed.
 
 - also, how does this theorem relate to other ones? e.g. Gi_rb_eq_normal is similar, can I reuse this? *)
 
-Theorem thing : forall k v n l1 l2, Gen_loop k v n = (l1, l2).
-Proof.
-  intros.
-  unfold Gen_loop.
-  destruct n.
-  admit.
-  simpl.
-Admitted.
-
-(* easier: hardcode i to be 0? *)
-(* TODO why can't i prove this? *)
-Theorem Gi_normal_prf_eq_compspec_i0 : forall (k1 v : Bvector eta) (calls : nat) l init,
+(* specific case of Gi_normal_prf_eq: i = 0, so only the PRF oracle is used *)
+Theorem Gi_normal_prf_eq_compspec_i0 :
+  forall (k1 v : Bvector eta) (calls : nat) l init,
     (* i <= length l -> *)
     calls > 0 ->                (* not the first call (which is special) *)
    comp_spec
@@ -1104,9 +1096,6 @@ Theorem Gi_normal_prf_eq_compspec_i0 : forall (k1 v : Bvector eta) (calls : nat)
          [rs, s]<-2 acc;
          z <-$ Oi_prg 0 s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
         (init, (calls, (k1, v))) l)
-
-     (* ([lsb', s'] <-$2 ((oc_compMap _ (fun a : A => query a) lsa) S _ O initS);
-         ret (lsb ++ lsb', s')). *)
 
      ([acc', state'] <-$2 ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
@@ -1162,6 +1151,7 @@ Proof.
 
     (* TODO: because # calls = 2 and i = 0, the oracle is never used again, so it doesn't matter that the keys are different. induct on TAIL *)
     (* TODO: add back the first call *)
+    (* TODO split this out / generalize it *)
     admit.
 
     simplify.
@@ -1170,12 +1160,84 @@ Proof.
     f_equal.
 Qed.
 
-    (* (bits, (1, state')) = (l :: nil, (1, (f k1 (to_list b ++ zeroes), b))) *)
-    (* how did it evaluate Gen_loop with an opaque x?? can't even do it below *)
-    (* and now we have (l : list (Bvector eta), b : Bvector eta) with no other hypotheses about them?? b is the result *)
+(* specific case of Gi_normal_prf_eq: i = length l, so only the RB oracle is used (if `i` were `length l - 1`, then we'd use the provided oracle on the last call) *)
+Theorem Gi_normal_prf_eq_compspec_imax :
+  forall (k1 v : Bvector eta) (i calls : nat) l init,
+    (* i <= length l -> *)
+    calls > 0 ->                (* not the first call (which is special) *)
+    i = length l ->
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x = fst3 y)
+     (* (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv) *)
+     (*    (Oi_prg O) (calls, (k1, v)) l) *)
+     (compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg i s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (init, (calls, (k1, v))) l)
 
+     ([acc', state'] <-$2 ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k1, v)) l) unit unit_EqDec 
+        (f_oracle f eqdbv k1) tt);
+      [bits, nkv] <-2 acc';
+      ret (init ++ bits, nkv, state')).
+Proof.
 
-Theorem Gi_normal_prf_eq_compspec : forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
+Admitted.
+
+(* induction on reverse of list WITHOUT first element, as above, but with general i *)
+(* do I still need to do this init stuff? TODO currently unused*)
+Theorem Gi_normal_prf_eq_compspec_tail :
+  forall (l : list nat) (i : nat) (k1 v : Bvector eta) (calls : nat)
+         (init : list (list (Bvector eta))),
+    (* i <= length l -> *)
+    calls > 0 ->
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+      fst x = fst3 y)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg i) (calls, (k1, v)) l)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k1, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+  remember (rev l) as rev_l.
+  rewrite <- (rev_involutive _).
+  rewrite <- Heqrev_l.
+  revert i k1 v calls init H.
+  induction rev_l; intros.
+(* do i need 'rev exists'? or a hypothesis about length l? *)
+
+  (* why are there three subgoals?? *)
+
+  (* i is opaque here *)
+  * 
+    simpl.
+    
+
+    admit.
+
+  *
+    simpl.
+
+    admit.
+
+Admitted.
+  
+Theorem Gi_normal_prf_eq_compspec :
+  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
     (* i <= length l -> *)
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
@@ -1189,7 +1251,8 @@ Theorem Gi_normal_prf_eq_compspec : forall (l : list nat) (i : nat) (k1 k2 v : B
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
          (O, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
         (f_oracle f eqdbv k1) tt).
-(* maybe i need to generalize the O in the initial state first? then will it be inductive? also, it is true?? i is hardcoded (should it be destructed?) and O is the starting value of callsSoFar *)
+
+(* maybe i need to generalize the O in the initial state first? then will it be inductive? also, it is true? i is hardcoded (should it be destructed?) and O is the starting value of callsSoFar *)
 (* on paper: 
 - inputs equal on callsSoFar < i, callsSoFar = i, and callsSoFar > i
  (inputs -- do you mean the bits output?)
@@ -1207,10 +1270,8 @@ that's not inductive.
 induct on i or on numCalls? what about the blocks for a call?
 also, maybe i should back up and see if i can eliminate this theorem?
  *)
-
 Proof.
   intros.
-  (* destruct l. *)
   unfold oracleMap.
   unfold oracleCompMap_inner.
   unfold Oi_prg.
