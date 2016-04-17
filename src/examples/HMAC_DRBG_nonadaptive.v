@@ -1194,6 +1194,7 @@ Admitted.
 
 (* induction on reverse of list WITHOUT first element, as above, but with general i *)
 (* do I still need to do this init stuff? TODO currently unused*)
+(* possible that this could be more general -- not just fst = fst3, but first two = first two of the other one. might need it to prove the theorem too *)
 Theorem Gi_normal_prf_eq_compspec_tail :
   forall (l : list nat) (i : nat) (k1 v : Bvector eta) (calls : nat)
          (init : list (list (Bvector eta))),
@@ -1223,19 +1224,73 @@ Proof.
   (* why are there three subgoals?? *)
 
   (* i is opaque here *)
+  (* TODO consider alternate approaches: 1. combining the two specific-case lemmas 2. inducting on the length of the list *)
   * 
     simpl.
-    
-
-    admit.
+    unfold oracleMap.
+    simpl.
+    simplify.
+    fcf_spec_ret.
 
   *
     simpl.
 
-    admit.
+    assert (l_eq : l = rev rev_l ++ a :: nil).
+    { assert (apply_rev : rev (a :: rev_l) = rev (rev l)).
+      rewrite Heqrev_l.
+      reflexivity.
+      simpl in apply_rev.
+      rewrite rev_involutive in apply_rev.
+      auto. } 
+
+    (* rewrite <- l_eq. *)
+    (* this just undoes the work *)
+    
+    (* or, a is the element at the front of the reversed list / at the back of the normal list *)
+    (* also does oracleMap actually put the element where it should be *)
+    (* rev rev_l ++ a :: nil <-- the normal list ++ end element (makes sense) *)
+
+    (* ok, now how to reason about i? *)
+    (* need to reason about fold (l ++ _) -- might already exist *)
+    (* and i need to do a similar fold (l ++ _) proof for oracleCompMap_inner *)
+    unfold oracleMap.
+    (* SearchAbout compFold. *)
+    (* compFold_app -- why is it stated in terms of evalDist? *)
+    specialize compFold_app; intros.
+
+    Lemma fold_app_2 : forall (A0 B : Set) (eqd : EqDec A0) (c : A0 -> B -> Comp A0)
+         (ls1 ls2 : list B) (init0 x : A0) (res : A0),
+       comp_spec eq (compFold eqd c init0 (ls1 ++ ls2))
+                 (init' <-$ compFold eqd c init0 ls1; compFold eqd c init' ls2).
+    Proof.
+      intros.
+      fcf_to_probability. admit. admit.
+      
+      apply compFold_app.
+
+      instantiate (1 := res).
+      intros.
+      simpl in H.
+      (* SearchAbout ((_ = _ <-> _ = _) -> _ = _). *)
+      (* SearchAbout (_ <-> _). *)
+      destruct H.
+      rewrite H.
+      rewrite H0.
+      reflexivity.
+
+      Admitted.
+
+    (* apply fold_app_2. *)
+    (* need to use that comp_spec replacement theorem we used before *)
+
+    (* also need to prove a similar app theorem about oracleCompMap_inner *)
+    
+    unfold oracleCompMap_inner.
+
 
 Admitted.
   
+(* need to stitch on the first call and generalize to Gi_normal_rb_eq *)
 Theorem Gi_normal_prf_eq_compspec :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
     (* i <= length l -> *)
