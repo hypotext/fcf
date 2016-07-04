@@ -12,6 +12,22 @@ Require Import PRF_DRBG.        (* note: had to move PRF_DRBG into FCF dir for t
 Require Import Coq.Program.Wf.
 Require Import OracleCompFold.
 
+Theorem PRPL_demo : forall (n m : nat),
+  comp_spec (fun a b => a = fst b)
+            (x <-$ {0,1}^n;
+             ret x)
+            (c <-$ {0,1}^n;
+             d <-$ {0,1}^m;
+             ret (c,d)).
+Proof.
+  intros.
+  fcf_skip. admit. admit. admit.
+
+  fcf_irr_r.
+
+  fcf_spec_ret.
+Qed.
+
   (* TODO:
 
 - Blist definitions X
@@ -1196,8 +1212,7 @@ Admitted.
 (* do I still need to do this init stuff? TODO currently unused*)
 (* possible that this could be more general -- not just fst = fst3, but first two = first two of the other one. might need it to prove the theorem too *)
 Theorem Gi_normal_prf_eq_compspec_tail :
-  forall (l : list nat) (i : nat) (k1 v : Bvector eta) (calls : nat)
-         (init : list (list (Bvector eta))),
+  forall (l : list nat) (i : nat) (k1 v : Bvector eta) (calls : nat),
     (* i <= length l -> *)
     calls > 0 ->
    comp_spec
@@ -1217,7 +1232,7 @@ Proof.
   remember (rev l) as rev_l.
   rewrite <- (rev_involutive _).
   rewrite <- Heqrev_l.
-  revert i k1 v calls init H.
+  revert i k1 v calls  H.
   induction rev_l; intros.
 (* do i need 'rev exists'? or a hypothesis about length l? *)
 
@@ -2217,7 +2232,39 @@ Lemma G1_Gi_O_equal :
   Pr[G1_prg] == Pr[Gi_prg O].
 Proof.
   unfold G1_prg.
+  Print oracleMap.
+  (* TODO do some small examples to make sure this is right? *)
   unfold Gi_prg.
+
+  (* isn't Oi_prg 0 ~ GenUpdate_noV, GenUpdate, GenUpdate, ...? *)
+  (* over all maxCallsAndBlocks? maybe destruct it *)
+
+  unfold maxCallsAndBlocks.
+  destruct numCalls.
+
+  (* due to H_numCalls *)
+  * inversion H_numCalls.
+
+  *
+    (* something is inductive... maybe like the other theorem we broke up? *)
+    (* this should split the latter into GenUpdate_noV then all GenUpdates like the other oraclemap (might have to unfold both folds) *)
+    simpl.
+    unfold Instantiate.
+    comp_skip.
+    (* comp_skip. *) (* can't unify?? *)
+    fcf_to_prhl.
+    fcf_simp.
+    rename b into k.
+    rename b0 into v.
+    (* what's b1? it came from ...where? seems over-aggressively simplified *)
+    (* note the new starting (k,v) state of the first program *)
+    rename b1 into v'.
+    (* unfold oracleMap. *)
+    unfold Oi_prg.
+    destruct (lt_dec callsSoFar 0). (* something like this *)
+    (* maybe a more specific theorem about Oi_prg 0 *)
+
+    (* ------ old *)
   simpl.
   comp_skip.
   (* fcf_simp. *)
