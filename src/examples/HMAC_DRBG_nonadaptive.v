@@ -12,6 +12,14 @@ Require Import PRF_DRBG.        (* note: had to move PRF_DRBG into FCF dir for t
 Require Import Coq.Program.Wf.
 Require Import OracleCompFold.
 
+(* Shortcuts for FCF tactics *)
+(* TODO remove / inline these *)
+Ltac fs := fcf_simp.
+Ltac fif := fcf_inline_first.
+Ltac s := simpl.
+Ltac fsr := fcf_spec_ret.
+Ltac fskip := fcf_skip.
+
 Theorem PRPL_demo : forall (n m : nat),
   comp_spec (fun a b => a = fst b)
             (x <-$ {0,1}^n;
@@ -424,6 +432,160 @@ Definition Gi_prg (i : nat) : Comp bool :=
   [k, v] <-$2 Instantiate;
   [bits, _] <-$2 oracleMap _ _ (Oi_prg i) (O, (k, v)) maxCallsAndBlocks;
   A bits.
+
+
+(* ------------------------------- *)
+(* G1 is equal to first hybrid *)
+
+(* move the non-nil init state inside compFold's init acc. otherwise, same compFold as in oracleMap *)
+Definition G1_prg_fold : Comp bool :=
+  [k, v] <-$2 Instantiate;
+  [head_bits, state'] <-$2 GenUpdate_noV (k, v) blocksPerCall;
+  (* unfolding the oracleMap *)
+  (* [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks); *)
+  [bits, _] <-$2 compFold _
+            (fun acc d => [rs, s] <-2 acc;
+             [r, s] <-$2 GenUpdate s d;
+             ret (rs ++ r :: nil, s)) 
+            (head_bits :: nil, state') (tail maxCallsAndBlocks);
+  A bits.
+
+Lemma compFold_acc_eq : forall (l : list nat) (a0 : list (Bvector eta)) (b1 : KV) (bits : list (list (Bvector eta))),
+   comp_spec eq
+     (z <-$
+      compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
+        (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ GenUpdate s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (bits, b1) l;
+      [tail_bits, _]<-2 z; A (a0 :: tail_bits))
+     (z <-$
+      compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
+        (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ GenUpdate s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (a0 :: bits, b1) l;
+      [bits, _]<-2 z; A bits).
+Proof.
+  induction l as [ | call calls]; intros.
+
+  * fcf_simp.
+    fcf_reflexivity.
+  * simpl.
+    fcf_inline_first.
+    fcf_skip.
+    fcf_simp.
+    apply IHcalls.
+Qed.
+
+Lemma G1_G1_acc_equal :
+  Pr[G1_prg] == Pr[G1_prg_fold].
+Proof.
+  fcf_to_prhl_eq.
+  unfold G1_prg, G1_prg_fold.
+  fcf_skip.
+  fcf_simp.
+  fcf_skip.
+  unfold oracleMap.
+  (* maybe induct on numCalls then use equality? *)
+  unfold maxCallsAndBlocks.
+  apply compFold_acc_eq.
+Qed.
+
+(* compFold with GenUpdate is the same as compFold with (Oi_prg 0) and # calls starting >=1 *)
+Lemma compFold_GenUpdate_Oi_prg :
+  forall (calls : list nat) (l : list (list (Bvector eta))) (k v : Bvector eta)
+         (callsSoFar : nat),
+    beq_nat callsSoFar 0%nat = false ->
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * KV)
+        (y : list (list (Bvector eta)) * (nat * KV)) =>
+      x = (fst y, snd (snd y)))
+     (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
+        (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ GenUpdate s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (l, (k, v)) calls)
+     (compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg 0 s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (l, (callsSoFar, (k, v))) calls).
+Proof.
+  induction calls as [ | call calls']; intros.
+  * simpl.
+    fcf_spec_ret.
+  * simpl.
+    destruct (beq_nat callsSoFar 0).
+    - inversion H.
+    - simpl.
+      fcf_inline_first.
+      fcf_simp.
+      apply IHcalls'.
+      auto.
+Qed.
+
+(* wait what? it needs identical until bad??? *)
+(* TODO make sure the numbering is right *)
+Lemma G1_Gi_O_equal :
+  Pr[G1_prg] == Pr[Gi_prg O].
+Proof.
+  rewrite G1_G1_acc_equal.
+  fcf_to_prhl_eq.
+  unfold G1_prg_fold.
+  unfold Gi_prg.
+
+  (* Oi_prg 0 is ~ GenUpdate_noV, GenUpdate, GenUpdate, ...? *)
+  unfold maxCallsAndBlocks.
+  destruct numCalls.
+
+  * inversion H_numCalls.
+
+  * simpl.
+    comp_skip.
+    unfold oracleMap.
+    simpl. (* break up latter oracleMap *)
+    fs.
+    fif.
+    fs.
+    (* maybe I can get the l out of the compFold? forgot how it works *)
+    fcf_skip.
+    instantiate (1 := (fun x y => x = (fst y, snd (snd y)))).
+    (* simple generalize + induction *)
+    apply compFold_GenUpdate_Oi_prg.
+    auto.
+
+    simpl in H3.
+    inversion H3.
+    subst.
+    destruct b3.
+    simpl.
+    fcf_reflexivity.
+Qed.
+
+(* all random bits w/ oracleMap vs w/ oracleCompMap, should be dischargeable by induction *)
+Lemma G2_oracle_eq :
+  Pr[G2_prg'] == Pr[G2_prg]. (* oracleCompMap vs compMap *)
+Proof.
+  unfold G2_prg, G2_prg'.
+(* relate GenUpdate_rb and GenUpdate_rb_oracle *)
+
+Admitted.
+
+(* G2 is equal to last hybrid *)
+(* should be even easier than G1 since no GenUpdate_noV happening? *)
+Lemma G2_Gi_n_equal :
+  Pr[G2_prg] == Pr[Gi_prg numCalls].
+Proof.
+  rewrite <- G2_oracle_eq.
+  unfold G2_prg'.
+  unfold Gi_prg.
+  admit.
+Qed.
+
+(* ---------------------------------- *)
 
 (* For PRF adversary:
 
@@ -2222,75 +2384,6 @@ Proof.
   Print Gi_prf.
   apply Gi_prf_rf_close.        (* Basically already proven via PRF_Advantage magic *)
   apply Gi_rf_rb_close.
-Qed.
-
-(* ------------------------------- *)
-
-(* this proof (in OracleHybrid) is long and uses identical until bad. should i make sure this is true first? *)
-(* TODO make sure the numbering is right *)
-Lemma G1_Gi_O_equal :
-  Pr[G1_prg] == Pr[Gi_prg O].
-Proof.
-  unfold G1_prg.
-  Print oracleMap.
-  (* TODO do some small examples to make sure this is right? *)
-  unfold Gi_prg.
-
-  (* isn't Oi_prg 0 ~ GenUpdate_noV, GenUpdate, GenUpdate, ...? *)
-  (* over all maxCallsAndBlocks? maybe destruct it *)
-
-  unfold maxCallsAndBlocks.
-  destruct numCalls.
-
-  (* due to H_numCalls *)
-  * inversion H_numCalls.
-
-  *
-    (* something is inductive... maybe like the other theorem we broke up? *)
-    (* this should split the latter into GenUpdate_noV then all GenUpdates like the other oraclemap (might have to unfold both folds) *)
-    simpl.
-    unfold Instantiate.
-    comp_skip.
-    (* comp_skip. *) (* can't unify?? *)
-    fcf_to_prhl.
-    fcf_simp.
-    rename b into k.
-    rename b0 into v.
-    (* what's b1? it came from ...where? seems over-aggressively simplified *)
-    (* note the new starting (k,v) state of the first program *)
-    rename b1 into v'.
-    (* unfold oracleMap. *)
-    unfold Oi_prg.
-    destruct (lt_dec callsSoFar 0). (* something like this *)
-    (* maybe a more specific theorem about Oi_prg 0 *)
-
-    (* ------ old *)
-  simpl.
-  comp_skip.
-  (* fcf_simp. *)
-  
-  (* unfold oracleMap. *)
-  (* unfold compFold. *)
-  
-  (* fcf_to_prhl. *)
-
-Admitted.
-
-Lemma G2_oracle_eq :
-  Pr[G2_prg'] == Pr[G2_prg]. (* oracleCompMap vs compMap *)
-Proof.
-  unfold G2_prg, G2_prg'.
-(* relate GenUpdate_rb and GenUpdate_rb_oracle *)
-
-Admitted.
-
-Lemma G2_Gi_n_equal :
-  Pr[G2_prg] == Pr[Gi_prg numCalls].
-Proof.
-  rewrite <- G2_oracle_eq.
-  unfold G2_prg'.
-  unfold Gi_prg.
-  admit.
 Qed.
 
 (* ------------------------------- *)
