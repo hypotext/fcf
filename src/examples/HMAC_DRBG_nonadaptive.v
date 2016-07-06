@@ -565,24 +565,79 @@ Proof.
     fcf_reflexivity.
 Qed.
 
-(* all random bits w/ oracleMap vs w/ oracleCompMap, should be dischargeable by induction *)
-Lemma G2_oracle_eq :
-  Pr[G2_prg'] == Pr[G2_prg]. (* oracleCompMap vs compMap *)
-Proof.
-  unfold G2_prg, G2_prg'.
-(* relate GenUpdate_rb and GenUpdate_rb_oracle *)
+Open Scope nat.
 
-Admitted.
+Lemma compMap_oracleMap_rb : forall (calls : list nat) (k v : Bvector eta) (n : nat),
+    (* nice invariant *)
+    n + length calls = numCalls ->
+   comp_spec
+     (fun (x : list (list (Bvector eta)))
+        (y : list (list (Bvector eta)) * (nat * KV)) => x = fst y)
+     (compMap (list_EqDec eqdbv) GenUpdate_rb calls)
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg numCalls) (n, (k, v)) calls).
+Proof.
+  induction calls as [ | call calls']; intros.
+  * unfold oracleMap.
+    simpl.
+    fcf_spec_ret.
+  * unfold oracleMap.
+    simpl.
+    fcf_inline_first.
+    fcf_simp.
+    destruct (lt_dec n numCalls).
+
+    (* n < numCalls *)
+    - fcf_skip.
+      admit.
+      { instantiate (1 := (fun x y => x = fst y)).
+      unfold GenUpdate_rb.
+      unfold GenUpdate_rb_intermediate.
+      fcf_skip.
+      admit.
+      fcf_spec_ret. }
+
+      { fcf_simp.
+        (* might need to do a reverse rewrite on the first *)
+        (* apply IHcalls'. *)
+        admit.
+      }
+
+    (* n >= numCalls: impossible *)
+    -
+      simpl in *. omega.
+Qed.
+
+Close Scope nat.
 
 (* G2 is equal to last hybrid *)
 (* should be even easier than G1 since no GenUpdate_noV happening? *)
 Lemma G2_Gi_n_equal :
   Pr[G2_prg] == Pr[Gi_prg numCalls].
 Proof.
-  rewrite <- G2_oracle_eq.
+  (* rewrite G2_oracle_eq. *)
+  fcf_to_prhl_eq.
   unfold G2_prg'.
   unfold Gi_prg.
-  admit.
+  unfold GenUpdate_rb_oracle.
+  (* prove something about Oi_prg with numCalls *)
+  fcf_irr_r. 
+  { unfold Instantiate. fcf_well_formed.
+  unfold RndK. fcf_well_formed.
+  unfold RndV. fcf_well_formed. }
+  fcf_simp.
+  rename b into k.
+  rename b0 into v.
+  fcf_skip.
+  instantiate (1 := (fun x y => x = fst y)).
+  
+  - 
+    admit.
+  - simpl in *.
+    subst.
+    fcf_simp.
+    simpl.
+    fcf_reflexivity.
 Qed.
 
 (* ---------------------------------- *)
