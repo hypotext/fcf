@@ -565,57 +565,154 @@ Proof.
     fcf_reflexivity.
 Qed.
 
+(* ----- G2 is equal to last hybrid. Helper lemmas *)
+
 Open Scope nat.
 
-Lemma compMap_oracleMap_rb : forall (calls : list nat) (k v : Bvector eta) (n : nat),
+(* relate map with fold where GenUpdate_rb_oracle is easier to prove things about than Oi_prg numCalls *)
+Lemma compMap_compFold_rb_eq :
+  forall (calls : list nat) (acc : list (list (Bvector eta))) (u : unit),
+    comp_spec (fun x y => x = fst y)
+              (ls <-$ compMap (list_EqDec eqdbv) GenUpdate_rb calls; ret (acc ++ ls))
+              (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) unit_EqDec)
+                        (fun (acc0 : list (list (Bvector eta)) * unit) (d : nat) =>
+                           [rs, s]<-2 acc0;
+                         z <-$ GenUpdate_rb_oracle s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+                        (acc, u) calls).
+ Proof.
+   induction calls as [ | call calls']; intros.
+   * fcf_simp.
+     fcf_spec_ret.
+   * simpl.
+     fcf_inline_first.
+     fcf_skip.
+     { instantiate (1 := (fun x y => x = fst y)).
+     unfold GenUpdate_rb, GenUpdate_rb_oracle.
+     fcf_skip.
+     fcf_spec_ret. }
+     fcf_inline_first.
+     fcf_simp.
+     simpl in *. subst.
+
+     (* since fcf_rewrite_expr app_cons_eq doesn't work... *)
+     assert (comp_spec eq
+                       (a <-$ compMap (list_EqDec eqdbv) GenUpdate_rb calls';
+                        ls <-$ ret l :: a; ret acc ++ ls)
+                       (a <-$ compMap (list_EqDec eqdbv) GenUpdate_rb calls';
+                        ret ((acc ++ l :: nil) ++ a))). fcf_skip.
+     fcf_spec_ret.
+     apply app_cons_eq.
+
+     eapply comp_spec_eq_trans_l.
+     apply H1.
+     apply IHcalls'.
+Qed.
+
+ (* specific version *)
+Lemma compMap_compFold_rb_eq_specific :
+  forall (calls : list nat) (u : unit),
+    comp_spec (fun x y => x = fst y)
+              (compMap (list_EqDec eqdbv) GenUpdate_rb calls)
+              (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) unit_EqDec)
+                        (fun (acc0 : list (list (Bvector eta)) * unit) (d : nat) =>
+                           [rs, s]<-2 acc0;
+                         z <-$ GenUpdate_rb_oracle s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+                        (nil, u) calls). 
+Proof.
+  intros.
+  eapply comp_spec_eq_trans_l.
+  instantiate (1 := ((ls <-$ compMap (list_EqDec eqdbv) GenUpdate_rb calls; ret nil ++ ls))).
+  - fcf_ident_expand_l.
+    fcf_skip.
+    fcf_spec_ret.
+  - pose proof (compMap_compFold_rb_eq calls nil u).
+    auto.
+Qed.
+
+Lemma G2_oracle_eq :
+  Pr[G2_prg] == Pr[G2_prg'].
+Proof.
+  unfold G2_prg, G2_prg'.
+  unfold oracleMap.
+  fcf_to_prhl_eq.
+  fcf_skip.
+  apply compMap_compFold_rb_eq_specific.
+  fcf_simp.
+  simpl in *.
+  subst.
+  fcf_reflexivity.
+Qed.
+
+ (* extend the proof above to hold on (Oi_prg numCalls) using the invariant *)
+Lemma compMap_oracleMap_rb :
+  forall (calls : list nat) (k v : Bvector eta) (n : nat) (acc : list (list (Bvector eta))) (u : unit),
     (* nice invariant *)
     n + length calls = numCalls ->
-   comp_spec
-     (fun (x : list (list (Bvector eta)))
-        (y : list (list (Bvector eta)) * (nat * KV)) => x = fst y)
-     (compMap (list_EqDec eqdbv) GenUpdate_rb calls)
-     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-        (Oi_prg numCalls) (n, (k, v)) calls).
+        comp_spec
+     (fun (x : list (list (Bvector eta)) * unit)
+        (y : list (list (Bvector eta)) * (nat * KV)) => 
+      fst x = fst y)
+     (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) unit_EqDec)
+        (fun (acc : list (list (Bvector eta)) * unit) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ (bits <-$ Gen_loop_rb d; ret (bits, s));
+         [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) (acc, u) calls)
+     (compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg numCalls s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (acc, (n, (k, v))) calls).
+(* comp_spec *)
+(*   (fun (x : list (list (Bvector eta))) *)
+(*      (y : list (list (Bvector eta)) * (nat * KV)) => x = fst y) *)
+(* (ls <-$ compMap (list_EqDec eqdbv) GenUpdate_rb calls; ret acc ++ ls) *)
+(* (compFold *)
+(*    (pair_EqDec (list_EqDec (list_EqDec eqdbv)) *)
+(*       (pair_EqDec nat_EqDec eqDecState)) *)
+(*    (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) => *)
+(*     [rs, s]<-2 acc; *)
+(*     z <-$ Oi_prg numCalls s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) *)
+(*    (acc, (n, (k, v))) calls). *)
 Proof.
   induction calls as [ | call calls']; intros.
-  * unfold oracleMap.
-    simpl.
+  * simpl.
     fcf_spec_ret.
-  * unfold oracleMap.
-    simpl.
+  * simpl.
     fcf_inline_first.
-    fcf_simp.
     destruct (lt_dec n numCalls).
 
     (* n < numCalls *)
-    - fcf_skip.
-      admit.
-      { instantiate (1 := (fun x y => x = fst y)).
-      unfold GenUpdate_rb.
-      unfold GenUpdate_rb_intermediate.
-      fcf_skip.
-      admit.
-      fcf_spec_ret. }
-
-      { fcf_simp.
-        (* might need to do a reverse rewrite on the first *)
-        (* apply IHcalls'. *)
-        admit.
-      }
+    - unfold GenUpdate_rb_intermediate.
+      fcf_inline_first.
+      fcf_skip. admit.
+      fcf_simp.
+      simpl in *.
+      apply IHcalls'.
+      omega.
 
     (* n >= numCalls: impossible *)
-    -
-      simpl in *. omega.
+    - simpl in *. omega.
 Qed.
 
 Close Scope nat.
 
+(* pull it out? *)
+Lemma length_replicate : forall {A : Type} (n : nat) (x : A),
+    length (replicate n x) = n.
+Proof.
+  induction n; intros.
+  * reflexivity.
+  * simpl. rewrite IHn. reflexivity.
+Qed.  
+
 (* G2 is equal to last hybrid *)
-(* should be even easier than G1 since no GenUpdate_noV happening? *)
+(* should be even easier than G1 since no GenUpdate_noV happening? Wrong *)
 Lemma G2_Gi_n_equal :
   Pr[G2_prg] == Pr[Gi_prg numCalls].
 Proof.
-  (* rewrite G2_oracle_eq. *)
+  rewrite G2_oracle_eq.
   fcf_to_prhl_eq.
   unfold G2_prg'.
   unfold Gi_prg.
@@ -629,10 +726,15 @@ Proof.
   rename b into k.
   rename b0 into v.
   fcf_skip.
-  instantiate (1 := (fun x y => x = fst y)).
-  
-  - 
-    admit.
+  instantiate (1 := (fun x y => fst x = fst y)).
+
+  (* note: switching between windows is C-x o *)
+  - unfold oracleMap.
+    apply compMap_oracleMap_rb.
+    unfold maxCallsAndBlocks.
+    simpl.
+    apply length_replicate.
+
   - simpl in *.
     subst.
     fcf_simp.
