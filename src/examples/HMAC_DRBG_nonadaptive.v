@@ -76,6 +76,7 @@ Qed.
 Local Open Scope list_scope.
 Local Opaque evalDist.
 
+(* --- Begin my HMAC-DRBG spec --- *)
 Section PRG.
 
   (* note: the domain of the f is now Blist, not an abstract D
@@ -178,6 +179,9 @@ Definition GenUpdate_noV (state : KV) (n : nat) :
   [bits, v'] <-2 Gen_loop k v n;
   k' <- f k (to_list v' ++ zeroes);
   ret (bits, (k', v')).
+
+(* --- End my HMAC-DRBG spec --- *)
+(* well, this doesn't include the "sequence of executions" business, which happens in the games *)
 
 (* oracle 2: all PRFs replaced with random bits *)
 (* TODO: intermediate oracles, each with random functions *)
@@ -1019,6 +1023,7 @@ the adversary can know the initial v, but not the K
 Definition PRF_Advantage_Game i : Rat := 
   PRF_Advantage RndK ({0,1}^eta) f eqdbl eqdbv (PRF_Adversary i).
 
+Print PRF_Adversary.
 Print PRF_Advantage.
 Print PRF_G_A.
 Print PRF_G_B.
@@ -1038,7 +1043,6 @@ here, numCalls = 4
 PA 0: using given oracle for call 0
 GA: PRF PRF PRF PRF?
 GB:  RF PRF PRF PRF 
-PRF_Advantage 0 = 0
 
 PA 1: using given oracle for call 1
 GA: RB  PRF PRF PRF? 
@@ -1064,16 +1068,77 @@ PRF_Advantage_Game n = 0
 
 thus, forall i, PRF_Advantage_Game i <= PRF_Advantage_Game 0 *)
 
-(* these proofs will require dealing with OracleComps *)
+Open Scope nat.
+(* could generalize this further to hold for any oracles, instead of f_oracle and RndR_func *)
+Lemma Oi_numcalls_oracle_irrelevance : forall calls k v a (numCalls init : nat) acc tt,
+    init + length calls = numCalls ->
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV) * unit)
+        (y : list (list (Bvector eta)) * (nat * KV) *
+             list (Blist * Bvector eta)) => fst x = fst y)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' numCalls) 
+         (init, (k, v)) calls) unit unit_EqDec
+        (f_oracle f eqdbv a) tt)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' numCalls) 
+         (init, (k, v)) calls) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (RndR_func ({ 0 , 1 }^eta) eqdbl) acc).
+Proof.
+(* didn't i do a gnarly proof just like this one earlier?? oh but it wasn't about oraclecompmap_inner. see 'G2 = last hybrid' proof*)
+  induction calls as [ | call calls']; intros.
+  - simpl.
+    fcf_simp.
+    fcf_spec_ret.
+  - simpl in H.
+    simpl.
+    fcf_inline_first.
+    fcf_skip. admit. admit.
+    { instantiate (1 := (fun x y => fst x = fst y)).
+      destruct (lt_dec init (init + S (length calls'))).
+      * unfold GenUpdate_rb_intermediate_oc.
+        simpl.
+        fcf_inline_first.
+        fcf_skip.
+        admit. admit.
+        fcf_simp.
+        fcf_spec_ret.
+      * omega.
+    }
+    simpl in H2.
+    destruct b1.
+    simpl in *.
+    subst.
+    fcf_inline_first.
+    simpl.
+    fcf_inline_first.
+    fcf_simp.
+    simpl.
+    fcf_skip.
+    destruct b0.                (* prevents unification *)
+    apply IHcalls'.             (* lol *)
+    omega.
+
+    simpl in H3.
+    destruct b2.
+    simpl in *.
+    subst.
+    fcf_simp.
+    fcf_spec_ret.
+Qed.
+Close Scope nat.
+
 Lemma PRF_Advantage_0 : 
-    PRF_Advantage_Game numCalls = 0.
+    PRF_Advantage_Game numCalls == 0.
 Proof.
   intros. unfold PRF_Advantage_Game. unfold PRF_Advantage.
-
-  assert (distance_0_eq : forall G1 G2, | Pr[G1] - Pr[G2] | = 0 <-> Pr[G1] == Pr[G2]).
-  { intros. intuition. admit.
-    (* rewrite -> H. ?? *) admit. } (* TODO this is probably already proven *)
-
+  assert (distance_0_eq : forall r1 r2 : Rat, r1 == r2 -> | r1 - r2 | == 0).
+  { apply ratIdentityIndiscernables. }
   apply distance_0_eq. clear distance_0_eq.
   
   fcf_to_prhl_eq. (* TODO when should I *not* use this? *)
@@ -1084,7 +1149,7 @@ Proof.
   unfold PRF_G_A.
   unfold PRF_G_B.
 
-  fcf_irr_l. admit.
+  fcf_irr_l. unfold RndK. fcf_well_formed.
 
   simpl.
   fcf_inline_first.
@@ -1102,8 +1167,10 @@ Proof.
     (* do i need induction? are there theorems about oracleCompMap (Adam's version)? *)
     unfold Oi_oc'.
     unfold oracleCompMap_inner.
-
-    admit.
+    apply Oi_numcalls_oracle_irrelevance.
+    simpl.
+    unfold maxCallsAndBlocks.
+    apply length_replicate.
 
   * simpl.
     fcf_simp.
@@ -1120,23 +1187,91 @@ Proof.
     fcf_reflexivity.
 Qed.
 
+(* is there an equivalent lemma i can prove that doesn't involve a probability difference?
+i just need an upper bound...
+can i just say, there exists some i for which PRF_Advantage_Game i is >= all others?? by properties of rational numbers? otherwise, contradiction. i think i can't actually do this in coq. *)
+(* also is this lemma actually true?? *)
 Lemma PRF_Advantages_same : forall (i j : nat),
     i <> numCalls -> j <> numCalls ->
-    PRF_Advantage_Game i = PRF_Advantage_Game j.
+    PRF_Advantage_Game i == PRF_Advantage_Game j.
 Proof.
   intros i j i_neq j_neq.
   unfold PRF_Advantage_Game. unfold PRF_Advantage.
-  
-Admitted.
+  (* do i even need this lemma? maybe there's an easier way *)
+  (* i don't want to prove anything about differences in probability... *)
+  (* should i use identical until bad?? i'm not sure if such a bad event exists, since PRF is totally opaque *)
+(* split the absolute values the other way *)
+  (* proof by contradiction? *)
+  (* or i could prove a bunch of game equivalences on the first two and the last two, massaging them to look like each other (removing the extraneous RB and PRF), so then it would look like |a-b| == |a-b| *)
+  (* what I really want to prove is: 
+forall i, i <> numCalls -> 
+PRF_Advantage_Game i = PRF_Advantage (the normal one with just the PRF/RF difference) 
+
+(might have a special case for i=0) *)
+  (* also i should look at the gnarly lemma before this and make sure it's true *)
+  apply ratDistance_eqRat_compat.
+  - unfold PRF_G_A.
+    fcf_to_prhl_eq.
+    fcf_skip.
+    (* prove a different spec about PRF_Adversary i or j? *)
+    unfold PRF_Adversary.
+    simpl.
+    fcf_inline_first.
+    fcf_skip.
+    fcf_simp.
+    simpl.
+    fcf_inline_first.
+    fcf_skip_eq.
+    (* this is actually not true. this whole strategy is actually not true. *)
+    admit.
+  - unfold PRF_G_B.
+    (* probably the same proof *)
+    fcf_to_prhl_eq.
+    admit.
+Qed.
+
+(* Lemma PRF_Advantages_lte : forall (i : nat), exists (j : nat), *)
+(*     PRF_Advantage_Game i <= PRF_Advantage_Game j. *)
+(* Proof. *)
+(*   intros. *)
+(*   intuition. *)
 
 Lemma PRF_Advantages_lte : forall (i : nat),
     PRF_Advantage_Game i <= PRF_Advantage_Game 0.
 Proof.
   intros.
+  (* unfold PRF_Advantage_Game. *)
   (* TODO finish this using above two lemmas *)
-  (* destruct (beq_nat i numCalls). *)
-
-Admitted.
+  (* forgot how to do this more elegantly... *)
+  assert (decide : i = numCalls \/ i <> numCalls). { omega. }
+  destruct decide as [ i_eq | i_neq ].
+  - subst.
+    rewrite PRF_Advantage_0.
+    unfold PRF_Advantage_Game.
+    unfold PRF_Advantage.
+    
+    assert (absval_lowerbound : forall a b, 0 <= |a - b|).
+    { intros.
+      SearchAbout ratDistance.
+      unfold ratDistance.
+      SearchAbout ratSubtract.
+      (* Locate "| _ - _ |". *)
+      (* ok, this should be true for absolute value... *)
+      admit.
+    }
+    apply absval_lowerbound.
+  -
+    assert (numCalls_neq_0 : 0%nat <> numCalls). omega.
+    pose proof (PRF_Advantages_same i_neq numCalls_neq_0).
+    rewrite H.
+    SearchAbout bleRat.
+    Print bleRat.
+    unfold "<=".
+    (* unfold bleRat. *)
+    (* unfold ratCD. *)
+    (* x <= x should be true... *)
+    admit.
+Qed.
 
 (* base case theorem (adam's) TODO *)
 
@@ -2563,6 +2698,7 @@ Qed.
 (* ------------------------------- *)
 
 (* Backtracking resistance, using indistinguishability proof *)
+(* this proof is invalid, see thesis for revised proof *)
 
 (* Adversary, split into two *)
 Parameter A1 : Comp nat.        (* currently unused *)
