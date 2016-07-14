@@ -862,6 +862,29 @@ Definition Oi_oc' (i : nat) (sn : nat * KV) (n : nat)
   $ ret (bits, (S callsSoFar, state')).
 
 (* oracleCompMap_inner repeatedly applies the given oracle on the list of inputs (given an initial oracle state), collecting the outputs and final state *)
+(* Fixpoint oracleCompMap_inner_acc {D R OracleIn OracleOut : Set}  *)
+(*            (e1 : EqDec ((list R) * (nat * KV)))  *)
+(*            (e2 : EqDec (list R)) *)
+(*            (* this is an oracleComp, not an oracle *) *)
+(*            (* the oracle has type (D * R) -> D -> Comp (R, (D * R)) *) *)
+(*            (oracleComp : (nat * KV) -> D -> OracleComp OracleIn OracleOut (R * (nat * KV)))  *)
+(*            (state : (nat * KV)) *)
+(*            (init : list R) *)
+(*            (inputs : list D) : OracleComp OracleIn OracleOut (list R * (nat * KV)) := *)
+(*   match inputs with *)
+(*   | nil => $ ret (init, state) *)
+(*   | input :: inputs' =>  *)
+(*     [res, state'] <--$2 oracleComp state input; (* doesn't use the init *) *)
+(*     [resList, state''] <--$2 oracleCompMap_inner_acc _ _ oracleComp state' init inputs'; *)
+(*     $ ret (init ++ res :: resList, state'') *)
+(*   end. *)
+
+(* Print compFold. *)
+(* Print oracleMap. *)
+(* Print oc_compMap. *)
+(* compare to oc_compMap *)
+(* maybe i don't even need to rewrite oracleCompMap_inner. what theorem do i really want? TODO *)
+
 Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set} 
            (e1 : EqDec ((list R) * (nat * KV))) 
            (e2 : EqDec (list R))
@@ -874,13 +897,9 @@ Fixpoint oracleCompMap_inner {D R OracleIn OracleOut : Set}
   | nil => $ ret (nil, state)
   | input :: inputs' => 
     [res, state'] <--$2 oracleComp state input;
-      (* TODO: i want to segment after one of these calls. it passes the state onto the recursive call to use, then returns the result of that call -- but that state is the (nat * KV) pair. what about the input/output list? and what type do i want? 
-but the type here is oraclecomp so by definition i can't access the oracle state... *)
     [resList, state''] <--$2 oracleCompMap_inner _ _ oracleComp state' inputs';
-    (* wait, the results aren't in the right order -- need resList ++ [res] *)
     $ ret (res :: resList, state'')
   end.
-(* compare to oc_compMap *)
 
 (* hides the oracle state from the caller. instantates the initial state and does not return the end state. need this, otherwise the PRF adversary has to generate the key and initial value (and can see it, which it shouldn't be able to) *)
 Definition oracleCompMap_outer {D R OracleIn OracleOut : Set} 
@@ -1737,10 +1756,6 @@ Proof.
     (* unfold oracleCompMap_inner. *)
     (* unfold compFold. *)
 
-    SearchAbout compFold.
-    (* compFold_app -- why is it stated in terms of evalDist? *)
-    pose proof compFold_app.
-
     (* folding on an acc that appends two lists = fold on the first list, use result as acc in fold on second list *)
     (* TODO pull this out *)
     Lemma fold_app_2 : forall (A0 B : Set) (eqd : EqDec A0) (c : A0 -> B -> Comp A0)
@@ -1755,15 +1770,15 @@ Proof.
         fcf_skip_eq.
     Qed.
 
-    (* eapply comp_spec_eq_trans_r. *)
-    (* eapply IHTAIL. *)
     eapply comp_spec_eq_trans_l.
     apply fold_app_2. admit. admit.
+
     (* simplify. *)
     (* should i simplify here or save it for ind hyp? *)
 
+    Print oracleCompMap_inner. (* it doesn't use an init, and the oracle state is tt), so the ++ could just be separated? oh we also have to consider (Oi_oc' i) and calls.... yea if the oracle is PRF then everything is stateless? no doesn't the (k,v) change for the PRF (after RB RB PRF PRF...) then can we use that (the (k,v)) as the init? this might be independent of `calls` too. *)
+
     (* similar app theorem about oracleCompMap_inner *)
-    Print oracleCompMap_inner.
  (* oracleCompMap_inner (D R OracleIn OracleOut : Set) *)
  (*                        (e1 : EqDec (list R * (nat * KV))) *)
  (*                        (e2 : EqDec (list R)) *)
@@ -1791,28 +1806,60 @@ Proof.
                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
                      (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
                                                                (f_oracle f eqdbv k) tt)
-                 (init' <-$ (oracleCompMap_inner
+                 ([res1, _] <-$2 (oracleCompMap_inner
                      (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                  (pair_EqDec nat_EqDec eqDecState))
                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-                     (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
+                     (calls, (k, v)) ls1) unit unit_EqDec
                                                                (f_oracle f eqdbv k) tt;
-                   (oracleCompMap_inner
-                     (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-                                 (pair_EqDec nat_EqDec eqDecState))
-                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-                     (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
-                                                               (f_oracle f eqdbv k) tt).
+                  [bits1, state1] <-2 res1;
+                  [res2, _] <-$2 (oracleCompMap_inner
+                                     (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                                 (pair_EqDec nat_EqDec eqDecState))
+                                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                                     state1 ls2) unit unit_EqDec
+                             (f_oracle f eqdbv k) tt;
+                  [bits2, state2] <-2 res2;
+                  ret (bits1 ++ bits2, state2, tt) ).
     Proof.
       intros.
-
+    (* TODO prove this, but see if we can finish this proof using it + the ind hyp first *)
     Admitted.
 
-    unfold oracleCompMap_inner.
+    apply comp_spec_symm.
+    eapply comp_spec_eq_trans_l.
+    apply oracleCompMap_fold_app.
+    apply comp_spec_symm.
 
-Admitted.
+(* what do i do with each of the separate ones ?_? *)
+(* the first ones should be ind hyp since they're list *)
+(* the second ones should be dischargeable since they're 1 elem *)
+    Opaque Oi_prg.
+    simpl.
+    fcf_skip. admit. admit.
+    - apply IHrev_l.            (* !!! *)
+      omega.
+    - simpl in *.
+      subst.
+      simplify.
+      fcf_skip.
+      { instantiate (1 := (fun x y => fst x = fst3 y)).
+        (* TODO split out into separate lemma *)
+        (* probably need casework on i & calls to discharge the 1 call *)
+        (* TODO remove `calls > 0`? *)
+        admit.
+      }
+      { simpl in *.
+        destruct b.
+        destruct p0.
+        simpl in *.
+        subst.
+        simplify.
+        fcf_spec_ret.
+Qed.
   
 (* need to stitch on the first call and generalize to Gi_normal_rb_eq *)
+(* TODO might not need this *)
 Theorem Gi_normal_prf_eq_compspec :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
     (* i <= length l -> *)
