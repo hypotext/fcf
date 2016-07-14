@@ -1493,6 +1493,7 @@ Proof.
   fcf_spec_ret.
 Qed.
 
+
 (* easier version: hardcoded l and i *)
 (* case i = 2, n = 3 -- pretty general *)
 Theorem Gi_normal_prf_eq_compspec_ez : forall (k1 k2 v : Bvector eta),
@@ -1622,6 +1623,7 @@ Proof.
     (* TODO: because # calls = 2 and i = 0, the oracle is never used again, so it doesn't matter that the keys are different. induct on TAIL *)
     (* TODO: add back the first call *)
     (* TODO split this out / generalize it *)
+    (* i think oracle irrelevance might help here? *)
     admit.
 
     simplify.
@@ -1661,6 +1663,7 @@ Theorem Gi_normal_prf_eq_compspec_imax :
 Proof.
 
 Admitted.
+(* The two lemmas above are for practice purposes; don't need to prove them *)
 
 (* induction on reverse of list WITHOUT first element, as above, but with general i *)
 (* do I still need to do this init stuff? TODO currently unused*)
@@ -1686,12 +1689,11 @@ Proof.
   remember (rev l) as rev_l.
   rewrite <- (rev_involutive _).
   rewrite <- Heqrev_l.
-  revert i k1 v calls  H.
+  revert i k1 v calls H.
+  clear Heqrev_l.               (* TODO *)
   induction rev_l; intros.
 (* do i need 'rev exists'? or a hypothesis about length l? *)
-
   (* why are there three subgoals?? *)
-
   (* i is opaque here *)
   (* TODO consider alternate approaches: 1. combining the two specific-case lemmas 2. inducting on the length of the list *)
   * 
@@ -1702,15 +1704,20 @@ Proof.
     fcf_spec_ret.
 
   *
+    (* it's on rev (a :: rev_l) and inductive hypothesis applies to rev rev_l *)
     simpl.
+    Check (rev rev_l ++ a :: nil). (* : list nat *)
 
-    assert (l_eq : l = rev rev_l ++ a :: nil).
-    { assert (apply_rev : rev (a :: rev_l) = rev (rev l)).
-      rewrite Heqrev_l.
-      reflexivity.
-      simpl in apply_rev.
-      rewrite rev_involutive in apply_rev.
-      auto. } 
+    (* what's going on? Heqrev_l is inconsistent with the hypothesis in IHrev_l. *)
+    (* how/when do we use IHrev_l? *)
+    (* the theorem that i proved with lennart was the first, specific case. what's the difficulty here? *)
+    (* assert (l_eq : l = rev rev_l ++ a :: nil). *)
+    (* { assert (apply_rev : rev (a :: rev_l) = rev (rev l)). *)
+    (*   rewrite Heqrev_l. *)
+    (*   reflexivity. *)
+    (*   simpl in apply_rev. *)
+    (*   rewrite rev_involutive in apply_rev. *)
+    (*   auto. }  *)
 
     (* rewrite <- l_eq. *)
     (* this just undoes the work *)
@@ -1722,40 +1729,86 @@ Proof.
     (* ok, now how to reason about i? *)
     (* need to reason about fold (l ++ _) -- might already exist *)
     (* and i need to do a similar fold (l ++ _) proof for oracleCompMap_inner *)
+    Print oracleMap.
+    Print compFold.
+    (* we're folding over the list `rev l ++ a :: nil` *)
+    
     unfold oracleMap.
-    (* SearchAbout compFold. *)
-    (* compFold_app -- why is it stated in terms of evalDist? *)
-    specialize compFold_app; intros.
+    (* unfold oracleCompMap_inner. *)
+    (* unfold compFold. *)
 
+    SearchAbout compFold.
+    (* compFold_app -- why is it stated in terms of evalDist? *)
+    pose proof compFold_app.
+
+    (* folding on an acc that appends two lists = fold on the first list, use result as acc in fold on second list *)
+    (* TODO pull this out *)
     Lemma fold_app_2 : forall (A0 B : Set) (eqd : EqDec A0) (c : A0 -> B -> Comp A0)
          (ls1 ls2 : list B) (init0 x : A0) (res : A0),
        comp_spec eq (compFold eqd c init0 (ls1 ++ ls2))
                  (init' <-$ compFold eqd c init0 ls1; compFold eqd c init' ls2).
     Proof.
       intros.
-      fcf_to_probability. admit. admit.
-      
-      apply compFold_app.
+      revert c ls2 init0 x res; induction ls1 as [| x1 xs1]; intros.
+      - simpl. simplify. fcf_reflexivity.
+      - simplify.
+        fcf_skip_eq.
+    Qed.
 
-      instantiate (1 := res).
+    (* eapply comp_spec_eq_trans_r. *)
+    (* eapply IHTAIL. *)
+    eapply comp_spec_eq_trans_l.
+    apply fold_app_2. admit. admit.
+    (* simplify. *)
+    (* should i simplify here or save it for ind hyp? *)
+
+    (* similar app theorem about oracleCompMap_inner *)
+    Print oracleCompMap_inner.
+ (* oracleCompMap_inner (D R OracleIn OracleOut : Set) *)
+ (*                        (e1 : EqDec (list R * (nat * KV))) *)
+ (*                        (e2 : EqDec (list R)) *)
+ (*                        (oracleComp : nat * KV -> *)
+ (*                                      D -> *)
+ (*                                      OracleComp OracleIn OracleOut *)
+ (*                                        (R * (nat * KV)))  *)
+ (*                        (state : nat * KV) (inputs : list D) {struct inputs} : *)
+ (*  OracleComp OracleIn OracleOut (list R * (nat * KV)) := *)
+
+    (* TODO pull this out *)
+    Lemma oracleCompMap_fold_app :
+      forall
+         (ls1 ls2 : list nat) (calls i : nat) (k v : Bvector eta) (tt : unit),
+       comp_spec eq
+                 (* (compFold eqd c init0 (ls1 ++ ls2)) *)
+                 (* (init' <-$ compFold eqd c init0 ls1; compFold eqd c init' ls2). *)
+                 (* tt is the state for the oracle (none) *)
+                 (* calls is the actual acc? *)
+                 (* ugh this doesn't take an acc does it. it starts from nil *)
+                 (* if i change the type what else will it break? *)
+                 ((oracleCompMap_inner
+                     (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                 (pair_EqDec nat_EqDec eqDecState))
+                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                     (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
+                                                               (f_oracle f eqdbv k) tt)
+                 (init' <-$ (oracleCompMap_inner
+                     (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                 (pair_EqDec nat_EqDec eqDecState))
+                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                     (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
+                                                               (f_oracle f eqdbv k) tt;
+                   (oracleCompMap_inner
+                     (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                 (pair_EqDec nat_EqDec eqDecState))
+                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                     (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
+                                                               (f_oracle f eqdbv k) tt).
+    Proof.
       intros.
-      simpl in H.
-      (* SearchAbout ((_ = _ <-> _ = _) -> _ = _). *)
-      (* SearchAbout (_ <-> _). *)
-      destruct H.
-      rewrite H.
-      rewrite H0.
-      reflexivity.
 
-      Admitted.
+    Admitted.
 
-    (* apply fold_app_2. *)
-    (* need to use that comp_spec replacement theorem we used before *)
-
-    (* also need to prove a similar app theorem about oracleCompMap_inner *)
-    
     unfold oracleCompMap_inner.
-
 
 Admitted.
   
@@ -1768,6 +1821,7 @@ Theorem Gi_normal_prf_eq_compspec :
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
       fst x = fst3 y)
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+                (* note that here calls is hardcoded to 0, whereas above it's generalized and we have the hypothesis `calls > 0` *)
         (Oi_prg i) (O, (k1, v)) l)
      ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
@@ -1798,13 +1852,16 @@ Proof.
   intros.
   unfold oracleMap.
   unfold oracleCompMap_inner.
-  unfold Oi_prg.
+  
+  (* unfold Oi_prg. *)
   (* also thm about compFold vs. oracleCompMap_inner? (maybe adam's version has useful theorems proven about it? what's its name?) *)
-  unfold Oi_oc'.
+  (* unfold Oi_oc'. *)
 
 (* should destruct l? and i? and callsSoFar ranges from 0 to (length l) - 1? *)
 
 (* maybe just prove stuff about behavior of the Oi's? *)
+
+(* TODO prove this using the previous lemmas *)
 
 Admitted.
 
@@ -1818,7 +1875,7 @@ Close Scope nat.
 (* TODO: start proving this lemma first? how do i prove it?
 need to reason that passing in PRF oracle to GenUpdate_oc is equivalent to just using GenUpdate (there's also a GenUpdate_PRF_oc) *)
 Lemma Gi_normal_prf_eq : forall (i : nat),
-    Pr[Gi_prg i] == Pr[Gi_prf i].
+  Pr[Gi_prg i] == Pr[Gi_prf i].
 Proof.
   intros.
   unfold Gi_prg.
@@ -1832,7 +1889,7 @@ Proof.
   fcf_inline_first.
 
   remember x as k.
-  fcf_irr_r. admit.             (* why is this here? *)
+  fcf_irr_r. unfold RndK. fcf_well_formed. 
   fcf_inline_first.
   comp_skip.
   comp_simp.
@@ -1840,7 +1897,6 @@ Proof.
   (* the z stuff simplifies into "A bits" *)
   (* comp_spec on the oracleMap and oracleCompMap_inner? *)
   simpl.
-  fcf_inline_first.
   fcf_inline_first.
   fcf_to_prhl_eq.
   fcf_skip.
