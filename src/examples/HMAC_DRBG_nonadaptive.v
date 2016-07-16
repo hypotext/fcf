@@ -1712,7 +1712,7 @@ Print oracleCompMap_inner. (* it doesn't use an init, and the oracle state is tt
 
 Lemma oracleCompMap_fold_app :
   forall
-    (ls1 ls2 : list nat) (calls i : nat) (k v : Bvector eta) (tt : unit),
+    (ls1 ls2 : list nat) (calls i : nat) (k1 k2 v : Bvector eta) (tt : unit),
     comp_spec eq
               (* (compFold eqd c init0 (ls1 ++ ls2)) *)
               (* (init' <-$ compFold eqd c init0 ls1; compFold eqd c init' ls2). *)
@@ -1724,21 +1724,21 @@ Lemma oracleCompMap_fold_app :
                   (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                               (pair_EqDec nat_EqDec eqDecState))
                   (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-                  (calls, (k, v)) (ls1 ++ ls2)) unit unit_EqDec
-                                                (f_oracle f eqdbv k) tt)
+                  (calls, (k2, v)) (ls1 ++ ls2)) unit unit_EqDec
+                                                (f_oracle f eqdbv k1) tt)
               ([res1, _] <-$2 (oracleCompMap_inner
                                  (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                              (pair_EqDec nat_EqDec eqDecState))
                                  (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-                                 (calls, (k, v)) ls1) unit unit_EqDec
-                         (f_oracle f eqdbv k) tt;
+                                 (calls, (k2, v)) ls1) unit unit_EqDec
+                         (f_oracle f eqdbv k1) tt;
                [bits1, state1] <-2 res1;
                [res2, _] <-$2 (oracleCompMap_inner
                                  (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                              (pair_EqDec nat_EqDec eqDecState))
                                  (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
                                  state1 ls2) unit unit_EqDec
-                         (f_oracle f eqdbv k) tt;
+                         (f_oracle f eqdbv k1) tt;
                [bits2, state2] <-2 res2;
                ret (bits1 ++ bits2, state2, tt) ).
 Proof.
@@ -1766,10 +1766,10 @@ Admitted.
 (* induction on reverse of list WITHOUT first element, as above, but with general i *)
 (* do I still need to do this init stuff? TODO currently unused*)
 (* possible that this could be more general -- not just fst = fst3, but first two = first two of the other one. might need it to prove the theorem too *)
-Theorem Gi_normal_prf_eq_compspec_tail :
-  forall (l : list nat) (i : nat) (k1 v : Bvector eta) (calls : nat),
+Theorem Gi_normal_prf_eq_compspec :
+  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
     (* i <= length l -> *)
-    calls > 0 ->
+    (* calls > 0 -> *)
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
@@ -1780,14 +1780,14 @@ Theorem Gi_normal_prf_eq_compspec_tail :
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k1, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+         (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
         (f_oracle f eqdbv k1) tt).
 Proof.
   intros.
   remember (rev l) as rev_l.
   rewrite <- (rev_involutive _).
   rewrite <- Heqrev_l.
-  revert i k1 v calls H.
+  revert i k1 v calls.
   clear Heqrev_l.               (* TODO *)
   induction rev_l; intros.
 (* do i need 'rev exists'? or a hypothesis about length l? *)
@@ -1843,8 +1843,8 @@ Proof.
     Opaque Oi_prg.
     (* simpl. *)
     fcf_skip. admit. admit.
-    - apply IHrev_l.            (* !!! *)
-      omega.
+    - unfold oracleMap in *.
+      apply IHrev_l.            (* !!! *)
     - simpl in *.
       subst.
       simplify.
@@ -1868,63 +1868,8 @@ Proof.
         fcf_spec_ret.
       }
 Qed.
-  
-(* need to stitch on the first call and generalize to Gi_normal_rb_eq *)
-(* TODO might not need this *)
-Theorem Gi_normal_prf_eq_compspec :
-  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
-    (* i <= length l -> *)
-   comp_spec
-     (fun (x : list (list (Bvector eta)) * (nat * KV))
-        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-      fst x = fst3 y)
-     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-                (* note that here calls is hardcoded to 0, whereas above it's generalized and we have the hypothesis `calls > 0` *)
-        (Oi_prg i) (O, (k1, v)) l)
-     ((oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (O, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
-        (f_oracle f eqdbv k1) tt).
-
-(* maybe i need to generalize the O in the initial state first? then will it be inductive? also, it is true? i is hardcoded (should it be destructed?) and O is the starting value of callsSoFar *)
-(* on paper: 
-- inputs equal on callsSoFar < i, callsSoFar = i, and callsSoFar > i
- (inputs -- do you mean the bits output?)
-  (and each depends on previous's inputs being equal)
-- theorem about splitting on i and recombining the inputs?
-- seems like a lot of work, but this kind of proof shows up a lot and this could be re-used
- *)
-(* first try to prove for small cases:
-- RB only oracleMap == RB oracleCompMap (i = numCalls)
-- PRF only oracleMap == PRF oracleCompMap (i = O)
-^ should be doable by induction
-
-but will this technique generalize to O < i < numCalls?
-that's not inductive.
-induct on i or on numCalls? what about the blocks for a call?
-also, maybe i should back up and see if i can eliminate this theorem?
- *)
-Proof.
-  intros.
-  unfold oracleMap.
-  unfold oracleCompMap_inner.
-  
-  (* unfold Oi_prg. *)
-  (* also thm about compFold vs. oracleCompMap_inner? (maybe adam's version has useful theorems proven about it? what's its name?) *)
-  (* unfold Oi_oc'. *)
-
-(* should destruct l? and i? and callsSoFar ranges from 0 to (length l) - 1? *)
-
-(* maybe just prove stuff about behavior of the Oi's? *)
-
-(* TODO prove this using the previous lemmas *)
-
-Admitted.
-
 Close Scope nat.
-(* TODO make sure this is true, some important theorems depend on it *)
+
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
 (* Gi_prg 0: PRF PRF PRF PRF
    Gi_prf 0: PRF PRF PRF PRF
@@ -2015,6 +1960,7 @@ Gi_rb 0 : RB PRF PRF...
 (call number 0 uses the RB oracle) -- equivalence, no replacing happening here *)
 (* might have misnumbered something here? *)
 (* using random bits as the oracle for the ith call = the (i+1)th hybrid *)
+Transparent Oi_prg.
 Lemma Gi_normal_rb_eq : forall (i : nat),
     Pr[Gi_prg (S i)] == Pr[Gi_rb i].
 Proof.
