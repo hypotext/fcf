@@ -1338,6 +1338,18 @@ Definition fst3 {A B C : Type} (abc : A * B * C) : A :=
   let (a, b) := ab in
   a.
 
+(* definition of equivalence relating oracleMap/oracleCompMap computations *)
+Definition outputAndKVeq (x1 : list (list (Bvector eta)) * (nat * KV))
+        (x2 : list (list (Bvector eta)) * (nat * KV) * unit) :=
+  let (bits1, state1) := x1 in
+  let (_, kv1) := state1 in
+
+  let (res2, _) := x2 in
+  let (bits2, state2) := res2 in
+  let (_, kv2) := state2 in
+
+  bits1 = bits2 /\ kv1 = kv2.   (* k and v? or k only? *)
+
 Open Scope nat.
 
 Ltac simplify :=
@@ -1770,10 +1782,12 @@ Theorem Gi_normal_prf_eq_compspec :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
     (* i <= length l -> *)
     (* calls > 0 -> *)
+    length l > 0 ->
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-      fst x = fst3 y)
+      outputAndKVeq x y)        (* formerly fst x = fst3 y *)
+
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg i) (calls, (k1, v)) l)
      ((oracleCompMap_inner
@@ -1788,20 +1802,17 @@ Proof.
   rewrite <- (rev_involutive _).
   rewrite <- Heqrev_l.
   revert i k1 v calls.
-  clear Heqrev_l.               (* TODO *)
-  induction rev_l; intros.
-(* do i need 'rev exists'? or a hypothesis about length l? *)
-  (* why are there three subgoals?? *)
-  (* i is opaque here *)
-  (* TODO consider alternate approaches: 1. combining the two specific-case lemmas 2. inducting on the length of the list *)
-  * 
-    simpl.
-    unfold oracleMap.
-    simpl.
-    simplify.
-    fcf_spec_ret.
 
-  *
+  assert (rev_len : length rev_l > 0).
+  { subst. rewrite rev_length. auto. }
+
+  clear Heqrev_l H.               (* TODO *)
+  induction rev_l; intros.
+
+  * simpl in *.
+    omega. 
+  * Admitted.
+(*
     (* it's on rev (a :: rev_l) and inductive hypothesis applies to rev rev_l *)
     simpl.
     Check (rev rev_l ++ a :: nil). (* : list nat *)
@@ -1867,7 +1878,8 @@ Proof.
         simplify.
         fcf_spec_ret.
       }
-Qed.
+Qed. *)
+(* can I get rid of the different-keys generality??? *)
 Close Scope nat.
 
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
@@ -1885,38 +1897,49 @@ Proof.
   unfold Gi_prf.
   unfold PRF_Adversary.
 
+  fcf_to_prhl_eq.
+  unfold Instantiate.
+  (* TODO: can't figure out how to resolve "l > 0" problem above, commented it out and now am trying to figure out if the keys HAVE to be different *)
+  (* first k is generated on the right for f; on the left, generates (k,v) for oracle use (which is actually used if it's all PRF or overridden if it starts with at least one RB)... so, should I have skipped here?
+    i feel like what we have is right. the keys are the same b/t f and oracleMap
+and i can't swap lines because the second depends on it
+    wait, so what was the technical reason it wouldn't unify in the previous lemma? if no hyp about list len, then if the 2 keys are different, it's false in the 'list = nil' case.
+*)
+  unfold oracleCompMap_outer.
   fcf_inline_first.
   comp_skip.
   Opaque oracleMap.
   simpl.
   fcf_inline_first.
 
-  remember x as k.
-  fcf_irr_r. unfold RndK. fcf_well_formed. 
+  (* remember x as k. *)
+  (* fcf_irr_l. unfold RndV. fcf_well_formed.  *)
+  unfold Instantiate.
+  fcf_inline_first.
+  fcf_irr_r. unfold RndK. fcf_well_formed.
   fcf_inline_first.
   comp_skip.
-  comp_simp.
-
-  (* the z stuff simplifies into "A bits" *)
-  (* comp_spec on the oracleMap and oracleCompMap_inner? *)
+  fcf_simp.
   simpl.
   fcf_inline_first.
-  fcf_to_prhl_eq.
   fcf_skip.
 
-  instantiate (1 := fun x y => fst x = fst3 y).
+  instantiate (1 := fun x y => outputAndKVeq x y).
   -
     Transparent oracleMap.
     apply Gi_normal_prf_eq_compspec.
+    unfold maxCallsAndBlocks.
+    rewrite length_replicate.
+    omega.
 
   - fcf_simp.
-    simpl in H4.
+    simpl in *.
+    destruct p.
+    destruct H6.
     subst.
-    simpl.
     fcf_inline_first.
     fcf_simp.
     fcf_inline_first.
-    destruct u.
     fcf_ident_expand_l.         (* lol *)
     fcf_skip.
     fcf_simp.
