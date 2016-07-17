@@ -1764,16 +1764,21 @@ Admitted.
       fst x = fst3 y) (Oi_prg i (a0, b0) a)
      ((Oi_oc' i p a) unit unit_EqDec (f_oracle f eqdbv k1) tt) *)
 
-(* Lemma Oi_prg_Oi_oc_eq : forall (i n a : nat) (k1 : Bvector eta) (kv1 kv2 : KV) (tt : unit), *)
-(*    comp_spec *)
-(*      (fun (x : list (Bvector eta) * (nat * KV)) *)
-(*         (y : list (Bvector eta) * (nat * KV) * unit) =>  *)
-(*       fst x = fst3 y) (Oi_prg i (n, kv1) a) *)
-(*      ((Oi_oc' i kv2 a) unit unit_EqDec (f_oracle f eqdbv k1) tt). *)
-(* Proof. *)
-(*   intros. *)
+(* problem: if they start with different keys, they may or may not be equal depending on what i, i', and n are? or maybe it doesn't matter??
+wait but we need f's k1 to be the same as Oi_prg's k???
 
-(* Admitted. *)
+if we're doing PRF *)
+Lemma Oi_prg_Oi_oc_eq : forall (i callsSoFar callsSoFar' a : nat)
+                               (k1 : Bvector eta) (kv1 kv2 : KV) (tt : unit),
+   comp_spec
+     (fun (x : list (Bvector eta) * (nat * KV))
+        (y : list (Bvector eta) * (nat * KV) * unit) =>
+      fst x = fst3 y) (Oi_prg i (callsSoFar, kv1) a)
+     ((Oi_oc' i (callsSoFar', kv2) a) unit unit_EqDec (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+
+Admitted.
 
 (* induction on reverse of list WITHOUT first element, as above, but with general i *)
 (* do I still need to do this init stuff? TODO currently unused*)
@@ -1782,15 +1787,17 @@ Theorem Gi_normal_prf_eq_compspec :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
     (* i <= length l -> *)
     (* calls > 0 -> *)
-    length l > 0 ->
+    (* length l > 0 -> *)
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-      outputAndKVeq x y)        (* formerly fst x = fst3 y *)
+       fst x = fst3 y)
+     (* formerly fst x = fst3 y vs. outputAndKVeq x y*)
 
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg i) (calls, (k1, v)) l)
      ((oracleCompMap_inner
+
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
@@ -1803,16 +1810,24 @@ Proof.
   rewrite <- Heqrev_l.
   revert i k1 v calls.
 
-  assert (rev_len : length rev_l > 0).
-  { subst. rewrite rev_length. auto. }
+  (* assert (rev_len : length rev_l > 0). *)
+  (* { subst. rewrite rev_length. auto. } *)
 
-  clear Heqrev_l H.               (* TODO *)
+  clear Heqrev_l (* H *).               (* TODO *)
   induction rev_l; intros.
 
   * simpl in *.
-    omega. 
-  * Admitted.
-(*
+    unfold oracleMap.
+    simpl.
+    fcf_simp.
+    fcf_spec_ret.
+    (* rollback at several different levels... *)
+    (* it isn't true *)
+    (* Oi_prg_Oi_oc_eq isn't true if the keys are different? *)
+    (* omega.  *)
+  *
+(* Admitted. *)
+
     (* it's on rev (a :: rev_l) and inductive hypothesis applies to rev rev_l *)
     simpl.
     Check (rev rev_l ++ a :: nil). (* : list nat *)
@@ -1864,10 +1879,21 @@ Proof.
         simpl in *.
         destruct p.
         rename k into kv.
+        destruct kv.
+        (* Goal: *)
+        (*    comp_spec
+     (fun (x : list (Bvector eta) * (nat * KV))
+        (y : list (Bvector eta) * (nat * KV) * unit) => 
+      fst x = fst3 y) (Oi_prg i (a0, b0) a)
+     ((Oi_oc' i (n, kv) a) unit unit_EqDec (f_oracle f eqdbv k1) tt) *)
         (* but should p = (a0,b0)? *)
+        (* should I have gotten oracleCompMap_fold_app to do it? or the IH? *)
+        (* apparently it goes back to the fact that the IH's postcondition is fst x = fst3 y, meaning that it doesn't prove the outputted keys are equal, which i need for the two sequenced lines afterward... i've gone in a big circle *)
         (* apply Oi_prg_Oi_oc_eq. *)
         (* probably need casework on i & calls to discharge the 1 call *)
-        (* TODO remove `calls > 0`? *)
+
+        (* new strategy: DESTRUCT the list (l=nil is a contradiction), then clear the hyp and INDUCT on the reverse of the list (wow). then it's true for base case of 1 elem given the keys are same (which is precisely Oi_prg_Oi_oc_eq) and given that, it's true for additional calls *)
+
         admit.
       }
       { simpl in *.
@@ -1878,7 +1904,7 @@ Proof.
         simplify.
         fcf_spec_ret.
       }
-Qed. *)
+Qed. 
 (* can I get rid of the different-keys generality??? *)
 Close Scope nat.
 
