@@ -1768,109 +1768,27 @@ Admitted.
 wait but we need f's k1 to be the same as Oi_prg's k???
 
 if we're doing PRF *)
-Lemma Oi_prg_Oi_oc_eq : forall (i callsSoFar callsSoFar' a : nat)
-                               (k1 : Bvector eta) (kv1 kv2 : KV) (tt : unit),
+(* what are i, calls, a y... *)
+Lemma Oi_prg_Oi_oc_eq : forall (i calls numBlocks : nat)
+                               (k1 k2 v : Bvector eta) (tt : unit),
    comp_spec
      (fun (x : list (Bvector eta) * (nat * KV))
-        (y : list (Bvector eta) * (nat * KV) * unit) =>
-      fst x = fst3 y) (Oi_prg i (callsSoFar, kv1) a)
-     ((Oi_oc' i (callsSoFar', kv2) a) unit unit_EqDec (f_oracle f eqdbv k1) tt).
-Proof.
-  intros.
-
-Admitted.
-
-(* attempt a more specific version of the thm below in hopes of proving it *)
-Theorem Gi_normal_prf_eq_compspec_maxCallsAndBlocks :
-  forall (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
-   comp_spec
-     (fun (x : list (list (Bvector eta)) * (nat * KV))
-        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-       outputAndKVeq x y)
-
-     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-        (Oi_prg i) (calls, (k1, v)) maxCallsAndBlocks)
-     ((oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k2, v)) maxCallsAndBlocks) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+        (y : list (Bvector eta) * (nat * KV) * unit) => 
+      outputAndKVeq x y) (Oi_prg i (calls, (k1, v)) numBlocks)
+     ((Oi_oc' i (calls, (k2, v)) numBlocks) unit unit_EqDec
         (f_oracle f eqdbv k1) tt).
 Proof.
   intros.
 
-  (* i don't think it has to be specific to maxcallsandblocks *)
-  destruct maxCallsAndBlocks as [ | x xs].
-  - simpl.
-    (* contra with H_numCalls *)
-    admit.
-  - induction xs as [ | x' xs'].
-    (* could this work?? when x is already cons'ed?? *)
-    (* or induction on the reverse of xs? or reverse of (x::xs)? *)
-(* does having (x::) there already break things? i don't know *)
-(* i'd like to induct on the reverse of x :: xs, REMEMBERING THAT IT'S NONEMPTY, and not breaking the ind hyp *)
-(* question: if xs is nil, does the output state for x override the contradictory output state?? *)
-    +
-      Opaque Oi_prg.
-      Opaque Oi_oc'.
-      unfold oracleMap.
-      simpl.
-      fcf_inline_first.
-      Check outputAndKVeq.
-      fcf_skip. admit. admit.
-      { instantiate (1 := (fun x y => outputAndKVeq x y)).
-      admit. }
-    (* lol this simplifies to this!! this is what i wanted to prove above, right?*)
-(* still need to reverse xs *)
-(* instantiate evar and see if that clears the next goal? *)
-      { simpl in H1.
-        fcf_simp.
-        destruct p.
-        destruct H1.
-        subst.
-        simpl.
-        fcf_inline_first.
-        fcf_simp.
-        fcf_spec_ret.
-        simpl.
-        split. auto. auto.
-      }                         (* !! *)
-
-    +                           (* inductive case true on reverse *)
-Admitted.
-(* TODO: clean up lemma below and merge with this one, get rid of maxcallsandblocks, add len > 0 hyp, pull out 1 call lemma, and induct on reverse *)
-
-      
-
-  (* remember (rev maxCallsAndBlocks) as rev_l. *)
-  (* rewrite <- (rev_involutive _). *)
-  (* rewrite <- Heqrev_l. *)
-  (* revert i k1 v calls. *)
-
-  (* (* assert (rev_len : length rev_l > 0). *) *)
-  (* (* { subst. rewrite rev_length. auto. } *) *)
-
-  (* (* clear Heqrev_l H. *) *)
-
-  (* (* well when we ind on reverse, we have to clear the hyp, so it's not specific to maxCallsAndBlocks... so i don't see how, unless we destruct first? *) *)
-  (* destruct rev_l as [ | x rev_xs]; intros. *)
-
-  (* (* list must be non-empty *) *)
-  (* * simpl in *. omega. *)
-
 Admitted.
 
-(* induction on reverse of list WITHOUT first element, as above, but with general i *)
 Theorem Gi_normal_prf_eq_compspec :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
-    (* i <= length l -> *)
-    (* calls > 0 -> *)
     length l > 0 ->
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
        outputAndKVeq x y)
-     (* fst x = fst3 y vs. outputAndKVeq x y*)
 
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg i) (calls, (k1, v)) l)
@@ -1882,143 +1800,106 @@ Theorem Gi_normal_prf_eq_compspec :
         (f_oracle f eqdbv k1) tt).
 Proof.
   intros.
-  remember (rev l) as rev_l.
-  rewrite <- (rev_involutive _).
-  rewrite <- Heqrev_l.
-  revert i k1 v calls.
 
-  assert (rev_len : length rev_l > 0).
-  { subst. rewrite rev_length. auto. }
+  destruct l as [ | x xs].
+  - 
+    simpl in *. omega.
+  -
+    remember (rev xs) as rev_xs.
+    assert (H_revxs: rev (rev xs) = xs).
+    { apply rev_involutive. }
+    rewrite <- H_revxs.
+    rewrite <- Heqrev_xs.
+    clear Heqrev_xs H_revxs.
+    revert i k1 k2 v calls.
 
-  clear Heqrev_l H.               (* TODO *)
+    induction rev_xs as [ | rev_x' rev_xs']; intros.
 
-  destruct rev_l as [ | x rev_xs]; intros.
-
-  (* list must be non-empty *)
-  * simpl in *. omega.
-
-  (* list is non-empty, so clear the hypothesis to make induction easier *)
-  (* rev_l = x :: rev_xs *)
-  * clear rev_len.
-    (* how... do i induct on the reverse now... *)
-    remember (x :: rev_xs) as rev_l'.
-    (* clear Heqrev_l'. *)
-    (* does this break the ind hyp too?? help, idk what to do with Heqrev_l' *)
-    (* maybe this just pushed the problem back *)
-    (* why can't a list of one element be the base case?? *)
-    (* also you misunderstood the ind hyp, len (x :: xs) > 0 -/> len xs > 0 *)
-    (* how about len (x :: xs) > 1 -> 1 + len xs > 1 -> len xs > 0 *)
-    (* in general, how do i induct on a nonempty list?? *)
-    (* nonempty (x :: xs) -/> nonempty xs UNLESS we just admit that *)
-    (* should i try inducting on numCalls or maxCallsAndBlocks? this might be too general *)
-    (* but then how do i induct on the reverse of that list, will that still work *)
-    (* and i still want to prove the base case for one element...
-       H (x :: nil) -> H (x :: xs)? is this even a valid ind principle
-       is there some way i can just make this true for nil... no i don't see how
-     *)
-    induction rev_l'; intros.
-
-    - 
-      inversion Heqrev_l'.
-    - 
-      
-    
-
-  (* ---------- *)
-  
-  induction rev_l; intros.
-
-  * simpl in *.
-    unfold oracleMap.
-    simpl.
-    fcf_simp.
-    fcf_spec_ret.
-    (* rollback at several different levels... *)
-    (* it isn't true *)
-    (* Oi_prg_Oi_oc_eq isn't true if the keys are different? *)
-    (* omega.  *)
-  *
-(* Admitted. *)
-
-    (* it's on rev (a :: rev_l) and inductive hypothesis applies to rev rev_l *)
-    simpl.
-    Check (rev rev_l ++ a :: nil). (* : list nat *)
-
-    (* what's going on? Heqrev_l is inconsistent with the hypothesis in IHrev_l. *)
-    (* how/when do we use IHrev_l? *)
-    (* the theorem that i proved with lennart was the first, specific case. what's the difficulty here? *)
-    
-    (* or, a is the element at the front of the reversed list / at the back of the normal list *)
-    (* also does oracleMap actually put the element where it should be *)
-    (* rev rev_l ++ a :: nil <-- the normal list ++ end element (makes sense) *)
-
-    (* ok, now how to reason about i? *)
-    (* need to reason about fold (l ++ _) -- might already exist *)
-    (* and i need to do a similar fold (l ++ _) proof for oracleCompMap_inner *)
-    Print oracleMap.
-    Print compFold.
-    (* we're folding over the list `rev l ++ a :: nil` *)
-    
-    unfold oracleMap.
-    (* unfold oracleCompMap_inner. *)
-    (* unfold compFold. *)
-
-    eapply comp_spec_eq_trans_l.
-    apply fold_app_2. admit. admit.
-
-    (* simplify. *)
-    (* should i simplify here or save it for ind hyp? *)
-
-    apply comp_spec_symm.
-    eapply comp_spec_eq_trans_l.
-    apply oracleCompMap_fold_app.
-    apply comp_spec_symm.
-
-(* what do i do with each of the separate ones ?_? *)
-(* the first ones should be ind hyp since they're list. *)
-    (* TODO the ind hyp should be stronger since we need that they also return the same KV *)
-(* the second ones should be dischargeable since they're 1 elem *)
-    Opaque Oi_prg.
-    (* simpl. *)
-    fcf_skip. admit. admit.
-    - unfold oracleMap in *.
-      apply IHrev_l.            (* !!! *)
-    - simpl in *.
-      subst.
-      simplify.
-      fcf_skip.
-      { instantiate (1 := (fun x y => fst x = fst3 y)).
-        simpl in *.
+    +
+      Opaque Oi_prg.
+      Opaque Oi_oc'.
+      unfold oracleMap.
+      simpl.
+      fcf_inline_first.
+      fcf_skip. admit. admit.
+      *
+        rename x into numBlocks.
+        instantiate (1 := (fun x y => outputAndKVeq x y)).
+        apply Oi_prg_Oi_oc_eq.
+      * simpl in H2.
+        fcf_simp.
         destruct p.
-        rename k into kv.
-        destruct kv.
-        (* Goal: *)
-        (*    comp_spec
-     (fun (x : list (Bvector eta) * (nat * KV))
-        (y : list (Bvector eta) * (nat * KV) * unit) => 
-      fst x = fst3 y) (Oi_prg i (a0, b0) a)
-     ((Oi_oc' i (n, kv) a) unit unit_EqDec (f_oracle f eqdbv k1) tt) *)
-        (* but should p = (a0,b0)? *)
-        (* should I have gotten oracleCompMap_fold_app to do it? or the IH? *)
-        (* apparently it goes back to the fact that the IH's postcondition is fst x = fst3 y, meaning that it doesn't prove the outputted keys are equal, which i need for the two sequenced lines afterward... i've gone in a big circle *)
-        (* apply Oi_prg_Oi_oc_eq. *)
-        (* probably need casework on i & calls to discharge the 1 call *)
-
-        (* new strategy: DESTRUCT the list (l=nil is a contradiction), then clear the hyp and INDUCT on the reverse of the list (wow). then it's true for base case of 1 elem given the keys are same (which is precisely Oi_prg_Oi_oc_eq) and given that, it's true for additional calls *)
-
-        admit.
-      }
-      { simpl in *.
-        destruct b.
-        destruct p0.
-        simpl in *.
+        destruct H2.
         subst.
-        simplify.
+        simpl.
+        fcf_inline_first.
+        fcf_simp.               (* well the number of calls should be the same too *)
         fcf_spec_ret.
-      }
-Qed. 
-(* can I get rid of the different-keys generality??? *)
-Close Scope nat.
+        simpl.
+        split. auto. auto.
+
+    +                           (* inductive case true on reverse *)
+      Opaque oracleMap.
+      Opaque oracleCompMap_inner.
+      simpl.
+      Transparent oracleMap.
+      Transparent oracleCompMap_inner.
+     (* ind hyp holds on (x :: rev rev_xs') so DON'T simpl x out, rewrite w/ fold ++ lemma *)
+
+      rewrite app_comm_cons.
+      remember (x :: rev rev_xs') as nonempty.
+
+      unfold oracleMap.
+      eapply comp_spec_eq_trans_l.
+      apply fold_app_2. admit. admit.
+
+      apply comp_spec_symm.
+      eapply comp_spec_eq_trans_l.
+      apply oracleCompMap_fold_app. (* is this strong enough? and fold_app_2? *)
+      apply comp_spec_symm.
+
+      comp_skip. admit. admit.
+      { apply IHrev_xs'. }
+      { simpl in H2.
+        simplify.
+        destruct p.
+        destruct H2.
+        subst.
+        fcf_skip.
+        (* uh this is different again :| *)
+        destruct k.
+        rename b into k.
+        rename b0 into v0.
+        (* they're the same BUT NOT LINKED WITH k1. woops. wrong postcondition again?? *)
+        (* or can this be proved depending on what i is? *)
+        (* ok maybe it's my problem? maybe k1 should be updated for f. does the key for f ever change? should it? it should change to be the same key as Oi_oc''s? but it's never output? so how can we write a postcondition about this? oh no f's key is never updated but it should be?? thanks coq *)
+        (* ok i have no idea 1. how many other proofs this breaks 2. how to fix it (how do i even update an oracle?) *)
+        (* in fact the behavior is completely different if you consider the case of 
+PRF PRF..PRF -- k is never updated in the latter *)
+        (* ok if you change the GenUpdates to use f k instead f_oracle after the first call... it should fix things... is it the best fix? idk *)
+        (* wait no, it already does that (GenUpdate_PRF_oc). so not everything is on fire? *)
+        (* but i lost information about which call (callsSoFar) it is. does this need to be encoded in the inductive invariant? *)
+        (* still idk if the postcondition is right? *)
+        instantiate (1 := (fun x y => outputAndKVeq x y)). (* not right? *)
+        (* apply Oi_prg_Oi_oc_eq. *)
+        admit.
+
+        simpl in H4.
+        simplify.
+        destruct p.
+        destruct H4.
+        subst.
+        fcf_spec_ret.
+        simpl.
+        split. auto. auto. }
+Qed.
+
+Transparent oracleMap.
+Transparent oracleCompMap_inner.
+Transparent Oi_prg.
+Transparent Oi_oc'.
+
+(* TODO have not applied above lemma to the below lemma yet *)
 
 (* this moves from the normal adversary to the PRF adversary (which depends on the prev.) *)
 (* Gi_prg 0: PRF PRF PRF PRF
