@@ -1339,8 +1339,8 @@ Definition fst3 {A B C : Type} (abc : A * B * C) : A :=
   a.
 
 (* definition of equivalence relating oracleMap/oracleCompMap computations *)
-Definition outputAndKVeq (x1 : list (list (Bvector eta)) * (nat * KV))
-        (x2 : list (list (Bvector eta)) * (nat * KV) * unit) :=
+Definition outputAndKVeq {A : Type} (x1 : A * (nat * KV))
+        (x2 : A * (nat * KV) * unit) :=
   let (bits1, state1) := x1 in
   let (_, kv1) := state1 in
 
@@ -1780,24 +1780,101 @@ Proof.
 
 Admitted.
 
+(* attempt a more specific version of the thm below in hopes of proving it *)
+Theorem Gi_normal_prf_eq_compspec_maxCallsAndBlocks :
+  forall (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+       outputAndKVeq x y)
+
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg i) (calls, (k1, v)) maxCallsAndBlocks)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k2, v)) maxCallsAndBlocks) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+
+  (* i don't think it has to be specific to maxcallsandblocks *)
+  destruct maxCallsAndBlocks as [ | x xs].
+  - simpl.
+    (* contra with H_numCalls *)
+    admit.
+  - induction xs as [ | x' xs'].
+    (* could this work?? when x is already cons'ed?? *)
+    (* or induction on the reverse of xs? or reverse of (x::xs)? *)
+(* does having (x::) there already break things? i don't know *)
+(* i'd like to induct on the reverse of x :: xs, REMEMBERING THAT IT'S NONEMPTY, and not breaking the ind hyp *)
+(* question: if xs is nil, does the output state for x override the contradictory output state?? *)
+    +
+      Opaque Oi_prg.
+      Opaque Oi_oc'.
+      unfold oracleMap.
+      simpl.
+      fcf_inline_first.
+      Check outputAndKVeq.
+      fcf_skip. admit. admit.
+      { instantiate (1 := (fun x y => outputAndKVeq x y)).
+      admit. }
+    (* lol this simplifies to this!! this is what i wanted to prove above, right?*)
+(* still need to reverse xs *)
+(* instantiate evar and see if that clears the next goal? *)
+      { simpl in H1.
+        fcf_simp.
+        destruct p.
+        destruct H1.
+        subst.
+        simpl.
+        fcf_inline_first.
+        fcf_simp.
+        fcf_spec_ret.
+        simpl.
+        split. auto. auto.
+      }                         (* !! *)
+
+    +                           (* inductive case true on reverse *)
+Admitted.
+(* TODO: clean up lemma below and merge with this one, get rid of maxcallsandblocks, add len > 0 hyp, pull out 1 call lemma, and induct on reverse *)
+
+      
+
+  (* remember (rev maxCallsAndBlocks) as rev_l. *)
+  (* rewrite <- (rev_involutive _). *)
+  (* rewrite <- Heqrev_l. *)
+  (* revert i k1 v calls. *)
+
+  (* (* assert (rev_len : length rev_l > 0). *) *)
+  (* (* { subst. rewrite rev_length. auto. } *) *)
+
+  (* (* clear Heqrev_l H. *) *)
+
+  (* (* well when we ind on reverse, we have to clear the hyp, so it's not specific to maxCallsAndBlocks... so i don't see how, unless we destruct first? *) *)
+  (* destruct rev_l as [ | x rev_xs]; intros. *)
+
+  (* (* list must be non-empty *) *)
+  (* * simpl in *. omega. *)
+
+Admitted.
+
 (* induction on reverse of list WITHOUT first element, as above, but with general i *)
-(* do I still need to do this init stuff? TODO currently unused*)
-(* possible that this could be more general -- not just fst = fst3, but first two = first two of the other one. might need it to prove the theorem too *)
 Theorem Gi_normal_prf_eq_compspec :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
     (* i <= length l -> *)
     (* calls > 0 -> *)
-    (* length l > 0 -> *)
+    length l > 0 ->
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-       fst x = fst3 y)
-     (* formerly fst x = fst3 y vs. outputAndKVeq x y*)
+       outputAndKVeq x y)
+     (* fst x = fst3 y vs. outputAndKVeq x y*)
 
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg i) (calls, (k1, v)) l)
      ((oracleCompMap_inner
-
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
@@ -1810,10 +1887,45 @@ Proof.
   rewrite <- Heqrev_l.
   revert i k1 v calls.
 
-  (* assert (rev_len : length rev_l > 0). *)
-  (* { subst. rewrite rev_length. auto. } *)
+  assert (rev_len : length rev_l > 0).
+  { subst. rewrite rev_length. auto. }
 
-  clear Heqrev_l (* H *).               (* TODO *)
+  clear Heqrev_l H.               (* TODO *)
+
+  destruct rev_l as [ | x rev_xs]; intros.
+
+  (* list must be non-empty *)
+  * simpl in *. omega.
+
+  (* list is non-empty, so clear the hypothesis to make induction easier *)
+  (* rev_l = x :: rev_xs *)
+  * clear rev_len.
+    (* how... do i induct on the reverse now... *)
+    remember (x :: rev_xs) as rev_l'.
+    (* clear Heqrev_l'. *)
+    (* does this break the ind hyp too?? help, idk what to do with Heqrev_l' *)
+    (* maybe this just pushed the problem back *)
+    (* why can't a list of one element be the base case?? *)
+    (* also you misunderstood the ind hyp, len (x :: xs) > 0 -/> len xs > 0 *)
+    (* how about len (x :: xs) > 1 -> 1 + len xs > 1 -> len xs > 0 *)
+    (* in general, how do i induct on a nonempty list?? *)
+    (* nonempty (x :: xs) -/> nonempty xs UNLESS we just admit that *)
+    (* should i try inducting on numCalls or maxCallsAndBlocks? this might be too general *)
+    (* but then how do i induct on the reverse of that list, will that still work *)
+    (* and i still want to prove the base case for one element...
+       H (x :: nil) -> H (x :: xs)? is this even a valid ind principle
+       is there some way i can just make this true for nil... no i don't see how
+     *)
+    induction rev_l'; intros.
+
+    - 
+      inversion Heqrev_l'.
+    - 
+      
+    
+
+  (* ---------- *)
+  
   induction rev_l; intros.
 
   * simpl in *.
