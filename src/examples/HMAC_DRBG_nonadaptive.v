@@ -1833,9 +1833,46 @@ Definition bitsCallsVEq' {A B : Type} (l : list B)
   bits_x = bits_y /\ calls_x = length l /\ calls_y = length l /\ v_x = v_y.
 
 (* version of theorem below with different postcondition *)
-(* wait can the postcondition even refer to outside vars?? *)
+(* other ideas:
+- need to make the theorem somehow true for the base case
+  - is it true if calls starts < i? yes but i can't prove that inductively holds?
+- or, different strategy: stitch together what i've already proved (all RBs, PRF oracle use, then all PRFs) because each case is inductive. but then i have to somehow prove that equivalent to this which seems even harder. and there are many edge cases e.g. if i = 0, no RBs happen, or for some i, no oracle is used, or no PRFs happen
+
+so i have to prove EACH of them equivalent to some intermediate expression?
+what expression? and what postcondition? and does this even fix the base case problem?
+as what function of `calls`, `length l`, and `i`
+does this fix the inductive problem if true/provable?
+is it provable?
+
+comp_spec ?
+
+let (firsthalfl, secondhalf) := (firstn (i-calls) l, sndn (length l - i) l) in
+compMap (i - calls) RB firsthalfl ++ oracleMap (length l - i) PRF (k,v) secondhalfl
+
+(note if calls >= i then the result is simply 0)
+need to add another hypothesis that i <= length l?
+
+i just don't see why you would do this, it looks worse than the oracleMap expression we originaly wanted to prove equivalence to
+
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+        (f_oracle f eqdbv k1) tt).
+
+      and with
+
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg i) (calls, (k1, v)) l)
+
+- still can't make all the keys the same?
+- maybe try calls = 0 then prove general "calls" = calls 0 with different n and i? how to prove that though? induction?
+- more complicated/specific ind invariant: if calls = 0 then it returns ... else if calls > i then ... else ... and afterward calls = ... 
+  still a postcondition might help for the inductive case, but won't work for the base case
+- i'm fairly sure the top-level theorem is true though!! *)
 Theorem Gi_normal_prf_eq_compspec_post :
-  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
+  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
     length l > 0 ->
    comp_spec
      (fun (x : list (list (Bvector eta)) * (nat * KV))
@@ -1843,16 +1880,16 @@ Theorem Gi_normal_prf_eq_compspec_post :
         bitsCallsVEq l x y)
 
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-        (Oi_prg i) (calls, (k1, v)) l)
+        (Oi_prg i) (0, (k1, v)) l)
      ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+         (0, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
         (f_oracle f eqdbv k1) tt).
 Proof.
   intros.
-
+  
   destruct l as [ | x xs].
   - 
     simpl in *. omega.
@@ -1863,7 +1900,7 @@ Proof.
     rewrite <- H_revxs.
     rewrite <- Heqrev_xs.
     clear Heqrev_xs H_revxs H.
-    revert i k1 k2 v calls.
+    revert i k1 k2 v.
 
     induction rev_xs as [ | rev_x' rev_xs']; intros.
 
@@ -1881,8 +1918,6 @@ Proof.
 
       *
         (* prove postcondition relating Oi_prg and Oi_oc' *)
-        Transparent Oi_prg. Transparent Oi_oc'.
-        simplify.
         (* TODO: start w/ precondition on whether calls < i and then as the list grows, destruct/casework on whether it remains so?? like 2+ more cases... *)
         (* calls < i -> len rev_xs > ... -> calls > i? *)
         (* but the theorem is just false for certain base cases (calls > i) -- but those aren't true initially since calls starts at 0, maybe generalize to `calls <= numCalls - length l? idk. the original invariant is true, but we need to include i somehow... *)
@@ -1891,9 +1926,29 @@ Proof.
         (* in fact GenUpdate_rb_intermediate does not update k **OR** v. you can do whatever you want for that. maybe i should prove in the fold lemmas that the key is linked (if ...? casework?). *)
         (* STILL false for keys linked AND calls > i, in base case *)
         (* what if i don't induct on the reverse? lol *)
-        admit.
+
+        Transparent Oi_prg. Transparent Oi_oc'.
+        unfold Oi_prg. unfold Oi_oc'.
+
+        (* for calls = 0 -- fixes the base case, i think! *)
+        simpl.
+        destruct (lt_dec 0 i).
+
+        { unfold GenUpdate_rb_intermediate. simplify. fcf_skip. admit. admit. simplify.
+          fcf_spec_ret. simpl. auto. (* keys not equal *) }
+        { simpl.
+          fcf_inline_first.
+          fcf_skip. admit. admit.
+          instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd (snd x) = snd (fst y))).
+          admit.
+
+          simpl in H1. destruct H1. destruct b0. destruct p. destruct b. simpl in *. subst.
+          simplify. fcf_spec_ret. simpl. auto.
+          (* well i didn't specify here that the keys would be equal, so the postcondition doesn't show it *)
+        }
       * (* finish it off *)
-        simpl in H1. destruct b. simpl in H1. destruct b0. destruct p. destruct p. destruct k.Transparent Oi_prg. Transparent Oi_oc'.
+        simpl in H1. destruct b. simpl in H1. destruct b0. destruct p. destruct p. destruct k.
+        Transparent Oi_prg. Transparent Oi_oc'.
         destruct H1. destruct H2. destruct H3. subst.
         (* write a better postcondition or an ltac TODO *)
         simplify. fcf_spec_ret. simpl. auto.
@@ -1921,17 +1976,22 @@ Proof.
 
       (* induction hypothesis *)
       * apply IHrev_xs'.
+        (* here calls is 0... oh that's right, it's the head of the list so calls remains 0! *)
       *
         simpl in H1. destruct b. simpl in H1. destruct b0. destruct p. destruct p. destruct k.
         destruct H1. destruct H2. destruct H3. subst.
-        (* postcondition: note that bits and v are the same, and calls is (S (length (rev revxs'))) *)
-
+        rewrite rev_length.
+        (* postcondition: note that bits and v are the same, and calls is (S (length rev_xs')) *)
+        (* now, does calls = 0 -> calls = S (length rev_xs') fix the ind. case?? *)
+        (* we may need to strengthen the postcondition to fix the ind. case *)
         Opaque Oi_prg. Opaque Oi_oc'.
         simplify.
+
         (* so the postcondition seems to be provable at least for calls inc *)
         fcf_skip. admit. admit.
         (* what should this be? should the list change? *)
         (* is this true? admitted the two one-calls (Oi relating) *)
+
         instantiate (1 := (fun x' y' => bitsCallsVEq (x :: rev rev_xs' ++ rev_x' :: nil) x' y')).
         {
           rename b2 into v'.
@@ -1940,7 +2000,6 @@ Proof.
           (* so i still don't know how to deal with `calls > i` case, and now that the `k` aren't linked, i still don't know how to deal with `calls = i`. why aren't the `k` linked here though? well cause the former one iterated a nonzero amt of times so it shouldn't be the same. TODO i'm missing something here... *)
           (* and might it work if i put the `calls` invariant back in? *)
           (* calls + length l = numCalls? *)
-          (* i mean was the theorem even true to begin with? in the first base case? *)
           Transparent Oi_prg. Transparent Oi_oc'.
           unfold Oi_prg. unfold Oi_oc'.
           admit.
