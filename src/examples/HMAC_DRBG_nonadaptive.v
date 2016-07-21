@@ -1808,6 +1808,155 @@ Proof.
 (* ok according to lennart PRHL doesn't satisfy the conjunction rule *)
 Admitted.
 
+Definition bitsCallsVEq {A B : Type} (l : list B)
+           (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :=
+  let (bits_x, state_x) := x in
+  let (calls_x, kv_x) := state_x in
+  let (k_x, v_x) := kv_x in
+
+  let (bits_y, state_y) := fst y in
+  let (calls_y, kv_y) := state_y in
+  let (k_y, v_y) := kv_y in
+  (* no statement about keys being equal for now *)
+  bits_x = bits_y /\ calls_x = length l /\ calls_y = length l /\ v_x = v_y.
+
+Definition bitsCallsVEq' {A B : Type} (l : list B)
+           (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :=
+  let (bits_x, state_x) := x in
+  let (calls_x, kv_x) := state_x in
+  let (k_x, v_x) := kv_x in
+
+  let (bits_y, state_y) := fst y in
+  let (calls_y, kv_y) := state_y in
+  let (k_y, v_y) := kv_y in
+  (* no statement about keys being equal for now *)
+  bits_x = bits_y /\ calls_x = length l /\ calls_y = length l /\ v_x = v_y.
+
+(* version of theorem below with different postcondition *)
+(* wait can the postcondition even refer to outside vars?? *)
+Theorem Gi_normal_prf_eq_compspec_post :
+  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta) (calls : nat),
+    length l > 0 ->
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+        bitsCallsVEq l x y)
+
+     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+        (Oi_prg i) (calls, (k1, v)) l)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+        (f_oracle f eqdbv k1) tt).
+Proof.
+  intros.
+
+  destruct l as [ | x xs].
+  - 
+    simpl in *. omega.
+  - clear H_numCalls.
+    remember (rev xs) as rev_xs.
+    assert (H_revxs: rev (rev xs) = xs).
+    { apply rev_involutive. }
+    rewrite <- H_revxs.
+    rewrite <- Heqrev_xs.
+    clear Heqrev_xs H_revxs H.
+    revert i k1 k2 v calls.
+
+    induction rev_xs as [ | rev_x' rev_xs']; intros.
+
+    (* list is `x :: rev nil` *)
+    +
+      Opaque oracleMap. Opaque oracleCompMap_inner.
+      simpl.
+      Transparent oracleMap. Transparent oracleCompMap_inner.
+      Opaque Oi_prg. Opaque Oi_oc'.
+      unfold oracleMap.
+      simpl.
+      fcf_inline_first.
+      fcf_skip. admit. admit.
+      instantiate (1 := (fun x' y' => bitsCallsVEq (x::nil) x' y')).
+
+      *
+        (* prove postcondition relating Oi_prg and Oi_oc' *)
+        Transparent Oi_prg. Transparent Oi_oc'.
+        simplify.
+        (* TODO: start w/ precondition on whether calls < i and then as the list grows, destruct/casework on whether it remains so?? like 2+ more cases... *)
+        (* calls < i -> len rev_xs > ... -> calls > i? *)
+        (* but the theorem is just false for certain base cases (calls > i) -- but those aren't true initially since calls starts at 0, maybe generalize to `calls <= numCalls - length l? idk. the original invariant is true, but we need to include i somehow... *)
+        (* note: we can make the RB case true by simply rand sampling & replacing both keys? *)
+        (* wait i'm confused, does RB replace the key or retain the original key?? if it retains the original key, we should keep the link between k1 in Oi_prg and in f_oracle? also maybe we shouldn't induct on the list? case "len list = i" and so on are the only ones that matter? *)
+        (* in fact GenUpdate_rb_intermediate does not update k **OR** v. you can do whatever you want for that. maybe i should prove in the fold lemmas that the key is linked (if ...? casework?). *)
+        (* STILL false for keys linked AND calls > i, in base case *)
+        (* what if i don't induct on the reverse? lol *)
+        admit.
+      * (* finish it off *)
+        simpl in H1. destruct b. simpl in H1. destruct b0. destruct p. destruct p. destruct k.Transparent Oi_prg. Transparent Oi_oc'.
+        destruct H1. destruct H2. destruct H3. subst.
+        (* write a better postcondition or an ltac TODO *)
+        simplify. fcf_spec_ret. simpl. auto.
+
+    (* list is `x :: rev (rev_x' :: rev_xs')` *)
+    + 
+      Opaque oracleMap. Opaque oracleCompMap_inner.
+      simpl.
+      Transparent oracleMap. Transparent oracleCompMap_inner.
+
+      (* ind hyp holds on (x :: rev rev_xs') so DON'T simpl x out, rewrite w/ fold ++ lemma *)
+      rewrite app_comm_cons.
+      remember (x :: rev rev_xs') as nonempty.
+
+      unfold oracleMap.
+      eapply comp_spec_eq_trans_l.
+      apply fold_app_2. admit. admit.
+
+      apply comp_spec_symm.
+      eapply comp_spec_eq_trans_l.
+      apply oracleCompMap_fold_app. (* is this strong enough? and fold_app_2? *)
+      apply comp_spec_symm.
+
+      fcf_skip. admit. admit.
+
+      (* induction hypothesis *)
+      * apply IHrev_xs'.
+      *
+        simpl in H1. destruct b. simpl in H1. destruct b0. destruct p. destruct p. destruct k.
+        destruct H1. destruct H2. destruct H3. subst.
+        (* postcondition: note that bits and v are the same, and calls is (S (length (rev revxs'))) *)
+
+        Opaque Oi_prg. Opaque Oi_oc'.
+        simplify.
+        (* so the postcondition seems to be provable at least for calls inc *)
+        fcf_skip. admit. admit.
+        (* what should this be? should the list change? *)
+        (* is this true? admitted the two one-calls (Oi relating) *)
+        instantiate (1 := (fun x' y' => bitsCallsVEq (x :: rev rev_xs' ++ rev_x' :: nil) x' y')).
+        {
+          rename b2 into v'.
+          (* is this strong enough? no? well maybe? i think i failed at linking the key with k1 *)
+          (* depends now on whether callsSoFar > i... gotta think about casework again. should every case be triggered here? what about above? confused -- it should hold for ANY xs, right? meaning, take length >= 1, is the best you can do. but it doesn't give you any guarantees WRT i (besides that i <= length l) *)
+          (* so i still don't know how to deal with `calls > i` case, and now that the `k` aren't linked, i still don't know how to deal with `calls = i`. why aren't the `k` linked here though? well cause the former one iterated a nonzero amt of times so it shouldn't be the same. TODO i'm missing something here... *)
+          (* and might it work if i put the `calls` invariant back in? *)
+          (* calls + length l = numCalls? *)
+          (* i mean was the theorem even true to begin with? in the first base case? *)
+          Transparent Oi_prg. Transparent Oi_oc'.
+          unfold Oi_prg. unfold Oi_oc'.
+          admit.
+        }
+        { simplify.
+          fcf_spec_ret.
+          simpl in *.
+          destruct b3, p. destruct k. destruct H3. destruct H4. destruct H5.
+          subst.
+          repeat split.
+        }
+        
+Qed.
+Transparent oracleMap.
+Transparent oracleCompMap_inner.
+Transparent Oi_prg. Transparent Oi_oc'.
 
     (* actually is this true if calls starts at any number?? and for any i?
        what invariant could we add? *)
@@ -1966,6 +2115,9 @@ Proof.
               unfold GenUpdate_PRF_oc.
             (* this is just not right because the two keys are different *)
               admit.
+              simplify.
+              simpl in H2. destruct H2. subst.
+              fcf_spec_ret. simpl. split; reflexivity.
             }
           }
         } 
@@ -1973,7 +2125,6 @@ Proof.
         Opaque Oi_prg. Opaque Oi_oc'.
 
         (* apply Oi_prg_Oi_oc_eq. *)
-        admit.
       * simpl in H2.
         fcf_simp.
         destruct p.
@@ -2013,8 +2164,15 @@ Proof.
       apply comp_spec_symm.
 
       fcf_skip. admit. admit.
+      (* maybe consider not doing a skip here? *)
+      (* or, consider proving that state1 = ... and state2 = ... *)
+      (* i don't even know how to state this theorem? maybe as a postcondition on each of the first calls here? so the fold_app_2 and oracleCompMap_fold_app (hope this is true?? TODO try) need not change; and there's another postcondition here, and IH should still hold? *)
       (* H_invar disappeared? *)
-      { apply IHrev_xs'. (* this is wrong now *)
+      {
+        (* stronger postcondition here... maybe put in original postcondition actually? *)
+        (* time to break everything *)
+        (* maybe the new postcondition will get rid of the need for keys being same *)
+        apply IHrev_xs'. (* this is wrong now *)
         admit. }
       { simpl in H2.
         simplify.
