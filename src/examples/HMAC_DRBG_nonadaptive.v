@@ -2002,7 +2002,88 @@ Proof.
           (* calls + length l = numCalls? *)
           Transparent Oi_prg. Transparent Oi_oc'.
           unfold Oi_prg. unfold Oi_oc'.
-          admit.
+
+          (* casework on (lt_dec (S (length rev_xs'))) etc.? *)
+          (* also a case isn't true? i should be able to prove k's eq after IH? postcondition? depende on length of rev_xs'... *)
+          (* maybe i don't really understand what it is to induct on the reverse of a list *)
+          (* one call happened, then some number n of calls happened *)
+          (* casework on n and i *)
+          (* it would be great if calls were 0 again!! *)
+          remember (S (length rev_xs')) as callsSoFar.
+          assert (beq_dec : beq_nat callsSoFar 0 = true \/ ~ beq_nat callsSoFar 0 = true).
+          { destruct (beq_nat callsSoFar 0); auto. }
+          destruct beq_dec.
+          (* callsSoFar > 0, so no GenUpdate_noV *)
+          subst. simpl in H1. inversion H1.
+
+          apply not_true_is_false in H1.
+          rewrite H1.
+
+SearchAbout comp_spec.
+
+          (* 0 calls -> keys linked but not equal *)
+          (* one call -> if RB then keys don't change so still linked,
+if PRF (for the first time? or any PRF?) then both do (k' <- f k (to_list v'' ++ zeroes)) so since they had the same v, they should have the SAME key (which is stronger than "keys linked) 
+but not necessarily *f*'s key *)
+          (* induction? (SEPARATE induction??) for each call, keys linked, so at the end they remain linked? (call 1 -> last call in list: precondition -> postcondition)
+
+RB -> RB: linked keys -> linked keys
+RB -> PRF1: linked keys -> same keys
+RB -> PRF: linked keys -> passed through PRF1 (same keys) -> same keys (??!)
+PRF -> PRF: same keys -> same keys
+other cases: impossible *)
+          (* here: 
+RB -> RB -> RB: linked keys -> linked keys -> linked keys
+RB -> PRF1 -> PRF: linked keys -> same keys -> same keys
+RB -> PRF -> PRF: linked keys -> passed through PRF1 (same keys) -> same keys -> same keys
+PRF -> PRF -> PRF: same keys -> same keys -> same keys
+other cases: impossible *)
+          (* can i just get rid of the second oracleCompMap key? that would solve everything. i mean i only ever use RB, RF, and PRF as oracles. well RB requires that the PRFs afterward have a key *)
+          (* i could probably specify this with a really elaborate postcondition and extreme casework *)
+          (* so... how do i state/prove this? what should the postcondition be? how do i deal with the list (and it passing thru PRF1)? *)
+(* for 1st call: (f's key is k_f, k_prg' and k_oc' are output keys, k_prg and k_oc are input)
+reintroduce `calls` as var, H: calls = 0?
+maybe casework on l first, then i? idk
+
+(casework on i)
+(RB)  calls = 0 /\ i > 0 -> k_prg' = k_f /\ k_oc' = k_oc
+(PRF) calls = 0 /\ i = 0 -> k_prg' = k_oc' 
+
+(I mean you could just compute this and get that both keys are f k (v_2||0), list is harder)
+
+/\ for list: (callsL := length l, NOT S (length l))
+(or should i prove this comp_spec separately? conjunction rule doesn't hold though...
+
+(more casework on i and callsL (length l))
+doesn't encode 1st call? well we should already have the above as a precondition (hypothesis)
+(RB -> RB)   calls = callsL /\ callsL < i -> k_prg' = k_f /\ k_oc' = k_oc
+(RB -> PRF1) calls = callsL /\ callsL = i -> k_prg' = k_oc' (by a SEPARATE induction?)
+(RB -> PRF)  calls = callsL /\ callsL > i -> k_prg' = k_oc' (by a SEPARATE induction?)
+(PRF -> PRF) calls = callsL /\ i = 0? -> k_prg' = k_oc'
+
+/\ for call afterward: (callsL' := 1 + length l)
+(no more casework needed, we have as hypotheses the postconditions above)
+... and we need to prove what postcondition?!
+(RB -> RB -> RB)    calls = callsL' /\ callsL' < i // can prove k_prg' = k_f /\ k_oc' = k_oc, so it's the same as above
+(RB -> PRF1 -> PRF) calls = callsL' /\ callsL' = i // can prove k_prg' = k_oc' (not same as k_prg tho)
+(RB -> PRF -> PRF)  calls = callsL' /\ callsL' > i // can prove k_prg' = k_oc'
+(PRF -> PRF -> PRF) calls = callsL' /\ i = 0 // can prove k_prg' = k_oc'
+
+^ ^ for above, add that the outputs are equal, and the v are equal
+
+need to figure out what exactly the postcondition is (needs to be given abt list, and provable here) and what about the first call? maybe that's a subcase of this. actually it does look like a subcase.
+
+postcondition: prove it holds on base case: OK
+given that it holds on (x :: rev rev_xs'),
+show it holds on (x :: rev rev_xs' ++ rev_x' :: nil)
+  that is, given that the postcondition is true after (x :: rev rev_xs'),
+  show that it is still true after rev_x'. it seems to be true, actually! i proved it above!
+
+TODO email adam / ask lennart for help *)
+
+          subst.
+          
+
         }
         { simplify.
           fcf_spec_ret.
