@@ -1898,28 +1898,172 @@ Definition bitsCallsKVeq_RB {A B : Type} (l1 l2 l : list B) (i : nat) (k_f k_oc 
   /\ calls_prg <= i /\ k_prg' = k_f /\ k_oc = k_oc'
   /\ l = l1 ++ l2 /\ length l1 = calls_prg /\ i < length l2.
 
+(* new postcondition *)
+Definition bitsCallsVEq {A B : Type} (l : list B) (calls i : nat)
+           (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :=
+  let (bits_x, state_x) := x in
+  let (calls_x, kv_x) := state_x in
+  let (k_x, v_x) := kv_x in
+
+  let (bits_y, state_y) := fst y in
+  let (calls_y, kv_y) := state_y in
+  let (k_y, v_y) := kv_y in
+  (* no statement about keys being equal for now *)
+  bits_x = bits_y /\ calls_x <= length l /\ calls_y <= length l /\ v_x = v_y.
+
 (* TODO: fix instantiations of bitsCallsKVeq below and fix postconditions
 (where there is `repeat (split; try auto))` *)
 Theorem Gi_normal_prf_eq_compspec_post2 :
-  forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
+  forall (l : list nat) (i calls : nat) (k1 k2 v : Bvector eta),
+    calls <= i ->
+    calls < length l ->
     i < length l ->
    comp_spec
 
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-        bitsCallsKVeq i l k1 k2 x y)
+        bitsCallsVEq l calls i x y)
 
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-        (Oi_prg i) (0, (k1, v)) l)
+        (Oi_prg i) (calls, (k1, v)) l)
 
      ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
+         (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
         (f_oracle f eqdbv k1) tt).
 Proof.
+  (* induct on l (or l2?) start w calls < i, stop when calls = i (no longer true) *)
   intros.
+  (* wait, here we're inducting on calls? *)
+  (* induction calls as [ | calls']. *)
+
+  pose (bits := @nil (list (Bvector eta))).
+  assert (H_states : bitsCallsVEq l calls i (bits, (calls, (k1, v))) (bits, (calls, (k2, v)), tt)). {
+    simpl.
+    repeat (split; auto; try omega). 
+  }
+  clearbody bits.
+  clear H0.
+  assert (Hlen : length l > i - calls).
+  { omega. }
+  clear H1.
+  
+  revert bits calls H H_states Hlen.
+  (* calls increases as l decreases *)
+  induction l as [ | x xs]; intros.
+
+  -
+    simpl in Hlen.
+    omega.
+  - 
+    simpl in H_states.
+    simpl in Hlen.
+    decompose [and] H_states; clear H_states.
+    clear H0 H1 H4.
+
+    (* assert (H_ilen : length xs > i - calls \/ i - calls = length xs) by omega. *)
+    assert (H_ilen : i > calls \/ i = calls) by omega.
+
+    destruct H_ilen.
+
+  +
+    assert (bits': list (list (Bvector eta))) by admit.
+    specialize (IHxs bits' (S calls)).
+    (* bits should be returned by... *)
+
+    assert (pre : bitsCallsVEq xs (S calls) i (bits', (S calls, (k1, v)))
+           (bits', (S calls, (k2, v)), tt)). admit.
+    admit.
+
+  +
+    clear IHxs.
+    (* this is true! i = calls, and the keys are linked *)
+    (* what happened above? i'm not sure *)
+    (* precondition? invariant? ?? *)
+
+admit.
+
+  + 
+    clear IHxs.
+    
+    (* we've reached i *)
+
+    
+
+  remember (rev l) as rev_l.
+  assert (H_revl: rev (rev l) = l).
+  { apply rev_involutive. }
+  rewrite <- H_revl.
+  rewrite <- Heqrev_l.
+  clear Heqrev_l H_revl.
+  revert i k1 k2 v H H_states H1.
+
+  induction rev_l as [ | rev_x' rev_l']; intros i k1 k2 v calls_lt_i pre i_lt_l.
+  (* induction l as [ | x xs]; intros. *)
+
+  (* l=nil is impossible, do destruct like before *)
+  -
+    
+    admit.
+
+  (* l = x :: xs *)
+  -
+    simpl in pre.
+    decompose [ and ] pre; clear pre. 
+    clear H H1 H3.
+    simpl.
+
+    unfold oracleMap.
+    eapply comp_spec_eq_trans_l.
+    apply fold_app_2. admit. admit.
+
+    apply comp_spec_symm.
+    eapply comp_spec_eq_trans_l.
+    apply oracleCompMap_fold_app. (* is this strong enough? and fold_app_2? *)
+    apply comp_spec_symm.
+
+    fcf_skip. admit. admit.
+
+    (* induction hypothesis *)
+    * apply IHrev_l'. auto.
+      simpl. repeat (split; auto). auto.
+
+    *
+      simpl in H2.
+      destruct b0. destruct b. simpl in H2. destruct p. destruct p.
+      destruct k. decompose [and] H2; clear H2. subst.
+
+      rewrite rev_length in *.
+(* we know that calls <= i, but (the postcondition doesn't have it again) we don't know whether S (calls + length rev_xs) etc. is <= i *)
+(* and there's casework depending on that..? *)
+
+    (* if S calls' < i, destruct whether calls' < i + 1 *)
+
+Admitted.
+
+
+  set (calls := 0).
+  (* original l = l1 ++ l2 *)
+  pose (l1 := @nil nat).
+  pose (l2 := l).
+  change l with l2 at 2 3.
+  
+  assert (H_states : bitsCallsKVeq_RB l1 l2 l i k1 k2 (@nil (list (Bvector eta)), (calls, (k1, v))) (@nil (list (Bvector eta)), (calls, (k2, v)), tt)). {
+    simpl.
+    repeat (split; auto). subst calls. omega.
+  }
+
+  change l with l2 in H.
+  clearbody l1 calls l2.
+  clear H.
+  revert calls l1 l2 H_states.
+
+  induction i as [ | i']; intros.
+
+
+  (* ------------ *)
 
   set (calls := 0).
   (* original l = l1 ++ l2 *)
