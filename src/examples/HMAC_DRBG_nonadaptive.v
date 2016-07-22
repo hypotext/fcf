@@ -1865,7 +1865,7 @@ show it holds on (x :: rev rev_xs' ++ rev_x' :: nil)
   show that it is still true after rev_x'. it seems to be true, actually! i proved it above
 how to deal with -> PRF1 -> PRF? *)
 
-(* new version of theorem below with yet more complex postcondition *)
+(* new version of theorem below with more complex postcondition *)
 Definition bitsCallsKVeq {A B : Type} (i : nat) (l : list B) (k_f k_oc : Bvector eta)
            (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :=
   let (bits_prg, state_prg) := x in
@@ -1875,6 +1875,7 @@ Definition bitsCallsKVeq {A B : Type} (i : nat) (l : list B) (k_f k_oc : Bvector
   let (calls_oc, kv_oc) := state_oc in
   let (k_oc', v_oc) := kv_oc in
   (* bits, calls, V straightforward *)
+  (* OLD CALLS + len l *)
   bits_prg = bits_oc /\ calls_prg = length l /\ calls_oc = length l /\ v_prg = v_oc
   (* k is more complex, also note calls_prg = calls_oc *)
   /\ (calls_prg < i -> k_prg' = k_f /\ k_oc = k_oc)
@@ -1882,18 +1883,35 @@ Definition bitsCallsKVeq {A B : Type} (i : nat) (l : list B) (k_f k_oc : Bvector
   /\ (calls_prg > i -> k_prg' = k_oc')
   /\ (i = 0 -> k_prg' = k_oc'). (* combine the three into one hypothesis? *)
 
+Definition bitsCallsKVeq_RB {A B : Type} (l1 l2 l : list B) (i : nat) (k_f k_oc : Bvector eta)
+           (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :=
+  let (bits_prg, state_prg) := x in
+  let (calls_prg, kv_prg) := state_prg in
+  let (k_prg', v_prg) := kv_prg in
+  let (bits_oc, state_oc) := fst y in
+  let (calls_oc, kv_oc) := state_oc in
+  let (k_oc', v_oc) := kv_oc in
+  (* bits, calls, V straightforward *)
+  (* OLD CALLS + len l *)
+  bits_prg = bits_oc /\ calls_prg = calls_oc
+  /\ v_prg = v_oc
+  /\ calls_prg <= i /\ k_prg' = k_f /\ k_oc = k_oc'
+  /\ l = l1 ++ l2 /\ length l1 = calls_prg /\ i < length l2.
+
 (* TODO: fix instantiations of bitsCallsKVeq below and fix postconditions
-(where you see repeat (split; try auto)) *)
+(where there is `repeat (split; try auto))` *)
 Theorem Gi_normal_prf_eq_compspec_post2 :
   forall (l : list nat) (i : nat) (k1 k2 v : Bvector eta),
-    length l > 0 ->
+    i < length l ->
    comp_spec
+
      (fun (x : list (list (Bvector eta)) * (nat * KV))
         (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
         bitsCallsKVeq i l k1 k2 x y)
 
      (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
         (Oi_prg i) (0, (k1, v)) l)
+
      ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
@@ -1902,7 +1920,55 @@ Theorem Gi_normal_prf_eq_compspec_post2 :
         (f_oracle f eqdbv k1) tt).
 Proof.
   intros.
+
+  set (calls := 0).
+  (* original l = l1 ++ l2 *)
+  pose (l1 := @nil nat).
+  pose (l2 := l).
+  change l with l2 at 2 3.
   
+  assert (H_states : bitsCallsKVeq_RB l1 l2 l i k1 k2 (@nil (list (Bvector eta)), (calls, (k1, v))) (@nil (list (Bvector eta)), (calls, (k2, v)), tt)). {
+    simpl.
+    repeat (split; auto). subst calls. omega.
+  }
+
+  change l with l2 in H.
+  clearbody l1 calls l2.
+  clear H.
+  revert calls l1 l2 H_states.
+
+  induction i as [ | i']; intros.
+
+-
+  hnf in H_states.
+  decompose [ and ] H_states; clear H_states.
+  (* destruct H_states as [? [? ?]]. *)
+  assert (H_c : calls = 0) by omega.
+  subst.
+  destruct l1; inversion H_c.
+  simpl in H.
+  clear H H0 H3 H4 H1 H_c H2.
+  rename l2 into l.
+  simpl app.
+  admit.
+  (* TODO apply lemma above w/ i = 0 *)
+-
+    hnf in H_states.
+  decompose [ and ] H_states; clear H_states.
+  clear H H1 H0 H3 H4.
+  destruct l2 as [ | x l2']; inversion H8.
+
+  specialize (IHi' (S calls) (l1 ++ x :: nil) l2').
+  unfold Oi_oc'.
+
+  
+  apply IHi'.
+
+
+
+
+  (* --------- *)
+
   destruct l as [ | x xs].
   - 
     simpl in *. omega.
