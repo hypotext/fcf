@@ -1934,6 +1934,23 @@ Theorem Gi_normal_prf_eq_compspec_post2 :
          (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
         (f_oracle f eqdbv k1) tt).
 Proof.
+ (* TODO:
+- understand (on paper) what it means to assert and prove IH vs add assumptions X
+  - same as adding assumption -- just proving it inline vs. proving it when we apply thm
+- understand the invariant: length l > i - calls
+  - this is true because calls increases and i is fixed... but why do we need it?
+  - becomes 
+- understand the IH (precondition?) 
+  - before an RB call, the initial bits and v are eq, and there are calls remaining
+  - IH in theorem: ??
+
+- just think about inducting on l (not its reverse) and what that means
+- write out the base case and induction case 1, induction case 2
+  - understand the ind cases
+  - figure out if the 3 cases are true
+- figure out new postcondition
+- prove two cases with new postcondition *)
+
   (* induct on l (or l2?) start w calls < i, stop when calls = i (no longer true) *)
   intros.
   (* wait, here we're inducting on calls? *)
@@ -1946,26 +1963,79 @@ Proof.
   }
   clearbody bits.
   clear H0.
-  assert (Hlen : length l > i - calls).
-  { omega. }
+  (* what's this invariant? are we only using it for base case *)
+  (* assert (Hlen : length l > i - calls). *)
+  (* { omega. } *)
   clear H1.
   
-  revert bits calls H H_states Hlen.
+  revert bits calls H H_states.
   (* calls increases as l decreases *)
   induction l as [ | x xs]; intros.
 
+  - simpl in *.
+    simplify.
+    fcf_spec_ret.
+    simpl.
+    repeat (split; auto).
+    (* base case is true if we don't change this postcondition, otherwise may need Hlen *)
+    (* simpl in Hlen. *)
+    (* omega. *)
   -
-    simpl in Hlen.
-    omega.
-  - 
+    (* IHxs : forall (bits : list (list (Bvector eta))) (calls : nat),
+         calls <= i ->
+given by H? confused. oh, the IH only applies when calls remains <= i. 
+we need to do other reasoning when calls > i (or calls = i???)
+well we assert (calls < i \/ calls = i... confused)
+
+         bitsCallsVEq xs calls i (bits, (calls, (k1, v)))
+           (bits, (calls, (k2, v)), tt) ->
+this holds on what?
+
+         length xs > i - calls ->
+not sure why we need this. given `length x:: xs > i - calls` = `S (length xs) > i - calls`, that... doesn't seem to be true? idt we need this?
+length xs + 1 > i - calls
+calls <= i
+-> length xs + 1 > i - calls >= 0
+
+         comp_spec
+           (fun (x0 : list (list (Bvector eta)) * (nat * KV))
+              (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+            bitsCallsVEq xs calls i x0 y)
+           (oracleMap (pair_EqDec nat_EqDec eqDecState) 
+              (list_EqDec eqdbv) (Oi_prg i) (calls, (k1, v)) xs)
+           ((oracleCompMap_inner
+               (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                  (pair_EqDec nat_EqDec eqDecState))
+               (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+               (calls, (k2, v)) xs) unit unit_EqDec 
+              (f_oracle f eqdbv k1) tt) 
+postcondition holds on xs
+
+how to apply it to "want to prove postcondition holds on (x :: xs) w same starting state"
+
+-----
+  H_states : bitsCallsVEq (x :: xs) calls i (bits, (calls, (k1, v)))
+               (bits, (calls, (k2, v)), tt) -- or
+  H_states : bits = bits /\
+             calls <= S (length xs) /\ calls <= S (length xs) /\ v = v
+given: maybe this is instantiated wrong? bits and v eq (redundant), calls < ...
+so this isn't very useful...
+do we even need a precondition? it's implicitly stated in the theorem (input v eq, no bits)
+but i could generalize it to (bits <-$ ...; ret (first_bits :: bits))
+
+  H : calls <= i 
+don't understand this, should it be true? is it analogous to `calls = 0` before?
+do i even need this?
+
+  Hlen : length (x :: xs) > i - calls
+???     *)
     simpl in H_states.
-    simpl in Hlen.
+    (* simpl in Hlen. *)
     decompose [and] H_states; clear H_states.
     clear H0 H1 H4.
 
     (* assert (H_ilen : length xs > i - calls \/ i - calls = length xs) by omega. *)
     assert (H_ilen : i > calls \/ i = calls) by omega.
-
     destruct H_ilen.
 
   +
@@ -1982,68 +2052,13 @@ Proof.
     (* this is true! i = calls, and the keys are linked *)
     (* what happened above? i'm not sure *)
     (* precondition? invariant? ?? *)
-
-admit.
-
-  + 
-    clear IHxs.
-    
-    (* we've reached i *)
-
-    
-
-  remember (rev l) as rev_l.
-  assert (H_revl: rev (rev l) = l).
-  { apply rev_involutive. }
-  rewrite <- H_revl.
-  rewrite <- Heqrev_l.
-  clear Heqrev_l H_revl.
-  revert i k1 k2 v H H_states H1.
-
-  induction rev_l as [ | rev_x' rev_l']; intros i k1 k2 v calls_lt_i pre i_lt_l.
-  (* induction l as [ | x xs]; intros. *)
-
-  (* l=nil is impossible, do destruct like before *)
-  -
-    
+    (* do a separate induction? this should really be a separate theorem that we can apply here. *)
     admit.
-
-  (* l = x :: xs *)
-  -
-    simpl in pre.
-    decompose [ and ] pre; clear pre. 
-    clear H H1 H3.
-    simpl.
-
-    unfold oracleMap.
-    eapply comp_spec_eq_trans_l.
-    apply fold_app_2. admit. admit.
-
-    apply comp_spec_symm.
-    eapply comp_spec_eq_trans_l.
-    apply oracleCompMap_fold_app. (* is this strong enough? and fold_app_2? *)
-    apply comp_spec_symm.
-
-    fcf_skip. admit. admit.
-
-    (* induction hypothesis *)
-    * apply IHrev_l'. auto.
-      simpl. repeat (split; auto). auto.
-
-    *
-      simpl in H2.
-      destruct b0. destruct b. simpl in H2. destruct p. destruct p.
-      destruct k. decompose [and] H2; clear H2. subst.
-
-      rewrite rev_length in *.
-(* we know that calls <= i, but (the postcondition doesn't have it again) we don't know whether S (calls + length rev_xs) etc. is <= i *)
-(* and there's casework depending on that..? *)
-
-    (* if S calls' < i, destruct whether calls' < i + 1 *)
 
 Admitted.
 
-
+(* old proof attempts *)
+(*
   set (calls := 0).
   (* original l = l1 ++ l2 *)
   pose (l1 := @nil nat).
@@ -2106,14 +2121,10 @@ Admitted.
   unfold Oi_oc'.
 
   
-  apply IHi'.
-
-
-
+  apply IHi'. *)
 
   (* --------- *)
-
-  destruct l as [ | x xs].
+(*  destruct l as [ | x xs].
   - 
     simpl in *. omega.
   - clear H_numCalls.
@@ -2243,6 +2254,7 @@ Qed.
 Transparent oracleMap.
 Transparent oracleCompMap_inner.
 Transparent Oi_prg. Transparent Oi_oc'.
+*)
 
 (* version of theorem below with different postcondition *)
 (* other ideas:
