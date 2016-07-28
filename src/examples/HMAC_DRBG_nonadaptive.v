@@ -1911,43 +1911,45 @@ Definition bitsVEq {A B : Type} (l : list B) (i : nat)
   (* no statement about keys being equal for now *)
   bits_x = bits_y /\ v_x = v_y.
 
+Ltac breakdown x := simpl in x; decompose [and] x; clear x.
+
 Theorem Gi_normal_prf_eq_compspec_post3 :
-  forall (l : list nat) (i calls : nat) (k1 k2 v : Bvector eta),
+  forall (l : list nat) (i calls : nat) (k1 k2 v : Bvector eta) init,
     calls <= i ->
-    calls < length l ->
-    i < length l ->
-   comp_spec
+    (* calls < length l -> *)
+    (* i < length l -> *)
 
-     (fun (x : list (list (Bvector eta)) * (nat * KV))
-        (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-        bitsVEq l i x y)
+    comp_spec
+      (fun (x : list (list (Bvector eta)) * (nat * KV))
+           (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
+         bitsVEq l i x y)
 
-     (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-        (Oi_prg i) (calls, (k1, v)) l)
+      (* (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv) *)
+      (*            (Oi_prg i) (calls, (k1, v)) l) *)
+      (compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg i s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (init, (calls, (k1, v))) l)
 
-     ((oracleCompMap_inner
+     ([acc', state'] <-$2 ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k2, v)) l) unit unit_EqDec (* note: k's differ. we aren't using this one *)
-        (f_oracle f eqdbv k1) tt).
-Proof.
-  intros.
-  (* NOTE: deal w/ calls increasing? *)
-  (* induction calls as [ | calls']. *)
-  (* how to get calls to increase... *)
+         (calls, (k2, v)) l) unit unit_EqDec 
+        (f_oracle f eqdbv k1) tt);
+      [bits, nkv] <-2 acc';
+      ret (init ++ bits, nkv, state')).
 
-  pose (bits := @nil (list (Bvector eta))).
-  assert (H_states : bitsVEq l i (bits, (calls, (k1, v))) (bits, (calls, (k2, v)), tt)). {
-    simpl.
-    repeat (split; auto; try omega). 
-  }
-  clearbody bits.
-  clear H0.
-  clear H1.
-  
-  revert bits calls H H_states.
-  (* calls increases as l decreases *)
+      (* ((oracleCompMap_inner *)
+      (*     (pair_EqDec (list_EqDec (list_EqDec eqdbv)) *)
+      (*                 (pair_EqDec nat_EqDec eqDecState)) *)
+      (*     (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i)  *)
+      (*     (calls, (k2, v)) l) unit unit_EqDec  *)
+      (*                         (f_oracle f eqdbv k1) tt). *)
+Proof.
   induction l as [ | x xs]; intros.
 
   - simpl in *.
@@ -1955,50 +1957,45 @@ Proof.
     fcf_spec_ret.
     simpl.
     repeat (split; auto).
+    rewrite app_nil_r. reflexivity.
 
-  -
-    simpl in H_states.
-    decompose [and] H_states; clear H_states.
-    clear H0 H1.
-
+  -                             (* l = x :: xs *)
     assert (H_ilen : calls < i \/ calls = i) by omega.
     destruct H_ilen.
 
-Opaque Oi_prg. Opaque Oi_oc'.
+    Opaque Oi_prg. Opaque Oi_oc'.
     unfold oracleMap.
     simplify.
     fcf_skip. admit. admit.
-    (*          |- list (Bvector eta) * (nat * KV) ->
-            list (Bvector eta) * (nat * KV) * unit -> Prop]  *)
     instantiate (1 := (fun c d => fst c = fst (fst d) /\ snd c = snd (fst d))).
     (* includes calls *)
     admit.
 
-    simpl in H3. decompose [and] H3; clear H3. destruct b. destruct p. simpl in *. subst.
+    breakdown H3. destruct b. destruct p. simpl in *. subst.
     (* now need to apply induction hypothesis somehow *)
     fcf_ident_expand_l.
-    unfold oracleMap in IHxs.
+    unfold oracleMap in *.
     fcf_skip.
+
+    destruct b0.
+    eapply comp_spec_eq_trans_r.
+    eapply IHxs.
+    admit.                      (* what's a?? *)
+
+    fcf_skip_eq. admit. admit.
+    simplify.
+    (* TODO prove eq with any key *)
+
     (* the fold needs to be generalized for any acc not nil (and OCM too) *)
-    (* IH does not apply for all (k2,k1,v), needs to be generalized *)
     (* IH requires that f_oracle have same key as oracleMap when it doesn't? unsure.
      since calls still < i, we can prove it doesn't matter *)
-    (* but other than that, this might work!! *)
-    (* apply IHxs. *)
-
-    (* old: assert (bits': list (list (Bvector eta))) by admit.
-    specialize (IHxs bits' (S calls)).
-    (* bits should be returned by... *)
-
-    assert (pre : bitsCallsVEq xs (S calls) i (bits', (S calls, (k1, v)))
-           (bits', (S calls, (k2, v)), tt)). admit.
-    admit. *)
+    (* it should be just like the induction i did above for base case *)
+    (* i should also be able to pull out the theorems/structure I used above *)
 
     instantiate (1 := (fun c d => bitsVEq xs i c d)).
     admit.
 
     simpl in H5. destruct b1. destruct b. destruct p. destruct p. destruct k. simpl in *. 
-    Ltac breakdown x := decompose [and] x; clear x.
     breakdown H5.
     subst.
     simplify.
