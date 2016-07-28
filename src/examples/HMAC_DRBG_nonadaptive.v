@@ -1899,7 +1899,7 @@ Definition bitsCallsKVeq_RB {A B : Type} (l1 l2 l : list B) (i : nat) (k_f k_oc 
   /\ l = l1 ++ l2 /\ length l1 = calls_prg /\ i < length l2.
 
 (* new postcondition *)
-Definition bitsVEq {A B : Type} (l : list B) (i : nat)
+Definition bitsVEq {A : Type} (i : nat)
            (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :=
   let (bits_x, state_x) := x in
   let (calls_x, kv_x) := state_x in
@@ -1909,9 +1909,9 @@ Definition bitsVEq {A B : Type} (l : list B) (i : nat)
   let (calls_y, kv_y) := state_y in
   let (k_y, v_y) := kv_y in
   (* no statement about keys being equal for now *)
-  bits_x = bits_y /\ v_x = v_y.
+  bits_x = bits_y /\ v_x = v_y /\ calls_x = calls_y.
 
-Ltac breakdown x := simpl in x; decompose [and] x; clear x.
+Ltac breakdown x := simpl in x; decompose [and] x; clear x; subst.
 
 Theorem Gi_normal_prf_eq_compspec_post3 :
   forall (l : list nat) (i calls : nat) (k1 k2 v : Bvector eta) init,
@@ -1922,7 +1922,7 @@ Theorem Gi_normal_prf_eq_compspec_post3 :
     comp_spec
       (fun (x : list (list (Bvector eta)) * (nat * KV))
            (y : list (list (Bvector eta)) * (nat * KV) * unit) =>
-         bitsVEq l i x y)
+         bitsVEq i x y)
 
       (* (oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv) *)
       (*            (Oi_prg i) (calls, (k1, v)) l) *)
@@ -1933,6 +1933,7 @@ Theorem Gi_normal_prf_eq_compspec_post3 :
          [rs, s]<-2 acc;
          z <-$ Oi_prg i s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
         (init, (calls, (k1, v))) l)
+      (* should calls and init be linked? *)
 
      ([acc', state'] <-$2 ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
@@ -1962,50 +1963,95 @@ Proof.
   -                             (* l = x :: xs *)
     assert (H_ilen : calls < i \/ calls = i) by omega.
     destruct H_ilen.
+    clear H.
 
-    Opaque Oi_prg. Opaque Oi_oc'.
-    unfold oracleMap.
-    simplify.
-    fcf_skip. admit. admit.
-    instantiate (1 := (fun c d => fst c = fst (fst d) /\ snd c = snd (fst d))).
-    (* includes calls *)
-    admit.
+    (* calls < i *)
+    + Opaque Oi_prg. Opaque Oi_oc'.
+      unfold oracleMap.
+      simplify.
+      fcf_skip. admit. admit.
+      (* strengthen postcondition so we can prove calls < i -> S calls <= i to apply IHxs *)
+      (* also strengthen it again because if calls < i then the keys must still be the same *)
+      instantiate (1 := (fun c d => bitsVEq i c d
+                                    /\ fst (snd c) = S calls /\ fst (snd (fst d)) = S calls
+                                    /\ fst (snd (snd c)) = k1
+                                    /\ fst (snd (snd (fst d))) = k2)).
+      (* includes calls *)
+      (* one call with linked keys TODO *)
+      { admit. }
 
-    breakdown H3. destruct b. destruct p. simpl in *. subst.
-    (* now need to apply induction hypothesis somehow *)
-    fcf_ident_expand_l.
-    unfold oracleMap in *.
-    fcf_skip.
+      (* use IH *)
+      { simpl in H2. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *.
+        breakdown H2. 
+        simplify.
 
-    destruct b0.
-    eapply comp_spec_eq_trans_r.
-    eapply IHxs.
-    admit.                      (* what's a?? *)
+        eapply comp_spec_eq_trans_r. (* well it shouldn't be eq... *)
+        eapply IHxs.
+        omega. 
 
-    fcf_skip_eq. admit. admit.
-    simplify.
-    (* TODO prove eq with any key *)
+        (* now prove oracleCompMap_inner's eq *)
+        { fcf_skip_eq. admit. admit.
+          Show Existentials.
+          (* list (list (Bvector eta)) * (nat * KV) * unit *)
+          simplify.
+          (* why is this an existential *)
+          instantiate (1 := k2).
+          destruct u.
+          fcf_reflexivity.
+          (* if calls < i (NOT TRUE for calls <= i) and (k,v) are same, then doesn't matter that f's keys are different, the output will be the same. problem: how to prove by induction? if we do `calls < i` then on induction it might not be preserved? *)
 
-    (* the fold needs to be generalized for any acc not nil (and OCM too) *)
-    (* IH requires that f_oracle have same key as oracleMap when it doesn't? unsure.
-     since calls still < i, we can prove it doesn't matter *)
-    (* it should be just like the induction i did above for base case *)
-    (* i should also be able to pull out the theorems/structure I used above *)
+          (* Lemma oracleCompMap_calls_lt_i_key_irrelevance : forall l i calls k1 k2 v tt1 tt2,
+              calls < i ->
+              (* now the keys aren't equal on output; what postcondition do i need?? *)
+              comp_spec eq
+                        ((oracleCompMap_inner
+                            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                        (pair_EqDec nat_EqDec eqDecState))
+                            (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                            (calls, (k1, v)) l) unit unit_EqDec (f_oracle f eqdbv k1) tt1)
+                        ((oracleCompMap_inner
+                            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                        (pair_EqDec nat_EqDec eqDecState))
+                            (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                            (calls, (k2, v)) l) unit unit_EqDec (f_oracle f eqdbv k1) tt2).
+          Proof.
+            induction l as [ | x xs]; intros.
+            - simplify. fcf_spec_ret. f_equal. 
+              admit.
+              destruct tt1. destruct tt2. reflexivity.
+            -
+              assert (H_callsdec : S calls < i \/ S calls >= i) by omega.
+              destruct H_callsdec.
+              (* S calls < i *)
+            + simplify.
+              fcf_skip. admit. admit.
+              (* true because 1 call and calls < i *)
+              instantiate (1 := (fun c d => c = d
+                                            /\ fst (snd (fst c)) = S calls
+                                            /\ fst (snd (fst d)) = S calls)).
+              { admit. }        (* TODO *)
+              simplify.
+              fcf_skip_eq. destruct b1.
+              simpl in *. destruct p. simpl in *. destruct k. inversion H4. subst.
+              (* apply IHxs. auto. *)
+              (* simplify. simpl in *. destruct p. inversion H4. simpl in *. subst. fcf_spec_ret. *)
+              admit. admit.
 
-    instantiate (1 := (fun c d => bitsVEq xs i c d)).
-    admit.
+              (* calls < i and S calls >= i *)
+            + clear IHxs.
+              (* assert (H_calls : calls = i).  *)
 
-    simpl in H5. destruct b1. destruct b. destruct p. destruct p. destruct k. simpl in *. 
-    breakdown H5.
-    subst.
-    simplify.
-    fcf_spec_ret. simpl.
-    repeat (split; auto).
-    (* TODO this isn't good *)
-    admit.
+              admit.
+          Qed. *)
+
+          simplify.
+          (* proving comp_spec eq? *)
+          fcf_spec_ret. rewrite <- app_assoc. f_equal.
+        }
+      } 
     
-  +
-    clear IHxs.                 (* calls = i *)
+    (* calls = i *)
+  + clear IHxs.
 
     Lemma Gi_normal_prf_eq_calls_eq_i :
       forall (l : list nat) (i calls : nat) (k1 k2 v : Bvector eta),
