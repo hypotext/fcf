@@ -1780,10 +1780,33 @@ Definition GenUpdate_noV_comp (state : KV) (n : nat) :
   k' <- f k (to_list v' ++ zeroes);
   ret (bits, (k', v')).
 
-Lemma Gen_loop_comp_eq : forall k v n,
+Lemma Gen_loop_comp_eq : forall n k v,
+  comp_spec eq (ret (Gen_loop k v n)) (Gen_loop_comp k v n).
+Proof.
+  induction n as [ | n']; intros.
+  - simpl. fcf_spec_ret.
+  - simpl.
+    unfold setLet.
+(* ??? *)
+Admitted.
+
+Lemma GenUpdate_comp_eq : forall k v n,
   comp_spec eq (GenUpdate (k,v) n) (GenUpdate_comp (k,v) n).
 Proof.
-  intros. simpl. Admitted.
+  intros. simpl.
+  unfold setLet.
+  revert k v.
+  induction n as [ | n']; intros.
+  - simplify. fcf_spec_ret.
+  - simpl.
+    fcf_inline_first.
+
+  (* destruct (Gen_loop k (f k (to_list v)) n). *)
+  (* fcf_irr_r. admit. *)
+  (* fcf_simp. *)
+  (* fcf_spec_ret. repeat f_equal. *)
+  (* ??? *)
+Admitted. 
 
 (* ------- *)
 
