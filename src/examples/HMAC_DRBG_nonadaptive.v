@@ -1749,6 +1749,44 @@ Definition bitsVEq {A : Type} (x : A * (nat * KV)) (y : A * (nat * KV) * unit) :
 
 Ltac breakdown x := simpl in x; decompose [and] x; clear x; subst.
 
+(* -------- *)
+(* Rewrite gen_loop and updates computationally, and prove equivalence *)
+
+Fixpoint Gen_loop_comp (k : Bvector eta) (v : Bvector eta) (n : nat)
+  : Comp (list (Bvector eta) * Bvector eta) :=
+  match n with
+  | O => ret (nil, v)
+  | S n' =>
+    v' <- f k (to_list v);
+    [bits, v''] <-$2 Gen_loop_comp k v' n';
+    ret (v' :: bits, v'')
+  end.
+
+(* want to change to this, and prove the outputs are the same. 
+the other GenUpdates don't use this version *)
+Definition GenUpdate_comp (state : KV) (n : nat) :
+  Comp (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  v' <- f k (to_list v);
+  [bits, v''] <-$2 Gen_loop_comp k v' n;
+  k' <- f k (to_list v'' ++ zeroes);
+  ret (bits, (k', v'')).
+
+(* use this for the first call *)
+Definition GenUpdate_noV_comp (state : KV) (n : nat) :
+  Comp (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  [bits, v'] <-$2 Gen_loop_comp k v n;
+  k' <- f k (to_list v' ++ zeroes);
+  ret (bits, (k', v')).
+
+Lemma Gen_loop_comp_eq : forall k v n,
+  comp_spec eq (GenUpdate (k,v) n) (GenUpdate_comp (k,v) n).
+Proof.
+  intros. simpl. Admitted.
+
+(* ------- *)
+
 Lemma Gi_normal_prf_eq_calls_eq_i :
   forall (l : list nat) (i calls : nat) (k1 k2 v : Bvector eta) init,
     calls = i ->
@@ -1789,8 +1827,46 @@ Proof.
       Transparent Oi_prg. Transparent Oi_oc'.
       unfold Oi_prg. unfold Oi_oc'.
       simplify.
-      (* casework on `calls = i` and `calls > i` *)
-      admit. }
+      (* casework on `i = 0`, `calls = i` and `calls > i` *)
+      destruct (lt_dec i i). omega. 
+      clear n.
+      destruct (beq_nat i 0).
+      - simpl.
+        fcf_inline_first. 
+        fcf_skip. admit. admit.
+        instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd (snd x) = snd (fst y))).
+
+        rename x into n.
+        clear xs init.
+        revert i k1 k2 v. 
+        induction n as [ | n']; intros.
+        { simplify. fcf_spec_ret. }
+        { simpl.
+          unfold f_oracle.
+          prog_ret_r.
+
+          destruct (Gen_loop k1 (f k1 (to_list v))).
+          admit. }
+
+        admit.
+
+      - simpl.
+        assert (beq_nat i i = true) by apply Nat.eqb_refl.
+        destruct (beq_nat i i).
+        Focus 2. inversion H.
+        clear H. unfold GenUpdate_oc.
+        simpl. 
+        fcf_inline_first.
+        prog_ret_r.
+        fcf_inline_first.
+        
+        fcf_skip. admit. admit.
+        instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd (snd x) = snd (fst y))).
+        (* same theorem as above, just with v_init := (f k1 (to_list v)) *)
+        
+        admit.
+      Opaque Oi_prg. Opaque Oi_oc'.
+    }
 
     (* rest of calls -- induct on the new list *)
     { simplify. simpl in *. destruct b0. destruct p. destruct k. simpl in *. breakdown H2. 
@@ -1806,18 +1882,31 @@ Proof.
       (* xs = nil *)
       + simplify. fcf_spec_ret. simpl. repeat (split; auto).
       (* xs = x' :: xs', use IH *)
-      + Opaque Oi_prg. Opaque Oi_oc'.
-        simplify.
+      + simplify.
         fcf_skip. admit. admit.
 
         (* one call with calls > i (calls = S i) *)
         instantiate (1 := (fun c d => bitsVEq c d
                                       (* calls incremented by one *)
-                                      /\ fst (snd c) = S (calls)
-                                      /\ fst (snd (fst d)) = S (calls)
+                                      /\ fst (snd c) = S (S calls)
+                                      /\ fst (snd (fst d)) = S (S calls)
                                       (* keys equal *)
                                       /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
-        { admit. }
+        {
+          Transparent Oi_prg. Transparent Oi_oc'.
+          unfold Oi_prg. unfold Oi_oc'.
+          (* calls > i implies S calls != i *)
+          assert (H_false : beq_nat (S calls) i = false).
+          { apply Nat.eqb_neq. omega. }
+          destruct (beq_nat (S calls) i). inversion H_false.
+          clear H_false.
+          simplify.
+          destruct (lt_dec (S calls) i). omega. (* contradiction *)
+          apply not_lt in n.
+          simplify.
+          fcf_spec_ret. simpl. auto. 
+          Opaque Oi_prg. Opaque Oi_oc'.          
+        }
 
         simpl in H2. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *. breakdown H2.
         simplify.
@@ -1884,12 +1973,26 @@ Proof.
       (* strengthen postcondition so we can prove calls < i -> S calls <= i to apply IHxs *)
       (* also strengthen it again because if calls < i then the keys must still be the same *)
       instantiate (1 := (fun c d => bitsVEq c d
+                                    (* calls incremented by 1 *)
                                     /\ fst (snd c) = S calls /\ fst (snd (fst d)) = S calls
+                                    (* output keys are the input keys *)
                                     /\ fst (snd (snd c)) = k1
                                     /\ fst (snd (snd (fst d))) = k2)).
       (* includes calls *)
       (* one call with linked keys TODO *)
-      { admit. }
+      {
+        Transparent Oi_prg. Transparent Oi_oc'.
+        simpl.
+        destruct (lt_dec calls i).
+        Focus 2. omega.         (* contradiction *)
+        clear l.                (* calls < i *)
+        unfold GenUpdate_rb_intermediate.
+        simplify.
+        fcf_skip_eq. admit. admit.
+        simplify.
+        fcf_spec_ret. simpl. auto.
+        Opaque Oi_prg. Opaque Oi_oc'.
+      }
 
       (* use IH *)
       { simpl in H2. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *.
