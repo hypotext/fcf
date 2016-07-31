@@ -1849,39 +1849,202 @@ Lemma Gi_rb_return_bad_eq : forall (i : nat),
 Proof.
 Admitted.
 
-Lemma rb_oracle_state_irrelevance : forall l calls k v state1 state2 i,
-   comp_spec (fun x y => fst x = fst y)
-     ((oracleCompMap_inner
+(* second induction used to prove the lemma after it. calls = i, then destruct, the induction on calls > i *)
+Lemma Gi_normal_rb_eq_calls_eq_i : forall l k v i calls init rb_state,
+    calls = i ->
+    comp_spec
+      (fun (x0 : list (list (Bvector eta)) * (nat * KV))
+           (y : list (list (Bvector eta)) * (nat * KV) *
+                list (Blist * Bvector eta)) => bitsVEq x0 y)
+      (compFold
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k, v)) l) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state1)
-     ((oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k, v)) l) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state2).
+                     (pair_EqDec nat_EqDec eqDecState))
+         (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+            [rs, s]<-2 acc;
+          z <-$ Oi_prg (S i) s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+         (init, (calls, (k, v))) l)
+      (z <-$
+         (oracleCompMap_inner
+            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                        (pair_EqDec nat_EqDec eqDecState))
+            (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+            (calls, (k, v)) l) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state;
+       [bits, nkv, state']<-3 z;
+       ret (init ++ bits, nkv, state')).
 Proof.
-  induction l as [ | x xs]; intros.
-  - simplify; fcf_spec_ret.
-  - Opaque Oi_oc'. 
-    simpl.
-    fcf_skip. admit. admit.
-    Show Existentials.
-    instantiate (1 := (fun x y => fst x = fst y)).
-    Transparent Oi_oc'. 
-    admit.
-    (* TODO: Oi_oc', for all i, have to induct too... *)
-    
-    simpl in H1. destruct b0. destruct p. destruct p. destruct b1. simpl in *.
-    destruct k0. inversion H1. subst.
-    fcf_skip. admit. admit.
-    simplify. simpl in *. destruct p. inversion H4. subst. fcf_spec_ret.
-Qed.    
+  Opaque Oi_prg. Opaque Oi_oc'.
+  destruct l as [ | x xs]; intros.
 
-Lemma Gi_normal_rb_eq_compspec : forall l k v i calls init,
+  - simplify. fcf_spec_ret. simpl. repeat (split; auto).
+    rewrite app_nil_r; reflexivity.
+  -
+    simplify.
+    eapply comp_spec_seq. admit. admit.
+    (* avoid fcf_skip, it will subst calls = i, which i don't want to link *)
+
+    (* when calls = i, one is Gen_loop_rb and the other is Gen_loop_oc using the rb_oracle *)
+    instantiate (1 := (fun c d => bitsVEq c d
+                                  /\ fst (snd c) = S i /\ fst (snd (fst d)) = S i
+                                  (* keys become equal afterward on call i *)
+                                  /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
+    (* 1 call *)
+    { subst.
+      Transparent Oi_prg. Transparent Oi_oc'.
+      unfold Oi_prg. unfold Oi_oc'.
+      simplify.
+      (* casework on `i = 0`, `calls = i` and `calls > i` *)
+      destruct (lt_dec i i). omega. 
+      clear n.
+      destruct (lt_dec i (S i)).
+      Focus 2. omega.
+      destruct (beq_nat i 0).
+      (* i = 0? *)
+      -
+        fcf_skip. admit. admit.
+        instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
+        unfold GenUpdate_rb_intermediate. simpl. 
+        fcf_skip. admit. 
+        instantiate (1 := (fun x y => x = fst (fst y))).
+        (* by induction *)
+        admit.
+
+        simpl in H2. destruct b. destruct p. simpl in *. subst.
+        unfold rb_oracle. simplify. fcf_irr_r. simplify. fcf_spec_ret.
+        simpl. admit. (* TODO (k,v) not eq *)
+
+        simplify. fcf_spec_ret. simpl in *. subst. destruct k0. auto.
+        simpl in *. subst. auto.
+
+        Opaque Oi_prg. Opaque Oi_oc'.
+      -
+        (* presumably now `i <> 0`? *)
+        assert (H_i_eq : beq_nat i i = true) by apply Nat.eqb_refl.
+        rewrite H_i_eq.
+        fcf_skip. admit. admit.
+        instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
+        unfold GenUpdate_rb_intermediate. simpl.
+        unfold rb_oracle. fcf_irr_r. simplify. fold rb_oracle.
+
+        fcf_skip. admit. 
+        instantiate (1 := (fun x y => x = fst (fst y))).
+        (* by induction *)
+        admit.
+
+        simpl in H3. destruct b0. destruct p. simpl in *. subst.
+        unfold rb_oracle. fcf_irr_r. simplify. fcf_spec_ret.
+        simpl. admit.           (* TODO (k,v) not eq *)
+
+        simpl in H2. destruct b0. destruct p. simpl in *. breakdown H2.
+        simplify. fcf_spec_ret. simpl. destruct k0. auto.
+    }
+
+    (* rest of calls -- induct on the new list *)
+    { intros.
+      simplify. simpl in *. destruct p0. destruct p. destruct k1. simpl in *. destruct k0. simpl in H2. decompose [and] H2.
+      (* avoid using subst *)
+      rewrite H5. rewrite H3. rewrite H7. rewrite H9. 
+      assert (n_eq : n = n0) by omega.
+      rewrite n_eq.
+      clear H5 H3 H7 H9 H4 n_eq H calls H0 H1.
+      rename n0 into calls.
+
+      assert (H_calls : calls > i) by omega.
+      rename b1 into k'. rename b2 into v'.
+      clear k v H2 b b0.
+      revert x init rb_state l k' v' H_calls l0.
+      induction xs as [ | x' xs']; intros.
+
+      (* xs = nil *)
+      + simplify. fcf_spec_ret. simpl. repeat (split; auto).
+      (* xs = x' :: xs', use IH *)
+      + simplify.
+        fcf_skip. admit. admit.
+
+        (* one call with calls > i (calls = S i) *)
+        (* PRF oracle only *)
+        instantiate (1 := (fun c d => bitsVEq c d
+                                      (* calls incremented by one *)
+                                      /\ fst (snd c) = S calls
+                                      /\ fst (snd (fst d)) = S calls
+                                      (* KV equal *)
+                                      /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
+        {
+          Transparent Oi_prg. Transparent Oi_oc'.
+          unfold Oi_prg. unfold Oi_oc'.
+
+          assert (H_false : beq_nat (S i) i = false).
+          { apply Nat.eqb_neq. omega. }
+(*          destruct (beq_nat (S calls) i). inversion H_false.
+          clear H_false.
+          simplify.
+          destruct (lt_dec calls i). omega. (* contradiction *)
+          apply not_lt in n0.
+          assert (beq_nat calls 0 = false).
+          { apply Nat.eqb_neq. omega. }
+          rewrite H0. Opaque GenUpdate.
+          simpl.
+          assert (beq_nat calls i = false).
+          { apply Nat.eqb_neq. omega. }
+          rewrite H1.
+          destruct (lt_dec calls calls). omega. clear n0.
+          Transparent GenUpdate. simpl. fcf_inline_first.
+          fcf_skip. admit. admit.
+          instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
+          fcf_simp.
+          fcf_spec_ret.
+          simplify. simpl in *. breakdown H4. fcf_spec_ret.
+          simpl. destruct k. auto.
+          Opaque Oi_prg. Opaque Oi_oc'.          
+
+          (* calls > i implies S calls != i *)
+          assert (H_false : beq_nat (S i) i = false).
+          { apply Nat.eqb_neq. omega. }
+          destruct (beq_nat (S calls) i). inversion H_false.
+          clear H_false.
+          simplify.
+          destruct (lt_dec calls i). omega. (* contradiction *)
+          apply not_lt in n0.
+          assert (beq_nat calls 0 = false).
+          { apply Nat.eqb_neq. omega. }
+          rewrite H0. Opaque GenUpdate.
+          simpl.
+          assert (beq_nat calls i = false).
+          { apply Nat.eqb_neq. omega. }
+          rewrite H1.
+          destruct (lt_dec calls calls). omega. clear n0.
+          Transparent GenUpdate. simpl. fcf_inline_first.
+          fcf_skip. admit. admit.
+          instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
+          fcf_simp.
+          fcf_spec_ret.
+          simplify. simpl in *. breakdown H4. fcf_spec_ret.
+          simpl. destruct k. auto.
+          Opaque Oi_prg. Opaque Oi_oc'.          *)
+          admit.
+        }
+
+        simpl in H2. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *. breakdown H2.
+        simplify.
+        
+        eapply comp_spec_eq_trans_r.
+        (* specialize (H  *)
+        (* rewrite <- app_assoc. *)
+        (* why is it calls vs. S calls... did this happen before... *)
+        eapply H. omega.
+        
+        (* now prove oracleCompMap_inner's eq *)
+        { instantiate (1 := k1). 
+          fcf_skip_eq. admit. admit.
+          simplify. fcf_spec_ret.
+          f_equal. f_equal.
+          rewrite <- app_cons_eq.
+          reflexivity.
+        }
+    }
+Qed.
+
+Lemma Gi_normal_rb_eq_compspec : forall l k v i calls init rb_state,
     calls <= i ->               (* or calls < i? *)
     comp_spec
       (fun (x : list (list (Bvector eta)) * (nat * KV))
@@ -1901,7 +2064,7 @@ Lemma Gi_normal_rb_eq_compspec : forall l k v i calls init,
                           (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                       (pair_EqDec nat_EqDec eqDecState))
                           (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-                          (calls, (k, v)) l) (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil);
+                          (calls, (k, v)) l) (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state);
        [bits, nkv] <-2 acc';
        ret (init ++ bits, nkv, state')).
 Proof.
@@ -1947,24 +2110,20 @@ Proof.
       simplify.
 
       eapply comp_spec_eq_trans_r.
-      (* actually i need to prove that that postcondition implies this one, eq doesn't work TODO *)
-
       eapply IHxs; omega. 
-
+      instantiate (1 := l).
       (* now prove oracleCompMap_inner's eq *)
       { fcf_skip_eq. admit. admit.
         simplify.
-        (* irrelevance of oracle state *)
-        pose proof (rb_oracle_state_irrelevance xs (S calls) k b2 nil l i).
-        fcf_spec_ret. rewrite <- app_assoc. f_equal.
+        fcf_spec_ret. f_equal. f_equal. rewrite <- app_assoc. f_equal.
       }
     } 
     
     (* calls = i *)
     + clear IHxs.
-      apply Gi_normal_prf_eq_calls_eq_i; omega.
+      clear H.
+      apply Gi_normal_rb_eq_calls_eq_i; omega.
 Qed.
-
 
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
