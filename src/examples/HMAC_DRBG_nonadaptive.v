@@ -1897,9 +1897,9 @@ Proof.
       destruct (lt_dec i i). omega. 
       clear n.
       destruct (lt_dec i (S i)).
-      Focus 2. omega.
+      Focus 2. omega. clear l.
       destruct (beq_nat i 0).
-      (* i = 0? *)
+      (* i = 0? shouldn't matter whether the v is updated an additional time in the latter *)
       -
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
@@ -1910,6 +1910,30 @@ Proof.
         admit.
 
         simpl in H2. destruct b. destruct p. simpl in *. subst.
+        Print GenUpdate_noV_oc.
+        (* uh this case is Wrong. do i need that k and v are equal? ugh if it's rb oracle then GenUpdate_noV (or with V) oc does update the key. should I make GenUpdate_rb update the k,v? but then that breaks the assumption in the other proof that the k,v go thru unchanged. this is just a problem when calls = i 
+
+both for i=0 and i<>0?
+is there any way i can change the top-level theorem?
+maybe they aren't the same, but they are indistinguishable if you skipped??
+since the initial k,v are rand samp,
+and the new k v are also rand samp
+so i guess it's not WRONG, just hard
+can i prove the first one (RB) with k,v going in rand samp is the same as rand sampling a key going into PRF?
+do i even need this top-level theorem? or is there some easier thing to state
+can i prove each (each what? at what level?) equiv to some intermediate computation?
+might need to backtrack
+maybe an oracle that does nothing when queried for k and v? but still generates bits? lol how would it know. i would have to modify Gen_loop_oc,GenUpdates, etc. to pass an "input tag." would break a lot of outer proofs.
+
+unique: maybe it just does nothing for k' <-- query to_list v' ++ zeroes (since unique)
+what about the v-updating?? the v is still updated (by the outer) t be the last v returned
+maybe Gen_loop_rb can update the v too?? does that break other things? (e.g. PRF thm)
+i think it's ok: calls < i: both RB, both update (tho i have to change Gen_loop_rb to keep track)
+calls = i: 
+  for PRF oracle, v going in are the same. for RB oracle, v is updated again w RB
+calls > i: for PRFs, v going in are the same
+
+does this break anything else? *)
         unfold rb_oracle. simplify. fcf_irr_r. simplify. fcf_spec_ret.
         simpl. admit. (* TODO (k,v) not eq *)
 
@@ -1951,8 +1975,8 @@ Proof.
 
       assert (H_calls : calls > i) by omega.
       rename b1 into k'. rename b2 into v'.
-      clear k v H2 b b0.
-      revert x init rb_state l k' v' H_calls l0.
+      clear k v H2 b b0 H6 rb_state x l n.
+      revert init k' v' l0 i calls l1 H_calls.
       induction xs as [ | x' xs']; intros.
 
       (* xs = nil *)
@@ -1971,71 +1995,30 @@ Proof.
                                       /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
         {
           Transparent Oi_prg. Transparent Oi_oc'.
-          unfold Oi_prg. unfold Oi_oc'.
-
-          assert (H_false : beq_nat (S i) i = false).
-          { apply Nat.eqb_neq. omega. }
-(*          destruct (beq_nat (S calls) i). inversion H_false.
-          clear H_false.
-          simplify.
-          destruct (lt_dec calls i). omega. (* contradiction *)
-          apply not_lt in n0.
+          unfold Oi_prg. unfold Oi_oc'. simplify.
+          destruct (lt_dec calls (S i)). omega. (* calls > i, so ~(calls < S i) *)
+          destruct (lt_dec calls i). omega.     (* calls > i, so ~(calls < i) *)
           assert (beq_nat calls 0 = false).
           { apply Nat.eqb_neq. omega. }
-          rewrite H0. Opaque GenUpdate.
-          simpl.
+          rewrite H. Opaque GenUpdate.
           assert (beq_nat calls i = false).
           { apply Nat.eqb_neq. omega. }
-          rewrite H1.
-          destruct (lt_dec calls calls). omega. clear n0.
-          Transparent GenUpdate. simpl. fcf_inline_first.
-          fcf_skip. admit. admit.
-          instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
-          fcf_simp.
-          fcf_spec_ret.
-          simplify. simpl in *. breakdown H4. fcf_spec_ret.
-          simpl. destruct k. auto.
-          Opaque Oi_prg. Opaque Oi_oc'.          
-
-          (* calls > i implies S calls != i *)
-          assert (H_false : beq_nat (S i) i = false).
-          { apply Nat.eqb_neq. omega. }
-          destruct (beq_nat (S calls) i). inversion H_false.
-          clear H_false.
+          rewrite H0.
+          Transparent GenUpdate.
           simplify.
-          destruct (lt_dec calls i). omega. (* contradiction *)
-          apply not_lt in n0.
-          assert (beq_nat calls 0 = false).
-          { apply Nat.eqb_neq. omega. }
-          rewrite H0. Opaque GenUpdate.
-          simpl.
-          assert (beq_nat calls i = false).
-          { apply Nat.eqb_neq. omega. }
-          rewrite H1.
-          destruct (lt_dec calls calls). omega. clear n0.
-          Transparent GenUpdate. simpl. fcf_inline_first.
-          fcf_skip. admit. admit.
-          instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
-          fcf_simp.
-          fcf_spec_ret.
-          simplify. simpl in *. breakdown H4. fcf_spec_ret.
-          simpl. destruct k. auto.
-          Opaque Oi_prg. Opaque Oi_oc'.          *)
-          admit.
+          fcf_spec_ret. simpl. auto.
+          Opaque Oi_prg. Opaque Oi_oc'.
         }
 
-        simpl in H2. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *. breakdown H2.
+        simpl in H1. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *.
+        breakdown H1.
         simplify.
         
         eapply comp_spec_eq_trans_r.
-        (* specialize (H  *)
-        (* rewrite <- app_assoc. *)
-        (* why is it calls vs. S calls... did this happen before... *)
-        eapply H. omega.
+        eapply IHxs'; omega.
         
         (* now prove oracleCompMap_inner's eq *)
-        { instantiate (1 := k1). 
-          fcf_skip_eq. admit. admit.
+        { fcf_skip_eq. admit. admit.
           simplify. fcf_spec_ret.
           f_equal. f_equal.
           rewrite <- app_cons_eq.
@@ -2132,7 +2115,9 @@ Gi_rb 0 : RB PRF PRF...
 (call number 0 uses the RB oracle) -- equivalence, no replacing happening here *)
 (* might have misnumbered something here? *)
 (* using random bits as the oracle for the ith call = the (i+1)th hybrid *)
-(* proof very similar to Gi_normal_prf_eq *)
+(* proof very similar to Gi_normal_prf_eq 
+used in Gi_rf_rb_close to move from Gi_prg (S i) to Gi_rb i
+*)
 Transparent Oi_prg.
 Lemma Gi_normal_rb_eq : forall (i : nat),
     Pr[Gi_prg (S i)] == Pr[Gi_rb i].
@@ -2151,7 +2136,7 @@ Proof.
   - Transparent oracleMap.
     unfold oracleMap.
     pose proof Gi_normal_rb_eq_compspec as Gi_rb_compspec.
-    specialize (Gi_rb_compspec maxCallsAndBlocks nil b b0 i 0 nil).
+    (* specialize (Gi_rb_compspec maxCallsAndBlocks nil b b0 i 0 nil). *)
     eapply comp_spec_eq_trans_r.
     eapply Gi_rb_compspec; omega.
     simplify.
@@ -2568,6 +2553,7 @@ Proof.
     fcf_reflexivity.
 Qed.
 
+Close Scope nat.
 (* Applying the fundamental lemma here *)
 Lemma Gi_rb_rf_identical_until_bad : forall (i : nat),
 | Pr[x <-$ Gi_rf_dups_bad i; ret fst x] - Pr[x <-$ Gi_rb_bad i; ret fst x] | <=
@@ -2767,6 +2753,7 @@ Proof.
   unfold callMapWith.
   unfold oracleCompMap_outer.
   unfold oracleCompMap_inner.
+  Transparent Oi_oc'.
   unfold Oi_oc'.
 
 (* left hand side: RB' RB RB RF PRF PRF...
@@ -2858,6 +2845,8 @@ Lemma Gi_rf_rb_close : forall (i : nat), (* not true for i = 0 (and not needed) 
   | Pr[Gi_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions.
 Proof.
   intros.
+  Print Gi_rf.
+  (* Gi_prg uses oracleMap, Gi_rb and Gi_rf both use oracleCompMap (oracle box) *)
   rewrite Gi_normal_rb_eq. (* put Gi_prg into the same form using RB oracle *)
   (* TODO this might be wrong, maybe Gi_prg (S i) = Gi_rb (S i) *)
   (* shouldn't we be relating
