@@ -1,9 +1,36 @@
 TODO
 
 today: work 5-7:30?
+today: work 1:50-6? jk 2:50-6:50?
 
 * scroll around and see what else might break X
   - might need to prove another equivalence between GenUpdate_rb_intermediate and Genupdate_rb_intermediate_kv to preserve G2_Gi_n_equal. 
+
+------ commit log
+
+think thru some problems w proof, 
+- AND maybe return v in Gen_loop_rb and _oc, <- ??
+  seems fine -- when proving eq to Gen_loop_rb use a diff postcondition, and it'll make the other theorem easier X
+
+- can i swap out the GenUpdate_rb for GenUpdate_rb_intermediate_kv just in the theorem? probably not?
+  i don't think i can prove that the postcondition is eq (because that was the main problem?) so i have to actually change GenUpdate_rb X
+
+- decide to update v twice in Gen_Update_rb and _oc (dealing with i=0 by selective skipping) -- doesn't seem to work in this theorem though, since we don't have the instantiation environment??
+
+- sub in theorem to see if it works out
+  ok i replaced Oi_prg in both theorems with Oi_prg' and Oi_oc' with Oi_oc''...
+  i'll have to revert the names when i do top level
+  i also need to add the assumption everywhere that all elems of list are nonzero
+
+for two RBs, need to weaken postcondition: keys aren't same as k but they're the same
+
+- actually replace Oi_prg and GenUpdate and Gen_loop
+
+- do equivalence proofs
+
+- fix everything...
+
+------
 
 it updates v an additional time in the beginning, 
 

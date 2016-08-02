@@ -1900,6 +1900,59 @@ Definition GenUpdate_rb_intermediate_oc_kv (state : KV) (n : nat)
   $ ret (bits, (k', v')).
 (* TODO check all ' are correct *)
 
+Definition Oi_prg' (i : nat) (sn : nat * KV) (n : nat)
+  : Comp (list (Bvector eta) * (nat * KV)) :=
+  [callsSoFar, state] <-2 sn;
+  let GenUpdate_choose := if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
+                          then GenUpdate_rb_intermediate_kv
+                          (* first call does not update v, to make proving equiv. easier*)
+                          else if beq_nat callsSoFar O then GenUpdate_noV
+                          else GenUpdate in
+  (* note: have to use intermediate, not final GenUpdate_rb here *)
+  [bits, state'] <-$2 GenUpdate_choose state n;
+  ret (bits, (S callsSoFar, state')).
+
+Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat) 
+  : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
+  [callsSoFar, state] <-2 sn;
+  let GenUpdate_choose :=
+      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
+      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
+           then GenUpdate_rb_intermediate_oc_kv (* this implicitly has no v to update *)
+      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
+           then GenUpdate_noV_oc 
+      else if beq_nat callsSoFar i (* callsSoFar = i *)
+           then GenUpdate_oc    (* uses provided oracle (PRF or RF) *)
+      else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
+  [bits, state'] <--$2 GenUpdate_choose state n;
+  $ ret (bits, (S callsSoFar, state')).
+
+Lemma Gen_loop_rb_oc_same : forall n a v rb_state,
+   n > 0 ->
+   comp_spec
+     (fun (x0 : list (Bvector eta) * Bvector eta)
+        (y : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta)) =>
+      fst x0 = fst (fst y) /\ snd x0 = snd (fst y)) 
+     (Gen_loop_rb_v a n)
+     ((Gen_loop_oc v n) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state).
+Proof.
+  intros.
+  destruct n. inversion H. clear H.
+  (* n > 0 *)
+  revert a v rb_state.
+  induction n as [ | n']; intros.
+  (* base case -- 1 element *)
+  - simplify.
+    unfold rb_oracle. simplify. fold rb_oracle.
+    fcf_skip_eq. simplify. fcf_spec_ret.
+  - remember (S n') as n''.
+    simpl. unfold rb_oracle. fcf_inline_first. fold rb_oracle.
+    fcf_skip_eq. prog_ret_r.
+    
+    fcf_skip. simplify. fcf_spec_ret. simpl in *. subst. reflexivity.
+Qed.
+
 (* second induction used to prove the lemma after it. calls = i, then destruct, the induction on calls > i *)
 Lemma Gi_normal_rb_eq_calls_eq_i : forall l k v i calls init rb_state,
     calls = i ->
@@ -1912,19 +1965,19 @@ Lemma Gi_normal_rb_eq_calls_eq_i : forall l k v i calls init rb_state,
                      (pair_EqDec nat_EqDec eqDecState))
          (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
             [rs, s]<-2 acc;
-          z <-$ Oi_prg (S i) s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+          z <-$ Oi_prg' (S i) s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
          (init, (calls, (k, v))) l)
       (z <-$
          (oracleCompMap_inner
             (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                         (pair_EqDec nat_EqDec eqDecState))
-            (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+            (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i) 
             (calls, (k, v)) l) (list (Blist * Bvector eta))
          (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state;
        [bits, nkv, state']<-3 z;
        ret (init ++ bits, nkv, state')).
 Proof.
-  Opaque Oi_prg. Opaque Oi_oc'.
+  Opaque Oi_prg'. Opaque Oi_oc''.
   destruct l as [ | x xs]; intros.
 
   - simplify. fcf_spec_ret. simpl. repeat (split; auto).
@@ -1941,8 +1994,8 @@ Proof.
                                   /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
     (* 1 call *)
     { subst.
-      Transparent Oi_prg. Transparent Oi_oc'.
-      unfold Oi_prg. unfold Oi_oc'.
+      Transparent Oi_prg'. Transparent Oi_oc''.
+      unfold Oi_prg'. unfold Oi_oc''.
       simplify.
       (* casework on `i = 0`, `calls = i` and `calls > i` *)
       destruct (lt_dec i i). omega. 
@@ -1954,70 +2007,44 @@ Proof.
       -
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
-        Print Oi_prg.
-        Print Oi_oc'.
-        
-        unfold GenUpdate_rb_intermediate. simpl.
-
-        (* k' <- rb_oracle (to_list v' ++ zeroes) *)
-        (* same as k' <- {0,1}^eta *)
-
-        fcf_skip. admit. 
-        instantiate (1 := (fun x y => x = fst (fst y))).
+        unfold GenUpdate_rb_intermediate_kv.
+        unfold GenUpdate_noV_oc.
+        simpl.
+        fcf_irr_l.
+        (* it's ok that v differs between the loops, because it's never used, right? so I won't mention it in the postcondition *)
+        fcf_skip.
+        (* instantiate (1 := (fun x y => fst x = fst (fst y))). *)
+        instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
         (* by induction *)
-        admit.
+        apply Gen_loop_rb_oc_same. admit.
+        (* TODO add a hypothesis to this theorem, and all the ones above it, that each element of the list is nonzero *)
 
-        simpl in H2. destruct b. destruct p. simpl in *. subst.
-        Print GenUpdate_noV_oc.
-        (* uh this case is Wrong. do i need that k and v are equal? ugh if it's rb oracle then GenUpdate_noV (or with V) oc does update the key. should I make GenUpdate_rb update the k,v? but then that breaks the assumption in the other proof that the k,v go thru unchanged. this is just a problem when calls = i 
-
-both for i=0 and i<>0?
-is there any way i can change the top-level theorem?
-maybe they aren't the same, but they are indistinguishable if you skipped??
-since the initial k,v are rand samp,
-and the new k v are also rand samp
-so i guess it's not WRONG, just hard
-can i prove the first one (RB) with k,v going in rand samp is the same as rand sampling a key going into PRF?
-do i even need this top-level theorem? or is there some easier thing to state
-can i prove each (each what? at what level?) equiv to some intermediate computation?
-might need to backtrack
-maybe an oracle that does nothing when queried for k and v? but still generates bits? lol how would it know. i would have to modify Gen_loop_oc,GenUpdates, etc. to pass an "input tag." would break a lot of outer proofs.
-
-unique: maybe it just does nothing for k' <-- query to_list v' ++ zeroes (since unique)
-what about the v-updating?? the v is still updated (by the outer) t be the last v returned
-maybe Gen_loop_rb can update the v too?? does that break other things? (e.g. PRF thm)
-i think it's ok: calls < i: both RB, both update (tho i have to change Gen_loop_rb to keep track)
-calls = i: 
-  for PRF oracle, v going in are the same. for RB oracle, v is updated again w RB
-calls > i: for PRFs, v going in are the same
-
-does this break anything else? *)
-        unfold rb_oracle. simplify. fcf_irr_r. simplify. fcf_spec_ret.
-        simpl. admit. (* TODO (k,v) not eq *)
+        simpl in H3. destruct b0. destruct p. simpl in *. subst.
+        unfold rb_oracle. simplify. fcf_skip. simplify. fcf_spec_ret.
 
         simplify. fcf_spec_ret. simpl in *. subst. destruct k0. auto.
         simpl in *. subst. auto.
 
-        Opaque Oi_prg. Opaque Oi_oc'.
+        Opaque Oi_prg'. Opaque Oi_oc''.
       -
         (* presumably now `i <> 0`? *)
         assert (H_i_eq : beq_nat i i = true) by apply Nat.eqb_refl.
         rewrite H_i_eq.
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
-        unfold GenUpdate_rb_intermediate. simpl.
-        Print Oi_oc'.
-        Print Oi_prg.
-        unfold rb_oracle. fcf_irr_r. simplify. fold rb_oracle.
+        unfold GenUpdate_rb_intermediate_kv. simpl.
+        unfold rb_oracle. simplify. fcf_skip. admit. fold rb_oracle. simplify.
 
-        fcf_skip. admit. 
-        instantiate (1 := (fun x y => x = fst (fst y))).
+        fcf_skip.
+        (* the v's that are coming out are equal UNLESS x = 0. does this work better w no v? *)
+        (* need a stronger post *)
+        instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
         (* by induction *)
-        admit.
+        apply Gen_loop_rb_oc_same. admit.
+        (* TODO add a hypothesis to this theorem, and all the ones above it, that each element of the list is nonzero *)
 
-        simpl in H3. destruct b0. destruct p. simpl in *. subst.
-        unfold rb_oracle. fcf_irr_r. simplify. fcf_spec_ret.
-        simpl. admit.           (* TODO (k,v) not eq *)
+        simpl in H4. destruct b1. destruct p. simpl in *. subst.
+        unfold rb_oracle. simplify. fcf_skip. simplify. fcf_spec_ret.
 
         simpl in H2. destruct b0. destruct p. simpl in *. breakdown H2.
         simplify. fcf_spec_ret. simpl. destruct k0. auto.
@@ -2054,8 +2081,8 @@ does this break anything else? *)
                                       (* KV equal *)
                                       /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
         {
-          Transparent Oi_prg. Transparent Oi_oc'.
-          unfold Oi_prg. unfold Oi_oc'. simplify.
+          Transparent Oi_prg'. Transparent Oi_oc''.
+          unfold Oi_prg'. unfold Oi_oc''. simplify.
           destruct (lt_dec calls (S i)). omega. (* calls > i, so ~(calls < S i) *)
           destruct (lt_dec calls i). omega.     (* calls > i, so ~(calls < i) *)
           assert (beq_nat calls 0 = false).
@@ -2067,7 +2094,7 @@ does this break anything else? *)
           Transparent GenUpdate.
           simplify.
           fcf_spec_ret. simpl. auto.
-          Opaque Oi_prg. Opaque Oi_oc'.
+          Opaque Oi_prg'. Opaque Oi_oc''.
         }
 
         simpl in H1. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *.
@@ -2099,14 +2126,14 @@ Lemma Gi_normal_rb_eq_compspec : forall l k v i calls init rb_state,
                      (pair_EqDec nat_EqDec eqDecState))
          (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
             [rs, s]<-2 acc;
-          z <-$ Oi_prg (S i) s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+          z <-$ Oi_prg' (S i) s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
          (init, (calls, (k, v))) l)
 
       ([acc', state'] <-$2
                       ((oracleCompMap_inner
                           (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                       (pair_EqDec nat_EqDec eqDecState))
-                          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                          (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i) 
                           (calls, (k, v)) l) (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state);
        [bits, nkv] <-2 acc';
        ret (init ++ bits, nkv, state')).
@@ -2117,7 +2144,7 @@ Proof.
     destruct H_ilen.
     clear H.
 
-    Opaque Oi_prg. Opaque Oi_oc'.
+    Opaque Oi_prg'. Opaque Oi_oc''.
     simplify.
     fcf_skip. admit. admit.
     (* strengthen postcondition so we can prove calls < i -> S calls <= i to apply IHxs *)
@@ -2126,25 +2153,30 @@ Proof.
                                   (* calls incremented by 1 *)
                                   /\ fst (snd c) = S calls /\ fst (snd (fst d)) = S calls
                                   (* output keys are the input keys *)
-                                  /\ fst (snd (snd c)) = k
-                                  /\ fst (snd (snd (fst d))) = k)).
+                                  /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
     (* includes calls *)
     (* one call with linked keys TODO *)
     {
-      Transparent Oi_prg. Transparent Oi_oc'.
+      Transparent Oi_prg'. Transparent Oi_oc''.
       simpl.
       destruct (lt_dec calls i).
       Focus 2. omega.         (* contradiction *)
       clear l.                (* calls < i *)
-      unfold GenUpdate_rb_intermediate.
-      simplify.
       assert (H_calls_lt : calls < S i) by omega.
       destruct (lt_dec calls (S i)).
-      Focus 2. omega. fcf_inline_first.
-      fcf_skip_eq. admit. admit.
-      simplify.
-      fcf_spec_ret. simpl. auto.
-      Opaque Oi_prg. Opaque Oi_oc'.
+      Focus 2. omega.
+      fcf_skip. admit. admit.
+      instantiate (1 := (fun x y => x = fst y)).
+      unfold GenUpdate_rb_intermediate_kv.
+      unfold GenUpdate_rb_intermediate_oc_kv.
+      simpl. fcf_inline_first. 
+      fcf_skip_eq. admit.
+      prog_ret_r. fcf_inline_first. fcf_skip_eq. admit. simplify.
+      fcf_skip_eq. admit. simplify. fcf_spec_ret.
+
+      simpl in H2. destruct b0. simpl in *. subst.
+      simplify. fcf_spec_ret. simpl. destruct b. auto. 
+      Opaque Oi_prg'. Opaque Oi_oc''.
     }
 
     (* use IH *)
