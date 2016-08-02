@@ -1849,6 +1849,57 @@ Lemma Gi_rb_return_bad_eq : forall (i : nat),
 Proof.
 Admitted.
 
+(* takes in key but doesn't use it, to match the type of other GenUpdates *)
+(* for reference *)
+(* Definition GenUpdate_oc (state : KV) (n : nat) :
+  OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v_0] <-2 state;
+  v <--$ (OC_Query _ (to_list v_0)); (* ORACLE USE *)
+  [bits, v'] <--$2 Gen_loop_oc v n;
+  (* TODO what's the state type here? and the global GenUpdate_oc return type? *)
+  k' <--$ (OC_Query _ (to_list v' ++ zeroes)); (* ORACLE USE *)
+  $ ret (bits, (k', v')). *)
+
+(* Fixpoint Gen_loop_oc (v : Bvector eta) (n : nat)
+  : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * Bvector eta) :=
+  match n with
+  | O => $ ret (nil, v)
+  | S n' =>
+    v' <--$ (OC_Query _ (to_list v)); (* ORACLE USE *)
+    [bits, v''] <--$2 Gen_loop_oc v' n';
+    $ ret (v' :: bits, v'')
+  end. *)
+
+(* use v only? TODO do i need this? can i prove everything equivalent? *)
+Fixpoint Gen_loop_rb_v v (n : nat) : Comp (list (Bvector eta) * Bvector eta) :=
+  match n with
+  | O => ret (nil, v)
+  | S n' =>
+    v' <-$ {0,1}^eta;
+    [bits, v''] <-$2 Gen_loop_rb_v v' n';
+    ret (v' :: bits, v'')
+  end.
+
+(* TODO change these and move them back up *)
+Definition GenUpdate_rb_intermediate_kv (state : KV) (n : nat) 
+  : Comp (list (Bvector eta) * KV) :=
+  [k, v_0] <-2 state;
+  v <-$ {0,1}^eta;
+  [bits, v'] <-$2 Gen_loop_rb_v v n;
+  k' <-$ {0,1}^eta;
+  ret (bits, (k', v')).
+
+(* doesn't use the state or oracle *)
+(* intermediates have unnecessary state and updating of the state to match earlier ones *)
+Definition GenUpdate_rb_intermediate_oc_kv (state : KV) (n : nat) 
+  : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v_0] <-2 state;
+  v <--$ $ {0,1}^eta;
+  [bits, v'] <--$2 $ Gen_loop_rb_v v n; (* promote comp to oraclecomp, then remove from o.c. *)
+  k' <--$ $ {0,1}^eta;
+  $ ret (bits, (k', v')).
+(* TODO check all ' are correct *)
+
 (* second induction used to prove the lemma after it. calls = i, then destruct, the induction on calls > i *)
 Lemma Gi_normal_rb_eq_calls_eq_i : forall l k v i calls init rb_state,
     calls = i ->
@@ -1903,7 +1954,14 @@ Proof.
       -
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
-        unfold GenUpdate_rb_intermediate. simpl. 
+        Print Oi_prg.
+        Print Oi_oc'.
+        
+        unfold GenUpdate_rb_intermediate. simpl.
+
+        (* k' <- rb_oracle (to_list v' ++ zeroes) *)
+        (* same as k' <- {0,1}^eta *)
+
         fcf_skip. admit. 
         instantiate (1 := (fun x y => x = fst (fst y))).
         (* by induction *)
@@ -1948,6 +2006,8 @@ does this break anything else? *)
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
         unfold GenUpdate_rb_intermediate. simpl.
+        Print Oi_oc'.
+        Print Oi_prg.
         unfold rb_oracle. fcf_irr_r. simplify. fold rb_oracle.
 
         fcf_skip. admit. 

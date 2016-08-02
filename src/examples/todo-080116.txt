@@ -1,0 +1,32 @@
+TODO
+
+today: work 5-7:30?
+
+* scroll around and see what else might break X
+  - might need to prove another equivalence between GenUpdate_rb_intermediate and Genupdate_rb_intermediate_kv to preserve G2_Gi_n_equal. 
+
+it updates v an additional time in the beginning, 
+
+DON'T FORGET GenUpdate_rb_intermediate needs to match GenUpdate_oc with RB oracle
+AND it needs to match GenUpdate_rb_intermediate_oc. 
+looks like someone, somewhere, uses GenUpdate_rb_oracle?
+wait i forgot -- does Gen_loop_oc even use the initial v??
+it actually returns (nil,v) which is the only time it uses it
+should we assume we never request 0 blocks? or should we modify Gen_loop_rb as well, to use/return a v?
+
+this should also preserve Gi_rb_bad_collisions and everything else
+
+* change GenUpdate_rb_intermediate AND _oc to pass around (k,v) and re-sample (k,v)
+
+* see if PRF theorem goes thru (only need to change case calls < i (after each, kv are same); calls >= i should be the same (kv going in are the same))
+* see if RB theorem goes thru (need to change calls < i like above, calls = i should change
+  - case i = 0: 
+  - case i <> 0: extra v-update in beginning... well... i can just have GenUpdate_rb do the extra v-update in the beginning too? what about w no v-update though?
+    or is it still doable w/out?  
+    i mean if i do something different if calls=0... i have to use oracleCompMap too...and change Oi_prg... why did i even do the former with oraclemap? i should have started w oraclemap
+    ok oi_prg already keeps track of # calls, so it needs to change to do GenUpdate_rb_noV...
+   but if i change oi_prg, what else will break???
+   ugh it shouldn't make a difference between init v was {0,1}^eta and if you update it again first thing, it's also {0,1}^eta
+   just try this (in a smaller file somehow) and see if it works? maybe move the code up?
+  - i think i proved everything else so if this works, the RB thm should be done
+* see if anything else breaks, e.g. the collision probability proof? what else depends on it?
