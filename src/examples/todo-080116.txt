@@ -24,6 +24,19 @@ think thru some problems w proof,
 
 for two RBs, need to weaken postcondition: keys aren't same as k but they're the same
 
+...OH NO I FORGOT IF RBs REFRESH THE KEYS THEN NORMAL_PRF_BREAKS BECAUSE THE KEY REALLY NEEDS TO BE k1 BECAUSE f_oracle's KEY DOESN'T CHANGE 
+the only solution is to get rid of Oi_prg and write everything in terms of oracleCompMap... 
+or i could figure how how to actually properly reason about the rb's
+or i can change the whole "put the rb oracle in there" part
+or i can change Oi_oc''s definition to be like TOGGLE if f_oracle or rf do this else if rb_oracle do this... isn't it supposed to be oracle-oblivious though? what's "it," the adversary?
+
+i mean... is it the logic or is it just false
+no it's the logic, on the Oi_prg side, some (k,v) goes in and doesn't get changed
+(and we know k,v rand samp_
+on the Oi_oc side, some (k,v) goes in and gets randomly sampled again 
+so when (k,v) go into PRF, they come from the same distribution, it's just hard to know how to skip this properly
+can i restart and skip this properly?
+
 - actually replace Oi_prg and GenUpdate and Gen_loop
 
 - do equivalence proofs
