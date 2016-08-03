@@ -2108,6 +2108,210 @@ Proof.
       apply Gi_normal_rb_eq_calls_eq_i; omega.
 Qed.
 
+Lemma Gi_normal_rb_compspec_kv_i : forall l k v i calls init rb_state,
+   comp_spec
+     (fun (x0 : list (list (Bvector eta)) * (nat * KV))
+        (y : list (list (Bvector eta)) * (nat * KV) *
+             list (Blist * Bvector eta)) => x0 = fst y)
+     (z <-$ Instantiate;
+      [k0, v0]<-2 z;
+      z0 <-$
+      compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z0 <-$ Oi_prg (S i) s d; [r, s0]<-2 z0; ret (rs ++ r :: nil, s0))
+        (init, (calls, (k0, v0))) l; ret z0)
+     (z <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k, v)) l) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state;
+      [bits, nkv, state']<-3 z;
+      ret (init ++ bits, nkv, state')).
+Proof.
+  Opaque Oi_prg. Opaque Oi_oc'.
+  destruct l as [ | x xs]; intros.
+
+  - simplify. fcf_irr_l. admit. simplify. fcf_spec_ret.
+    (* base case not true again *)
+Admitted.
+
+Lemma twice_sample :
+  comp_spec eq
+            (x <-$ {0,1}^eta; x <-$ {0,1}^eta; ret x)
+            (x <-$ {0,1}^eta; ret x).
+Proof. fcf_irr_l. Qed.
+
+Lemma Gi_normal_rb_eq_compspec_kv_inner : forall l k v i calls init rb_state,
+    calls <= i ->
+    comp_spec
+      (fun (x : list (list (Bvector eta)) * (nat * KV))
+           (y : list (list (Bvector eta)) * (nat * KV) *
+                list (Blist * Bvector eta)) => x = fst y)
+
+      (z <-$ Instantiate;
+       [k, v]<-2 z;
+       z0 <-$
+          compFold
+          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                      (pair_EqDec nat_EqDec eqDecState))
+          (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+             [rs, s]<-2 acc;
+           z0 <-$ Oi_prg (S i) s d; [r, s0]<-2 z0; ret (rs ++ r :: nil, s0))
+          (init, (calls, (k, v))) l;
+       ret z0)
+
+      ([acc', state'] <-$2
+                      (oracleCompMap_inner
+                         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                     (pair_EqDec nat_EqDec eqDecState))
+                         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                         (calls, (k, v)) l) (list (Blist * Bvector eta))
+                      (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle rb_state;
+       [bits, nkv] <-2 acc';
+       ret (init ++ bits, nkv, state')).
+Proof.
+(* TODO apply it correctly below *)
+  (* z is irrelevant UNTIL calls = i... this could actually work? *)
+  (* well no, if i skip, then i can't apply the thm that assumes the incoming ones are the same? so maybe i should leave instantiate in?
+no, the theorem wouldn't be in the right form...
+can i add another instantiate line to skip???
+is there some way to re-add a line of code after skipping it?? *)
+  (* will it break things if i only add re-sampling on the *S i*th call of RB?? *)
+  (* well that would be the ith call in PRF theorem... so yes *)
+  induction l as [ | x xs]; intros.
+  - fcf_irr_l. admit.
+    SearchAbout (In _ _ -> comp_spec _ _ _ -> comp_spec _ _ _).
+    simplify. fcf_spec_ret.
+(* base case not true, kv not equal for any number of calls ... but we don't need that in the postcondition anyway *)
+    (* do we need that in the post. for calls = i? for calls >= i? well we can strengthen that post and prove that that implies this *)
+    admit.
+  -
+    assert (H_ilen : calls < i \/ calls = i) by omega.
+    destruct H_ilen.
+    clear H.
+
+    (* calls < i, rb only *)
+    + simplify.
+      fcf_irr_l. admit.
+(* this is true, kv not used or changed *)
+      admit.
+
+    (* calls = i *)
+    +
+      (* ok we have Instantiate here! destruct and induct...could work?? if i can figure out how to swap inside the program... *)
+      
+Admitted.
+
+Parameter kvt : KV.
+
+Lemma Gi_normal_rb_eq_compspec_kv : forall (l : list nat) (i calls : nat) (init : list (list (Bvector eta))) (rb_state : list (Blist * Bvector eta)),
+    calls <= i ->
+    comp_spec eq
+     (* (fun (x : list (list (Bvector eta)) * (nat * KV)) *)
+     (*    (y : list (list (Bvector eta)) * (nat * KV)) => *)
+     (*    x = y) *)
+
+     (z <-$ Instantiate;
+      [k, v]<-2 z;
+      z0 <-$
+      compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z0 <-$ Oi_prg (S i) s d; [r, s0]<-2 z0; ret (rs ++ r :: nil, s0))
+        (init, (calls, (k, v))) l; ret z0)
+     (* (ret (nil, nil)). *)
+     (* (ret (nil, (O, kvt))) *)
+
+     (a <-$ Instantiate;
+      z0 <-$ ret (a, rb_state);
+      [z, rb_state]<-2 z0;
+      [k, v]<-2 z;
+      z1 <-$
+       (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv))
+         (Oi_oc' i)
+         (calls, (k, v)) l) _ _ rb_oracle rb_state;
+      [res, _]<-2 z1;
+      [bits, nkv] <-2 res;
+      ret (init ++ bits, nkv)).
+        (* (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv)) *)
+        (* rb_oracle rb_state). *)
+Proof.
+  intros.
+  induction l as [ | x xs]; intros.
+  (* problem is that induction doesn't work in THIS form -- unless we can manipulate the induction hypothesis to show that comp_spec _ _ _ -> comp_spec _ _ _ (with stuff skipped?) 
+
+but we have to induct in this form...??? *)
+  (* because if we destruct (calls <= i) outside the induction, then we have to induct for calls < i, and that doesn't maintain the inductive invariant. calls may = i, and we don't have the Instantiates anymore *)
+
+  (* do we even need calls <= i? we only needed it for the prev thm? *)
+  (* can we do destruct, <something else>, induct? *)
+
+  (* but CAN we induct in this form? k,v,etc aren't generalized :/ doesn't work for any k,v (tho they are in the support etc). not sure if IH will apply,
+and if so, will this theorem itself apply correctly at the top level *)
+  (* can i maybe add an extra instantiate somewhere... *)
+  (* can i add a more clever postcondition *)
+  (* have no idea how to manip comp_spec in assumptions *)
+  (* if I just started from `calls = i` with one instantiate, i wouldn't have a problem, since i would destruct the list and reason about the first call, then go w calls > i *)
+  (* can i add an assumption or precondition instead? *)
+  (* can i prove a program equivalence w instantiate moved inside? or just a program equivalence/intermediate stage *)
+  (* well i can't actually swap it inside since we compFold with (k,v)... *)
+  (* can i destruct `calls <= i-1`? *)
+  (* can i do cases `calls <= i-1`, `calls >= i-1`? then destruct TWICE (skipping differently each time) and induct?
+destruct ->
+for the first one: calls <= i-1 -> induct -> destruct: calls <= i-1 (still holds) or calls = i-1 ... what do i do here? induction hypothesis doesn't hold
+
+the problem is that no matter what i do in the first case, i'm going to have to move into the second case w the Instantiates already used
+is there any way i can make the first case self contained?
+can i just not have cases? *)
+
+(* is there any way i can say
+(calls >= i -> comp_spec (stronger) ((k,v) <-$ Instantiate;c1) (c2))
+->
+(forall k v, In _ k -> In _ v -> calls = i -> (comp_spec (weaker) c1 c2)) *)
+
+  - fcf_skip. admit. admit. simplify. fcf_spec_ret.
+    rewrite app_nil_r. auto.
+
+  (* have to do this inside the induction *)
+ -  assert (H_ilen : calls < i \/ calls = i) by omega.
+    destruct H_ilen.
+    SearchAbout (In _ _ -> comp_spec _ _ _).
+    SearchAbout (comp_spec _ _ _ -> comp_spec _ _ _).
+  (* calls < i *)
+  +
+    (* input k and v are equal to RBs *)
+    fcf_skip. admit. admit.
+    simplify. 
+    fcf_skip. admit. admit.
+    instantiate (1 := (fun x y => x = fst y)).
+    (* apply Gi_normal_rb_eq_compspec_kv_inner. *)
+
+    admit.
+
+    admit.
+
+  (* calls = i *)
+  +
+    fcf_irr_r. (* KV on right get resampled *)
+    admit.
+
+    simplify.
+    (* apply Gi_normal_rb_compspec_kv_i. *)
+
+    admit.
+
+Qed.
+
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
 Gi_prg 1: RB PRF PRF...
@@ -2126,36 +2330,36 @@ Proof.
   unfold Gi_prg.
   unfold Gi_rb.
   fcf_to_prhl_eq.
-  unfold PRF_Adversary.
-
-  unfold oracleCompMap_outer.
-  simplify.
-  fcf_irr_r. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
-  unfold RndV. fcf_well_formed.
-  simplify.
-  unfold Instantiate. simplify.
-  
-
   Opaque oracleMap.
-  simplify.
-  fcf_skip. destruct b. simplify.
-  fcf_skip.
-  instantiate (1 := fun x y => bitsVEq x y).
+  Opaque PRF_Adversary.
 
-  - Transparent oracleMap.
-    unfold oracleMap.
-    pose proof Gi_normal_rb_eq_compspec as Gi_rb_compspec.
-    (* specialize (Gi_rb_compspec maxCallsAndBlocks nil b b0 i 0 nil). *)
-    eapply comp_spec_eq_trans_r.
-    eapply Gi_rb_compspec; omega.
-    simplify.
-    fcf_ident_expand_r.
-    fcf_skip_eq. admit. admit.
+  Transparent PRF_Adversary.
+  unfold PRF_Adversary.
+  simpl.
+  Print Ltac prog_inline_first.
+  prog_inline_first_1.
 
-  - simpl in *.
-    destruct b2. destruct b1. destruct p. destruct p. simpl in *. destruct k.
-    breakdown H3. simplify. fcf_ident_expand_l. fcf_skip. simplify.
-    fcf_spec_ret.
+  (* get the instantiate+generate in same comp so i can skip *)
+  eapply comp_spec_eq_trans_l.
+  { instantiate (1 :=
+                 ([bits, _] <-$2 (z <-$ Instantiate;
+                         [k, v]<-2 z;
+                         z0 <-$
+                            oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
+                            (Oi_prg (S i)) (0, (k, v)) maxCallsAndBlocks;
+                         ret z0);
+                  A bits)).
+  fcf_inline_first. fcf_skip_eq.
+  simplify. fcf_skip_eq. simplify. fcf_reflexivity. }
+
+  fcf_skip. simplify.
+  instantiate (1 := (fun x y => fst x = fst y)).
+
+  - 
+    Transparent oracleMap. unfold oracleMap.
+    admit.
+  - simpl in H1. destruct b. simpl in *. subst.
+    simplify. fcf_ident_expand_l. fcf_skip. simplify. fcf_reflexivity.
 Qed.
 
 (* ----------------------- *Identical until bad section *)
