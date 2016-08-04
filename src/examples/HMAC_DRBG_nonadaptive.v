@@ -2329,12 +2329,139 @@ Proof.
   intros.
   unfold Gi_prg.
   unfold Gi_rb.
+  unfold PRF_Adversary.
+  unfold oracleCompMap_outer.
+
+  (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
+  (* TODO email adam about PRF adversary *)
+  (* maybe prove that i can "cut out" the k and v, and re-instantiate it on the `i`th call?
+     (or just re-instantiate it.)
+   then the types would change?
+   also, would it just be shifting the problem around?
+   would the induction still work?? we wouldn't want Instantiate in the hypothesis
+
+  can I also prove, in the latter, that the k,v update can be moved OUT when we're using RB?
+or at least moved out together into an Instantiate in the beginning of calls=i.
+can i further prove that it can be moved out altogether, into before oracleCompMap_inner?
+then i could skip the first leftmost Instantiate
+the problem is again, what do i do with inducting while Instantiate is in the statement??
+I guess that could work if, on the inside,
+...well i don't know how to deal with calls < i, do they have an Instantiate thing going on
+
+left:
+Instantiate, oracleCompMap (calls = i: Instantiate; generate bits)
+
+right:
+Instantiate, Instantiate, oracleCompMap (calls = i: generate bits)
+
+-> fcf_skip first Instantiate
+
+left:
+kv -> oracleCompMap (calls = i: Instantiate; generate bits) l
+
+right:
+kv -> Instantiate, oracleCompMap (calls = i: generate bits) l
+
+induct on l
+
+->
+IH:
+(left:
+forall kv, oracleCompMap (calls = i: Instantiate; generate bits) xs
+
+right:
+forall kv, Instantiate; oracleCompMap (calls = i: generate bits) xs)
+
+- show
+(left:
+forall kv, Oi_oc x; oracleCompMap (calls = i: Instantiate; generate bits) xs
+
+right:
+forall kv, Instantiate; Oi_oc x; oracleCompMap (calls = i: generate bits) xs)
+
+- rewrite:
+what's the condition on calls?
+either calls < i or calls = i
+
+- first: calls < i
+
+(left:
+forall kv, Oi_oc x; oracleCompMap (calls = i: Instantiate; generate bits) xs
+
+right:
+if calls < i, then Instantiate is irrelevant (we already have a kv), so we can move it after
+forall kv, Oi_oc x; Instantiate; oracleCompMap (calls = i: generate bits) xs)
+
+then fcf_skip the first, which is equal (calls < i)
+
+new state:
+(left:
+forall kv, oracleCompMap (calls = i: Instantiate; generate bits) xs
+
+right:
+if calls < i, then Instantiate is irrelevant (we already have a kv), so we can move it after
+forall kv, Instantiate; oracleCompMap (calls = i: generate bits) xs)
+
+apply the induction hypothesis! yay!
+
+- second: calls = i
+
+(left:
+forall kv, Oi_oc [calls = i: Instantiate; generate bits] x; oracleCompMap xs
+
+right:
+forall kv, Instantiate; Oi_oc [calls = i: generate bits] x; oracleCompMap xs)
+
+now we can pull out the Instantiate on the left:
+
+(left:
+forall kv, Instantiate; Oi_oc [calls = i: generate bits] x; oracleCompMap xs
+
+right:
+forall kv, Instantiate; Oi_oc [calls = i: generate bits] x; oracleCompMap xs)
+
+and apply fcf_reflexivity!
+
+---
+
+and if this works, we can work with 
+
+left: 
+Instantiate, oracleMap
+
+right:
+Instantiate, Instantiate, oracleCompMap (calls = i: generate bits)
+
+(irr)->
+
+left: 
+Instantiate, oracleMap
+
+right:
+Instantiate, oracleCompMap (calls = i: generate bits)
+
+->
+
+left: 
+kv -> oracleMap
+
+right:
+kv -> oracleCompMap (calls = i: generate bits)
+
+and inside the inner computation, we should be able to skip the two loops and end up with unchanged k and their two v's will be the same!
+
+----
+
+i also forgot about the whole "v is not updated twice on the first call" :-/
+
+can i prove things for updating v only in GenUpdate_rb_int.?
+note i only have to relate them on calls=i   *)
+
   fcf_to_prhl_eq.
   Opaque oracleMap.
   Opaque PRF_Adversary.
 
   Transparent PRF_Adversary.
-  unfold PRF_Adversary.
   simpl.
   Print Ltac prog_inline_first.
   prog_inline_first_1.
