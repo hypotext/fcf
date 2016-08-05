@@ -2312,6 +2312,31 @@ can i just not have cases? *)
 
 Qed.
 
+(* takes in key but doesn't use it, to match the type of other GenUpdates *)
+Definition GenUpdate_oc_instantiate (state : KV) (n : nat) :
+  OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v_0] <-2 state;
+  v <--$ $ {0,1}^eta;
+  k' <--$ $ {0,1}^eta;
+  [bits, v'] <--$2 Gen_loop_oc v n;
+  $ ret (bits, (k', v')).
+
+(* i: index for oracle; callsSoFar; n *)
+Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat) 
+  : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
+  [callsSoFar, state] <-2 sn;
+  let GenUpdate_choose :=
+      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
+      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
+      then GenUpdate_rb_intermediate_oc (* this implicitly has no v to update *)
+      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
+           then GenUpdate_noV_oc 
+           else if beq_nat callsSoFar i (* callsSoFar = i *)
+                then GenUpdate_oc_instantiate   (* for rb oracle use *)
+                else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
+  [bits, state'] <--$2 GenUpdate_choose state n;
+    $ ret (bits, (S callsSoFar, state')).
+
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
 Gi_prg 1: RB PRF PRF...
@@ -2331,6 +2356,115 @@ Proof.
   unfold Gi_rb.
   unfold PRF_Adversary.
   unfold oracleCompMap_outer.
+  fcf_to_prhl_eq.
+  simplify.
+
+  eapply comp_spec_eq_trans_l.
+  (* here rewrite with ident_l etc so i can skip and apply the below thms *)
+  (* { instantiate (1 := ). *)
+
+
+  (* TODO figure out how to compose and apply the thms with correct postconditions *)
+  
+  (* theorems:
+1. pull out the GenUpdate_oc (using rb_oracle) updates into an Instantiate in the beginning
+2. with Oi_oc' using the new GenUpdate_oc (using rb_oracle), Instantiate in beginning, can pull out this Instantiate into before the oracleCompMap (right)
+  - calls < i: apply IH
+  - calls = i: pull out and reflexivity
+  - calls > i: induct
+3. with two Instantiates in the beginning in this thm: can fcf_irr_r then fcf_skip, then do the same induction as last time, but with no extraneous update in GenUpdate_oc when calls = i
+  - calls < i: apply IH
+  - calls = i: destruct
+  - calls > i: induct *)
+
+  Lemma oracleCompMap_rb_instantiate_inner : forall l i k v calls state1 state2,
+    comp_spec (fun x y => fst x = fst y) (* rb state might not be equal *)
+         ((oracleCompMap_inner
+            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                        (pair_EqDec nat_EqDec eqDecState))
+            (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+            (calls, (k, v)) l) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state1)
+
+         ((oracleCompMap_inner
+            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                        (pair_EqDec nat_EqDec eqDecState))
+            (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i)
+            (* note the double prime here: this replaces OC_Query w Instantiate *)
+            (calls, (k, v)) l) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state2).
+  Proof.
+    induction l as [ | x xs]; intros.
+    - simplify; fcf_spec_ret.
+    - Opaque Oi_oc''. simplify. fcf_skip. admit. admit.
+      (* might need casework on calls = i *)
+      + instantiate (1 := (fun x y => fst x = fst y)). (* rb state might not be equal *)
+        simplify. Transparent Oi_oc'. Transparent Oi_oc''. simpl.
+        destruct (beq_nat calls i).
+        (* calls = i *)
+        { destruct (lt_dec calls i). admit.
+          destruct (beq_nat calls 0). admit.
+          fcf_skip. admit. admit.
+          instantiate (1 := (fun x y => fst x = fst y)). (* rb state might not be equal *)
+          simplify. unfold rb_oracle.
+          fcf_inline_first.
+          fcf_skip_eq. admit. admit. (* update v first *)
+          prog_ret_r.
+          fcf_inline_first.
+          (* fcf_ident_expand_r. *)
+          (* comp_swap_r. *)
+          (* TODO ask about how to swap a0/z0/etc under Gen_loop *)
+          admit.
+
+          simpl in H1. destruct b1. destruct p. simpl in *. inversion H1. subst. simplify.
+          fcf_spec_ret.
+        } 
+        (* calls != i *)
+        { admit. } (* can prove comp_spec eq here since same computations *)
+      + simpl in H1. destruct b0. destruct p. destruct p. simpl in *. inversion H1. subst.
+        fcf_skip. destruct k0.
+        apply IHxs.
+
+        simpl in H4. destruct b1. destruct p. destruct p. simpl in *. inversion H4. subst.
+        simplify. fcf_spec_ret.
+  Qed.
+
+  Lemma oracleCompMap_rb_instantiate_outer : forall l calls i state1 state2,
+      comp_spec eq
+                ([k, v] <-$2 Instantiate;
+                 a <-$
+                   (oracleCompMap_inner
+                      (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                  (pair_EqDec nat_EqDec eqDecState))
+                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+                      (calls, (k, v)) l) (list (Blist * Bvector eta))
+                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state1;
+                 ret a)
+                ([k, v] <-$2 Instantiate;
+                 [k, v] <-$2 Instantiate;
+                  a <-$
+                   (oracleCompMap_inner
+                      (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                  (pair_EqDec nat_EqDec eqDecState))
+                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i) 
+                      (calls, (k, v)) l) (list (Blist * Bvector eta))
+                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state2;
+                 ret a).
+  Proof.
+    
+    
+
+  Admitted.
+
+  fcf_skip. simplify.
+  instantiate (1 := (fun x y => fst x = fst y)).
+
+  - 
+    Transparent oracleMap. unfold oracleMap.
+    admit.
+  - simpl in H1. destruct b. simpl in *. subst.
+    simplify. fcf_ident_expand_l. fcf_skip. simplify. fcf_reflexivity.
+Qed.
 
   (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
   (* TODO email adam about PRF adversary *)
@@ -2345,8 +2479,8 @@ or at least moved out together into an Instantiate in the beginning of calls=i.
 can i further prove that it can be moved out altogether, into before oracleCompMap_inner?
 then i could skip the first leftmost Instantiate
 the problem is again, what do i do with inducting while Instantiate is in the statement??
-I guess that could work if, on the inside,
-...well i don't know how to deal with calls < i, do they have an Instantiate thing going on
+
+proof outline:
 
 left:
 Instantiate, oracleCompMap (calls = i: Instantiate; generate bits)
@@ -2456,38 +2590,6 @@ i also forgot about the whole "v is not updated twice on the first call" :-/
 
 can i prove things for updating v only in GenUpdate_rb_int.?
 note i only have to relate them on calls=i   *)
-
-  fcf_to_prhl_eq.
-  Opaque oracleMap.
-  Opaque PRF_Adversary.
-
-  Transparent PRF_Adversary.
-  simpl.
-  Print Ltac prog_inline_first.
-  prog_inline_first_1.
-
-  (* get the instantiate+generate in same comp so i can skip *)
-  eapply comp_spec_eq_trans_l.
-  { instantiate (1 :=
-                 ([bits, _] <-$2 (z <-$ Instantiate;
-                         [k, v]<-2 z;
-                         z0 <-$
-                            oracleMap (pair_EqDec nat_EqDec eqDecState) (list_EqDec eqdbv)
-                            (Oi_prg (S i)) (0, (k, v)) maxCallsAndBlocks;
-                         ret z0);
-                  A bits)).
-  fcf_inline_first. fcf_skip_eq.
-  simplify. fcf_skip_eq. simplify. fcf_reflexivity. }
-
-  fcf_skip. simplify.
-  instantiate (1 := (fun x y => fst x = fst y)).
-
-  - 
-    Transparent oracleMap. unfold oracleMap.
-    admit.
-  - simpl in H1. destruct b. simpl in *. subst.
-    simplify. fcf_ident_expand_l. fcf_skip. simplify. fcf_reflexivity.
-Qed.
 
 (* ----------------------- *Identical until bad section *)
 
