@@ -1207,7 +1207,7 @@ Proof.
 Qed.
 
 (* is there an equivalent lemma i can prove that doesn't involve a probability difference?
-i just need an upper bound...
+i just need an upper bound.
 can i just say, there exists some i for which PRF_Advantage_Game i is >= all others?? by properties of rational numbers? otherwise, contradiction. i think i can't actually do this in coq. *)
 (* also is this lemma actually true?? *)
 Lemma PRF_Advantages_same : forall (i j : nat),
@@ -1216,9 +1216,9 @@ Lemma PRF_Advantages_same : forall (i j : nat),
 Proof.
   intros i j i_neq j_neq.
   unfold PRF_Advantage_Game. unfold PRF_Advantage.
-  (* do i even need this lemma? maybe there's an easier way *)
-  (* i don't want to prove anything about differences in probability... *)
-  (* should i use identical until bad?? i'm not sure if such a bad event exists, since PRF is totally opaque *)
+  (* do i need this lemma? maybe there's an easier way *)
+  (* i don't want to prove anything about differences in probability. *)
+  (* should i use identical until bad? i'm not sure if such a bad event exists, since PRF is totally opaque *)
 (* split the absolute values the other way *)
   (* proof by contradiction? *)
   (* or i could prove a bunch of game equivalences on the first two and the last two, massaging them to look like each other (removing the extraneous RB and PRF), so then it would look like |a-b| == |a-b| *)
@@ -1227,7 +1227,7 @@ forall i, i <> numCalls ->
 PRF_Advantage_Game i = PRF_Advantage (the normal one with just the PRF/RF difference) 
 
 (might have a special case for i=0) *)
-  (* also i should look at the gnarly lemma before this and make sure it's true *)
+  (* also i should look at the lemma before this and make sure it's true *)
   apply ratDistance_eqRat_compat.
   - unfold PRF_G_A.
     fcf_to_prhl_eq.
@@ -1241,7 +1241,7 @@ PRF_Advantage_Game i = PRF_Advantage (the normal one with just the PRF/RF differ
     simpl.
     fcf_inline_first.
     fcf_skip_eq.
-    (* this is actually not true. this whole strategy is actually not true. *)
+    (* this is actually not true and the whole strategy is not true *)
     admit.
   - unfold PRF_G_B.
     (* probably the same proof *)
