@@ -2,9 +2,46 @@ TODO
 
 today: work 5-7:30?
 today: work 1:50-6? jk 2:50-6:50?
+wednesday: 12:30-8, minus an hour, is 6.5 hrs (let's say 6)
+thursday: 2:45-8:30, minus 45 min, is 5.5 hrs
+  thursday night: +2 hours (add onto weekend)
+friday: 1:20-7:40?? -1 hour = 5h 20
 
 * scroll around and see what else might break X
   - might need to prove another equivalence between GenUpdate_rb_intermediate and Genupdate_rb_intermediate_kv to preserve G2_Gi_n_equal. 
+
+-----
+
+notes from adam 8/5/16
+
+- about the Instantiates / oracleCompMap_rb_instantiate_outer:
+  - try proving a more general lemma about (do something; map ... using the thing)
+  - split up the input list, pull the operation out?
+    - on the first part of the list, leaves the state unchanged
+    - can split oracleCompMap like this. try to state it precisely?
+    - look at his proof about compMap
+
+- about PRF_Advantages_Same: 
+  - oh the theorem i stated is false actually... i thought i <> j -> PRF_Adv i = PRF_Adv j but this is wrong. take PRF_Adv i and PRF_Adv (i+1). say i = 1
+   i=1
+   RB RB PRF PRF
+   RB RB RF  PRF
+
+   i=2
+   RB RB RB PRF
+   RB RB RB RF
+
+then the PRF advantage for the former is (probably) GREATER than that of the latter (by some bounded amount), because it gets to see an extra set of calls to the PRF.
+and the PRF advantage for i=numcalls is 0. .... do i need another hybrid argument? 
+  - i only want to state, though, that there exists some i such that for all j, PRF_Advantage i >= PRF_Advantage j... i can prove that right? i don't need to assume it (TODO figure out how to prove this)
+
+  - adam has a sample assumption in OracleHybrid.v line 59: assumes each adjacent pair of games is distance by at most some constant k.
+    for greater rigor, i could make another hybrid argument: 
+|Prf_Advantage i - Prf_advantage (i+1)| <= k (plausible)? 
+and PRF_advantage i >= Prf_advantage (i+1) 
+so |Prf_advantage i - Prf_adv numCalls| <= k*numCalls 
+so Prf_advantage i <= k*numCalls 
+and Prf_advantage 0 > Prf_advantage i for i > 0
 
 ------ commit log
 

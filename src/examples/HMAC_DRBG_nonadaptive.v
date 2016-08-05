@@ -1216,6 +1216,7 @@ Lemma PRF_Advantages_same : forall (i j : nat),
 Proof.
   intros i j i_neq j_neq.
   unfold PRF_Advantage_Game. unfold PRF_Advantage.
+
   (* do i need this lemma? maybe there's an easier way *)
   (* i don't want to prove anything about differences in probability. *)
   (* should i use identical until bad? i'm not sure if such a bad event exists, since PRF is totally opaque *)
@@ -2316,10 +2317,17 @@ Qed.
 Definition GenUpdate_oc_instantiate (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
   [k, v_0] <-2 state;
-  v <--$ $ {0,1}^eta;
   k' <--$ $ {0,1}^eta;
+  v <--$ $ {0,1}^eta;
   [bits, v'] <--$2 Gen_loop_oc v n;
   $ ret (bits, (k', v')).
+
+(* updates v but not k *)
+Definition GenUpdate_rb_intermediate_oc_v (state : KV) (n : nat) 
+  : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  [bits, v'] <--$2 $ Gen_loop_rb_intermediate k v n;    (* promote comp to oraclecomp, then remove from o.c. *)
+  $ ret (bits, (k, v')).
 
 (* i: index for oracle; callsSoFar; n *)
 Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat) 
@@ -2328,7 +2336,7 @@ Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat)
   let GenUpdate_choose :=
       (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc (* this implicitly has no v to update *)
+      then GenUpdate_rb_intermediate_oc_v (* updates v *)
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
            then GenUpdate_noV_oc 
            else if beq_nat callsSoFar i (* callsSoFar = i *)
@@ -2344,11 +2352,11 @@ Definition Oi_oc''' (i : nat) (sn : nat * KV) (n : nat)
   let GenUpdate_choose :=
       (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc (* this implicitly has no v to update *)
+      then GenUpdate_rb_intermediate_oc_v (* updates v *)
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
            then GenUpdate_noV_oc 
            else if beq_nat callsSoFar i (* callsSoFar = i *)
-                then GenUpdate_rb_intermediate_oc
+                then GenUpdate_rb_intermediate_oc_v
                 else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
   [bits, state'] <--$2 GenUpdate_choose state n;
     $ ret (bits, (S callsSoFar, state')).
@@ -2378,7 +2386,9 @@ Proof.
       simplify. Transparent Oi_oc'. Transparent Oi_oc''. simpl.
       destruct (beq_nat calls i).
       (* calls = i *)
-      { destruct (lt_dec calls i). admit.
+      { destruct (lt_dec calls i).
+        (* TODO: here we need to weaken the precondition bc GenUpdate_rb_intermediate_oc_v also updates the v. but wait... the output bits aren't the same. so, we actually need to change this in Oi_oc' and Gi_normal_prf_eq.  *)
+        { admit. }
         destruct (beq_nat calls 0). admit.
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst y)). (* rb state might not be equal *)
@@ -2404,6 +2414,7 @@ Proof.
       simpl in H4. destruct b1. destruct p. destruct p. simpl in *. inversion H4. subst.
       simplify. fcf_spec_ret.
 Qed.
+(* note i switched the order of k and v in GenUpdate_oc_instantiate *)
 
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
@@ -2455,9 +2466,10 @@ Proof.
          unfold RndV. fcf_well_formed. Qed.
   Ltac wfi := apply wf_instantiate.
 
-  Lemma oracleCompMap_rb_instantiate_outer : forall l calls i state1 state2,
+  (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
+  Lemma oracleCompMap_rb_instantiate_outer : forall l calls i state,
       calls <= i -> 
-      comp_spec (fun x y => fst x = fst y)
+      comp_spec (fun x y => fst (fst x) = fst (fst y))
                 ([k, v] <-$2 Instantiate;
                  a <-$
                    (oracleCompMap_inner
@@ -2466,7 +2478,7 @@ Proof.
                       (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i)
                       (* note Oi_oc': need to rewrite w first theorem in outer *)
                       (calls, (k, v)) l) (list (Blist * Bvector eta))
-                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state1;
+                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
                  ret a)
                 ([k, v] <-$2 Instantiate;
                  [k, v] <-$2 Instantiate;
@@ -2476,19 +2488,21 @@ Proof.
                                   (pair_EqDec nat_EqDec eqDecState))
                       (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
                       (calls, (k, v)) l) (list (Blist * Bvector eta))
-                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state2;
+                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
                  ret a).
   Proof.
-    intros. fcf_irr_r. wfi. destruct b as [k v].
-    revert calls i state1 state2 H k v H0.
+    intros.
+    fcf_skip_eq. admit. admit. simplify.
+    (* fcf_irr_r. wfi. simplify. *)
+    (* calls < i: kv don't matter *)
+    (* calls = i: there's an extra instantiate inside *)
+
+    (* fcf_irr_r. wfi. destruct b as [k v]. *)
+    rename b into k. rename b0 into v.
+    revert calls i state H k v.
     induction l as [ | x xs]; intros. 
     (* base case *)
-    (* can't skip first ones for the base case? *)
-    (* i don't think i can induct w both of them, cause then both will be in IH... *)
-    (* this thm should be true though, how can i prove it? *)
-    - simplify.
-      (* problem: can't skip first Instantiate then say second is irr. they will be out of sync anyway? *)
-      fcf_skip_eq. admit. admit. simplify. fcf_spec_ret.
+    - fcf_irr_r. wfi. simplify. fcf_spec_ret.
     (* induction: l = x :: xs *)
     - assert (H_ilen : calls < i \/ calls = i) by omega.
       destruct H_ilen.
@@ -2498,82 +2512,87 @@ Proof.
       (* maybe i don't need induction? induct separately on inside *)
       + Opaque Oi_oc''. Opaque Oi_oc'''.
         simplify.
-        fcf_skip_eq. admit. admit.
-        simplify.
-        fcf_skip. admit. admit.
-        instantiate (1 := (fun x y => fst x = fst y)).
+        (* i want to say that the Instantiate 'doesn't matter', and move it after... maybe I can just remove it as a parameter? *)
+        fcf_irr_r.              (* don't do this *) wfi.
+        (* thinking that since (k,v) not used, we can put another instantiate behind it?? that feeds into the next computation *)
+        simplify. fcf_skip. admit. admit.
+        (* note weakened preconditions *)
+        instantiate (1 := (fun x y => fst (fst x) = fst (fst y) /\ snd x = snd y)).
         Transparent Oi_oc''. Transparent Oi_oc'''.
         simpl.
         destruct (lt_dec calls i). Focus 2. omega.
-        fcf_skip_eq. admit. admit.
-        (* clearly true, just states differ*)
+        simplify. fcf_skip_eq. admit. admit.
+        simplify. (* it doesn't matter that their k and v are different, only that x is same *)
+        (* TODO weaken postcondition *)
         admit.
 
-        simplify. fcf_spec_ret.
-
-        simpl in H3. destruct b2. destruct p. destruct p. simpl in *. inversion H3.
-        subst.
-        simplify.
-        fcf_skip. (* prove state irrelevance? *)
-        instantiate (1 := (fun x y => fst x = fst y)).
+        simplify. fcf_spec_ret. simplify.
+        simpl in *. inversion H3. subst.
+        fcf_skip. destruct p.
+        instantiate (1 := (fun x y => fst (fst x) = fst (fst y) /\ snd x = snd y)).
+        (* not sure if post are right *)
+        (* here note the (k,v) are different and calls < i. this be true AND work if Instantiate were still in the right hand computation... *)
         admit.
-        simpl in H6. destruct b3. repeat destruct p. simpl in *. inversion H6. subst.
-        simplify. fcf_spec_ret.
 
+        simplify. simpl in *. inversion H7. subst. fcf_spec_ret. 
       (* calls = i *)
       + Opaque Oi_oc''. Opaque Oi_oc'''.
         simplify.
         (* this doesn't seem to be true. there's an extra instantiate in Oi_oc'' *)
         (* fcf_irr_l. wfi. simplify. *)
-        Transparent Oi_oc''. Transparent Oi_oc'''. simplify.
+        Transparent Oi_oc''. Transparent Oi_oc'''.
+        simpl.
         assert (beq_nat calls i = true).
         { apply Nat.eqb_eq. auto. }
-        rewrite H2.
+        rewrite H1.
         destruct (lt_dec calls i). omega. (* we have calls = i *)
         destruct (beq_nat calls 0).
   (* this only happens if i = 0. can we do a separate proof for that?  *)
   (* TODO this could be a problem... but other than that, the next case works? *)
        (* i=0 *)
-        {
+        { simplify.
           (* gen bits, then update k only *)
           (* do casework on whether i=0. *)
           (* do i need another version of this thm w k update pulled out of Genupdate_noV_ocon the right side INSTEAD OF instandiate ... or can i just add it to this theorem? *)
           (* unfold GenUpdate_noV_oc. *)
-          fcf_skip_eq. admit. admit.
-          simplify.
-          fcf_skip_eq. admit. admit. admit. (* same loop *)
-          simplify. fcf_skip_eq. admit. admit.
-          simplify. fcf_skip_eq. admit. admit. 
-
           (* apply IH?? this doesn't work bc different Oi_oc *)
           (* and Instantiates in IH *)
           (* unless it works because calls=0? since we're past RB and oracle it could work! *)
-          admit. admit.
+          admit.
         } 
         (* i != 0 *)
-        { fcf_irr_l. wfi. simplify.
-          simplify. unfold Instantiate. simplify.
+        { Print GenUpdate_oc_instantiate.
+          unfold Instantiate. simplify.
   (* now we have instantiate at the head of both, we can skip it, and the kv going into the loop  *)
           fcf_skip_eq. admit. admit.
           simplify. fcf_skip_eq. admit. admit. simplify.
+          (* in fact only the k-update matters?? not true, we need the v's going in to be the same *) 
           (* loops are related *)
           fcf_skip. admit. admit.
-          instantiate (1 := (fun x y => y = fst (fst x))).
-          
-          (* TODO the Gen_loop_oc updates the v. that means gen_loop_rb has to do that too.that doesn't break Gi_normal_prf (if i even have to merge it there?) because ...  *)
-
+          instantiate (1 := (fun x y => fst x = y)).
+          (* both start with same v and x so postcondition holds *)
           admit.
 
-          simpl in H5. subst.
+          simpl in H3. destruct b1. inversion H3. subst.
           simplify.
-          fcf_skip_eq. admit. admit.
-          (* again we need an IH since Oi_oc different, but no instantiates here.... *)
-          (* UNLESS it works because we're past RB and oracle, just PRFs here means oracles the same *)
-  (* why arent the keys the same? *)
-          (* another induction w different states. or we can make it easy and start w same rb state *)
+          fcf_skip. admit. admit.
+          instantiate (1 := (fun x y => fst x = fst y)).
+          (* kv same AND calls > i! *)
+          (* we're past RB and oracle, just PRFs here means oracles the same *)
+          (* another induction w different states *)
           admit.
-          admit. }
+
+          simplify. fcf_spec_ret. simpl in H6. destruct p. inversion H6. subst.
+          simpl. reflexivity. }
 Qed.
+
+  (* 8/5/16 *)
+  (* - figure out why kv aren't the same X
+     - figure out how to solve the Instantiate swap problem above and apply IH
+        - prototype it and see if IH will apply or if there are evar probs
+     - think thru i = 0 case (need version of GenUpdate_oc_noV with k update pulled out)
+        and then what?
+     - merge GenUpdate_rb_intermediate_v   *)
 
   (* TODO figure out how to compose and apply the thms with correct postconditions *)
   (* theorems:
