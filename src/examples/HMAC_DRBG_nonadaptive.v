@@ -2483,11 +2483,11 @@ Proof.
     revert calls i state1 state2 H k v H0.
     induction l as [ | x xs]; intros. 
     (* base case *)
-    (* hmm...can't skip first ones for the base case??? *)
+    (* can't skip first ones for the base case? *)
     (* i don't think i can induct w both of them, cause then both will be in IH... *)
-    (* this thm should be true though, how can i prove it?? *)
+    (* this thm should be true though, how can i prove it? *)
     - simplify.
-      (* uh oh there's a problem. can't skip first Instantiate then say second is irr. they will be out of sync anyway??  *)
+      (* problem: can't skip first Instantiate then say second is irr. they will be out of sync anyway? *)
       fcf_skip_eq. admit. admit. simplify. fcf_spec_ret.
     (* induction: l = x :: xs *)
     - assert (H_ilen : calls < i \/ calls = i) by omega.
@@ -2495,7 +2495,7 @@ Proof.
       clear H.
 
       (* calls < i: apply induction hypothesis *)
-      (* maybe i don't need induction??? *)
+      (* maybe i don't need induction? induct separately on inside *)
       + Opaque Oi_oc''. Opaque Oi_oc'''.
         simplify.
         fcf_skip_eq. admit. admit.
@@ -2514,7 +2514,7 @@ Proof.
         simpl in H3. destruct b2. destruct p. destruct p. simpl in *. inversion H3.
         subst.
         simplify.
-        fcf_skip. (* well i would, but there are the instantiates... that's fine i can prove state irrelevance *)
+        fcf_skip. (* prove state irrelevance? *)
         instantiate (1 := (fun x y => fst x = fst y)).
         admit.
         simpl in H6. destruct b3. repeat destruct p. simpl in *. inversion H6. subst.
@@ -2532,11 +2532,11 @@ Proof.
         destruct (lt_dec calls i). omega. (* we have calls = i *)
         destruct (beq_nat calls 0).
   (* this only happens if i = 0. can we do a separate proof for that?  *)
-  (* TODO this could be a problem... but other than that, the next case works!!? *)
+  (* TODO this could be a problem... but other than that, the next case works? *)
        (* i=0 *)
         {
           (* gen bits, then update k only *)
-          (* i guess i can do casework on whether i=0... *)
+          (* do casework on whether i=0. *)
           (* do i need another version of this thm w k update pulled out of Genupdate_noV_ocon the right side INSTEAD OF instandiate ... or can i just add it to this theorem? *)
           (* unfold GenUpdate_noV_oc. *)
           fcf_skip_eq. admit. admit.
@@ -2545,22 +2545,22 @@ Proof.
           simplify. fcf_skip_eq. admit. admit.
           simplify. fcf_skip_eq. admit. admit. 
 
-          (* i....guess i should apply IH?? this doesn't work bc different Oi_oc *)
-          (* and Instantiates in IH... *)
-          (* UNLESS it works because calls=0? since we're past RB and oracle it could work!! *)
+          (* apply IH?? this doesn't work bc different Oi_oc *)
+          (* and Instantiates in IH *)
+          (* unless it works because calls=0? since we're past RB and oracle it could work! *)
           admit. admit.
         } 
         (* i != 0 *)
         { fcf_irr_l. wfi. simplify.
           simplify. unfold Instantiate. simplify.
-  (* see now we have instantiate at the head of both, we can skip it, and the kv going into the loop  *)
+  (* now we have instantiate at the head of both, we can skip it, and the kv going into the loop  *)
           fcf_skip_eq. admit. admit.
           simplify. fcf_skip_eq. admit. admit. simplify.
           (* loops are related *)
           fcf_skip. admit. admit.
           instantiate (1 := (fun x y => y = fst (fst x))).
           
-          (* WAIT. the Gen_loop_oc updates the v. that means gen_loop_rb has to do that too.that doesn't break Gi_normal_prf (if i even have to merge it there?) because ...  *)
+          (* TODO the Gen_loop_oc updates the v. that means gen_loop_rb has to do that too.that doesn't break Gi_normal_prf (if i even have to merge it there?) because ...  *)
 
           admit.
 
@@ -2599,6 +2599,7 @@ Qed.
 
   (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
   (* TODO email adam about PRF adversary *)
+(* this proof doesn't quite work *)
   (* maybe prove that i can "cut out" the k and v, and re-instantiate it on the `i`th call?
      (or just re-instantiate it.)
    then the types would change?
