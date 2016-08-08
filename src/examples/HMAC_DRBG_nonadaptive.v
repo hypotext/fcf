@@ -2466,10 +2466,46 @@ Proof.
          unfold RndV. fcf_well_formed. Qed.
   Ltac wfi := apply wf_instantiate.
 
+  Theorem comp_spec_P_trans_r : 
+    forall (A : Set){eqd : EqDec A}(c1 c2 c3 : Comp A) (P : A -> A -> Prop),
+      (forall (a b c : A), P a b -> P b c -> P a c) ->
+      comp_spec P c1 c2 ->
+      comp_spec P c2 c3 ->
+      comp_spec P c1 c3.
+  Proof.
+    intros. rename H into P_trans.
+    destruct H0.          (* x *)
+    intuition.
+    rename x into c1_c2_comp.
+    rename H0 into c1_comp.
+    rename H into c2_comp_1.
+    rename H3 into P_c1_c2.
+    destruct H1.          (* x0 *)
+    intuition.
+    rename x into c2_c3_comp.
+    rename H0 into c2_comp_2.
+    rename H into c3_comp.
+    rename H2 into P_c2_c3.
+    
+    unfold comp_spec.
+    exists (c1_res <-$ c1; c3_res <-$ c3; ret (c1_res, c3_res)).
+    intuition.
+    - (* true because fst of result tuple is from c1 *)
+      admit.
+    - (* true because snd of result tuple is from c3 *)
+      admit.
+    - rename H into P_c1_c3.
+      (* eapply P_trans. *)
+      (* true because P is transitive, but not sure how to instantiate using c1_c2_comp and c2_c3_comp, since results are trapped inside comp *)
+      admit.
+  Qed.
+
+  Notation "A = B = C" := (A = B /\ B = C).
+
   (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
   Lemma oracleCompMap_rb_instantiate_outer : forall l calls i state,
       calls <= i -> 
-      comp_spec (fun x y => fst (fst x) = fst (fst y))
+      comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
                 ([k, v] <-$2 Instantiate;
                  a <-$
                    (oracleCompMap_inner
@@ -2497,7 +2533,6 @@ Proof.
     (* calls < i: kv don't matter *)
     (* calls = i: there's an extra instantiate inside *)
 
-    (* fcf_irr_r. wfi. destruct b as [k v]. *)
     rename b into k. rename b0 into v.
     revert calls i state H k v.
     induction l as [ | x xs]; intros. 
@@ -2512,29 +2547,100 @@ Proof.
       (* maybe i don't need induction? induct separately on inside *)
       + Opaque Oi_oc''. Opaque Oi_oc'''.
         simplify.
-        (* i want to say that the Instantiate 'doesn't matter', and move it after... maybe I can just remove it as a parameter? *)
-        fcf_irr_r.              (* don't do this *) wfi.
-        (* thinking that since (k,v) not used, we can put another instantiate behind it?? that feeds into the next computation *)
-        simplify. fcf_skip. admit. admit.
-        (* note weakened preconditions *)
-        instantiate (1 := (fun x y => fst (fst x) = fst (fst y) /\ snd x = snd y)).
+        (* fcf_irr_r. wfi. simplify. *)
+        apply comp_spec_symm.
+        eapply comp_spec_P_trans_r.
+        { intros. rewrite H in H1. auto. }
+
+        { instantiate (1 := (
+  [k, v] <-$2 Instantiate;
+  [res, state'] <-$2 (Oi_oc''' i (calls, (k,v)) x) (list (Blist * Bvector eta))
+                (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
+  [bits, nkv] <-2 res;
+  [k', v'] <-$2 Instantiate;
+  [n, _] <-2 nkv;
+  a <-$
+    (oracleCompMap_inner
+       (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                   (pair_EqDec nat_EqDec eqDecState))
+       (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) (n, (k', v')) xs)
+    (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+    rb_oracle state';
+  a0 <-$
+     ([z, s']<-2 a;
+      ([resList, state'']<-2 z; $ ret (bits :: resList, state''))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle s'); ret a0)).
+        (* TODO pull out into separate lemma? *)
+
+        fcf_skip. admit. admit.
+        simplify.
+        fcf_skip_eq. admit. admit.
+        simplify. fcf_irr_r. wfi. rename b3 into kv1. rename b2 into kv2. simplify.
+        fcf_skip. instantiate (1 := (fun x y => fst (fst x) = fst (fst y))).
+        (* if calls < i, ok; if calls = i, then GenUpdate_rb_intermediate's bits only depend on n (kv is passed in but not used to generate the bits) *)
+        destruct kv1.
+        Print Oi_oc'''.
+        Print GenUpdate_rb_intermediate_oc_v.
+        Print Gen_loop_rb_intermediate.
+        (* TODO separate induction *)
+        { admit. }
+        simpl in H5. destruct b5. destruct p. simpl in *. subst. simplify. fcf_spec_ret.
+        }                       (* end comp_spec_P_trans_r *)
+
+        apply comp_spec_symm. 
+        (* now back to original, but w an extra instantiate below Oi_oc''' *)
+        fcf_irr_r. wfi. simplify.
+        fcf_skip. admit. admit.
+        (* note weakened preconditions. rb state is same bc oracle is never queried < i,
+         and the number of calls should now be (S calls) *)
+
+        instantiate (1 := (fun x y => fst (fst x) = fst (fst y) /\ snd x = snd y /\
+                    fst (snd (fst x)) = fst (snd (fst y)) = S calls)).
         Transparent Oi_oc''. Transparent Oi_oc'''.
         simpl.
         destruct (lt_dec calls i). Focus 2. omega.
-        simplify. fcf_skip_eq. admit. admit.
-        simplify. (* it doesn't matter that their k and v are different, only that x is same *)
-        (* TODO weaken postcondition *)
-        admit.
-
-        simplify. fcf_spec_ret. simplify.
-        simpl in *. inversion H3. subst.
-        fcf_skip. destruct p.
+        fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst (fst x) = fst (fst y) /\ snd x = snd y)).
-        (* not sure if post are right *)
-        (* here note the (k,v) are different and calls < i. this be true AND work if Instantiate were still in the right hand computation... *)
+        (* and the output v's are the same? unless no blocks are requested? *)
+        simplify. (* it doesn't matter that their k and v are different, only that x is same *)
         admit.
 
-        simplify. simpl in *. inversion H7. subst. fcf_spec_ret. 
+        simplify. simpl in *. inversion H3. subst. fcf_spec_ret.
+
+        simplify. simpl in H3. breakdown H3. 
+
+        (* get the right side 2 lines together to apply IH *)
+        eapply comp_spec_eq_trans_r.
+        Focus 2.
+        instantiate (1 := 
+     (res <-$
+          ([k', v'] <-$2 Instantiate;
+           a <-$
+             (oracleCompMap_inner
+                (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                            (pair_EqDec nat_EqDec eqDecState))
+                (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                (S calls, (k', v')) xs) (list (Blist * Bvector eta))
+             (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle l;
+           ret a);
+      a1 <-$
+      ([z, s']<-2 res;
+       ([resList, state'']<-2 z; $ ret (l0 :: resList, state''))
+         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+         rb_oracle s'); ret a1)).
+        simplify. fcf_skip_eq. simplify. fcf_skip_eq. 
+
+        fcf_skip. fcf_ident_expand_l.
+        instantiate (1 := (fun x y => fst (fst x) = fst (fst y))).
+        destruct b3.
+        apply IHxs. omega.
+
+        simpl in H5. destruct b2. destruct p. simpl in *. subst. simplify.
+        fcf_spec_ret.
+        
+      (* ------------------ *)
+
       (* calls = i *)
       + Opaque Oi_oc''. Opaque Oi_oc'''.
         simplify.
@@ -2586,13 +2692,15 @@ Proof.
           simpl. reflexivity. }
 Qed.
 
-  (* 8/5/16 *)
-  (* - figure out why kv aren't the same X
-     - figure out how to solve the Instantiate swap problem above and apply IH
-        - prototype it and see if IH will apply or if there are evar probs
+  (* 8/8/16 *)
+  (* - figure out how to solve the Instantiate swap problem above and apply IH X
      - think thru i = 0 case (need version of GenUpdate_oc_noV with k update pulled out)
         and then what?
-     - merge GenUpdate_rb_intermediate_v   *)
+     - apply this thm with the first thm to the top-level thm, see if it's true
+     - do second induction for calls > i
+     - do induction for top-level theorem
+     - fill in miscellaneous admits, inductions, etc
+     - merge GenUpdate_rb_intermediate_v and re-prove Gi_normal_prf  *)
 
   (* TODO figure out how to compose and apply the thms with correct postconditions *)
   (* theorems:
