@@ -2329,6 +2329,14 @@ Definition GenUpdate_rb_intermediate_oc_v (state : KV) (n : nat)
   [bits, v'] <--$2 $ Gen_loop_rb_intermediate k v n;    (* promote comp to oraclecomp, then remove from o.c. *)
   $ ret (bits, (k, v')).
 
+(* note oracle state won't be the same as GenUpdate_noV_oc *)
+Definition GenUpdate_noV_oc_k (state : KV) (n : nat) :
+  OracleComp (list bool) (Bvector eta)  (list (Bvector eta) * KV) :=
+  [k, v] <-2 state;
+  k' <--$ $ {0,1}^eta;
+  [bits, v'] <--$2 Gen_loop_oc v n;
+  $ ret (bits, (k', v')).
+
 (* i: index for oracle; callsSoFar; n *)
 Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
@@ -2338,14 +2346,14 @@ Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
       then GenUpdate_rb_intermediate_oc_v (* updates v *)
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
-           then GenUpdate_noV_oc 
+           then GenUpdate_noV_oc_k (* k pulled to beginning *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
-                then GenUpdate_oc_instantiate   (* for rb oracle use *)
+                then GenUpdate_oc_instantiate   (* kv pulled to beginning *)
                 else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
   [bits, state'] <--$2 GenUpdate_choose state n;
     $ ret (bits, (S callsSoFar, state')).
 
-(* uses genupdate rb on ith call instead *)
+(* uses genupdate rb on any call <= i *)
 Definition Oi_oc''' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
   [callsSoFar, state] <-2 sn;
@@ -2354,7 +2362,7 @@ Definition Oi_oc''' (i : nat) (sn : nat * KV) (n : nat)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
       then GenUpdate_rb_intermediate_oc_v (* updates v *)
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
-           then GenUpdate_noV_oc 
+           then GenUpdate_rb_intermediate_oc_v 
            else if beq_nat callsSoFar i (* callsSoFar = i *)
                 then GenUpdate_rb_intermediate_oc_v
                 else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
@@ -2375,6 +2383,7 @@ Lemma oracleCompMap_rb_instantiate_inner : forall l i k v calls state1 state2,
                               (pair_EqDec nat_EqDec eqDecState))
                   (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i)
                   (* note the double prime here: this replaces OC_Query w Instantiate *)
+                  (* also in GenUpdate_noV_oc_k the one k call is moved up *)
                   (calls, (k, v)) l) (list (Blist * Bvector eta))
                                      (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state2).
 Proof.
@@ -2416,6 +2425,61 @@ Proof.
 Qed.
 (* note i switched the order of k and v in GenUpdate_oc_instantiate *)
 
+Lemma wf_instantiate : well_formed_comp Instantiate.
+Proof. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
+       unfold RndV. fcf_well_formed. Qed.
+Ltac wfi := apply wf_instantiate.
+
+Theorem comp_spec_P_trans_r : 
+  forall (A : Set){eqd : EqDec A}(c1 c2 c3 : Comp A) (P : A -> A -> Prop),
+    (forall (a b c : A), P a b -> P b c -> P a c) ->
+    comp_spec P c1 c2 ->
+    comp_spec P c2 c3 ->
+    comp_spec P c1 c3.
+Proof.
+  intros. rename H into P_trans.
+  destruct H0.          (* x *)
+  intuition.
+  rename x into c1_c2_comp.
+  rename H0 into c1_comp.
+  rename H into c2_comp_1.
+  rename H3 into P_c1_c2.
+  destruct H1.          (* x0 *)
+  intuition.
+  rename x into c2_c3_comp.
+  rename H0 into c2_comp_2.
+  rename H into c3_comp.
+  rename H2 into P_c2_c3.
+  
+  unfold comp_spec.
+  exists (c1_res <-$ c1; c3_res <-$ c3; ret (c1_res, c3_res)).
+  intuition.
+  - (* true because fst of result tuple is from c1 *)
+    admit.
+  - (* true because snd of result tuple is from c3 *)
+    admit.
+  - rename H into P_c1_c3.
+    (* eapply P_trans. *)
+    (* true because P is transitive, but not sure how to instantiate using c1_c2_comp and c2_c3_comp, since results are trapped inside comp *)
+    admit.
+Qed.
+
+Notation "A = B = C" := (A = B /\ B = C).
+
+Lemma i_eq_0_k_mask_test :
+  comp_spec eq
+  ([k,v] <-$2 Instantiate; ret (k,v))
+  ([k,v] <-$2 Instantiate; k <-$ RndK; ret (k,v)).
+Proof.
+  unfold Instantiate. simplify. fcf_irr_r. admit. simplify.
+  eapply comp_spec_eq_trans. Focus 2.
+  instantiate (1 := (k0 <-$ RndK; a <-$ RndV; z <-$ ret (b, a); [_, v]<-2 z; ret (k0, v))).
+  fcf_swap fcf_left.
+  fcf_skip_eq. simplify. fcf_skip_eq.
+
+  fcf_skip_eq. simplify. fcf_skip_eq. simplify. fcf_spec_ret.
+Qed.
+  
 (* does not hold for i = 0:
 Gi_prg 0: PRF PRF PRF...
 Gi_prg 1: RB PRF PRF...
@@ -2461,50 +2525,51 @@ Proof.
     (*                                  (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state2) *)
   (* TODO how to swap out this computation? should be able to skip above w the same precondition, but it will have the instantiate lines before it?? maybe i have to swap it out multiple times in the below theorem, after I skip?? *)
 
-  Lemma wf_instantiate : well_formed_comp Instantiate.
-  Proof. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
-         unfold RndV. fcf_well_formed. Qed.
-  Ltac wfi := apply wf_instantiate.
-
-  Theorem comp_spec_P_trans_r : 
-    forall (A : Set){eqd : EqDec A}(c1 c2 c3 : Comp A) (P : A -> A -> Prop),
-      (forall (a b c : A), P a b -> P b c -> P a c) ->
-      comp_spec P c1 c2 ->
-      comp_spec P c2 c3 ->
-      comp_spec P c1 c3.
+  Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l calls i state,
+      calls <= i ->
+      beq_nat i 0 = true ->                                        (* separate theorem *)
+      comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
+                ([k, v] <-$2 Instantiate;
+                 a <-$
+                   (oracleCompMap_inner
+                      (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                  (pair_EqDec nat_EqDec eqDecState))
+                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i)
+                      (* note Oi_oc': need to rewrite w first theorem in outer *)
+                      (calls, (k, v)) l) (list (Blist * Bvector eta))
+                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
+                 ret a)
+                ([k, v] <-$2 Instantiate;
+                 k <-$ RndK;    (* instead of Instantiate, to deal with noV *)
+                 a <-$
+                   (oracleCompMap_inner
+                      (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                  (pair_EqDec nat_EqDec eqDecState))
+                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                      (calls, (k, v)) l) (list (Blist * Bvector eta))
+                   (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
+                 ret a).
   Proof.
-    intros. rename H into P_trans.
-    destruct H0.          (* x *)
-    intuition.
-    rename x into c1_c2_comp.
-    rename H0 into c1_comp.
-    rename H into c2_comp_1.
-    rename H3 into P_c1_c2.
-    destruct H1.          (* x0 *)
-    intuition.
-    rename x into c2_c3_comp.
-    rename H0 into c2_comp_2.
-    rename H into c3_comp.
-    rename H2 into P_c2_c3.
-    
-    unfold comp_spec.
-    exists (c1_res <-$ c1; c3_res <-$ c3; ret (c1_res, c3_res)).
-    intuition.
-    - (* true because fst of result tuple is from c1 *)
-      admit.
-    - (* true because snd of result tuple is from c3 *)
-      admit.
-    - rename H into P_c1_c3.
-      (* eapply P_trans. *)
-      (* true because P is transitive, but not sure how to instantiate using c1_c2_comp and c2_c3_comp, since results are trapped inside comp *)
-      admit.
+    intros.
+    rename H into calls_leq_i. rename H0 into i_eq_0.
+    (* swap kv in latter as in the mask thm below *)
+    destruct l as [ | x xs].
+    - simplify. admit.
+    -
+      (* assert calls = i *)
+      Opaque Oi_oc''. Opaque Oi_oc'''.
+      simplify.
+      fcf_skip_eq. admit. admit. simplify.
+      Transparent Oi_oc''. Transparent Oi_oc'''.
+      simpl. admit.
+  (* get to i = 0 case *)
+  (* induction on rest of list, show calls > i *)
   Qed.
 
-  Notation "A = B = C" := (A = B /\ B = C).
-
   (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
-  Lemma oracleCompMap_rb_instantiate_outer : forall l calls i state,
-      calls <= i -> 
+  Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state,
+      calls <= i ->
+      beq_nat i 0 = false ->                                        (* separate theorem *)
       comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
                 ([k, v] <-$2 Instantiate;
                  a <-$
@@ -2528,13 +2593,14 @@ Proof.
                  ret a).
   Proof.
     intros.
+    rename H0 into i_neq_0.
     fcf_skip_eq. admit. admit. simplify.
     (* fcf_irr_r. wfi. simplify. *)
     (* calls < i: kv don't matter *)
     (* calls = i: there's an extra instantiate inside *)
 
     rename b into k. rename b0 into v.
-    revert calls i state H k v.
+    revert calls i state H k v i_neq_0.
     induction l as [ | x xs]; intros. 
     (* base case *)
     - fcf_irr_r. wfi. simplify. fcf_spec_ret.
@@ -2634,7 +2700,7 @@ Proof.
         fcf_skip. fcf_ident_expand_l.
         instantiate (1 := (fun x y => fst (fst x) = fst (fst y))).
         destruct b3.
-        apply IHxs. omega.
+        apply IHxs; try omega; try auto.
 
         simpl in H5. destruct b2. destruct p. simpl in *. subst. simplify.
         fcf_spec_ret.
@@ -2652,20 +2718,16 @@ Proof.
         { apply Nat.eqb_eq. auto. }
         rewrite H1.
         destruct (lt_dec calls i). omega. (* we have calls = i *)
+        (* need a diff oracle.
+in i != 0: in the latter, there's an extra instantiate in front and no kv updating, so everything's in sync
+in i = 0: in the former, there's only k updating inside. in the latter, there's an extra instantiate in front (k,v). so the v's are not in sync *)
+        (* separate theorem for i = 0? seems easier -- destruct -- on first call, k update, then afterward, easy induction? 
+that would work but would that still apply to prove the top-level theorem??
+*)
+        rewrite <- H0 in i_neq_0.
         destruct (beq_nat calls 0).
-  (* this only happens if i = 0. can we do a separate proof for that?  *)
-  (* TODO this could be a problem... but other than that, the next case works? *)
-       (* i=0 *)
-        { simplify.
-          (* gen bits, then update k only *)
-          (* do casework on whether i=0. *)
-          (* do i need another version of this thm w k update pulled out of Genupdate_noV_ocon the right side INSTEAD OF instandiate ... or can i just add it to this theorem? *)
-          (* unfold GenUpdate_noV_oc. *)
-          (* apply IH?? this doesn't work bc different Oi_oc *)
-          (* and Instantiates in IH *)
-          (* unless it works because calls=0? since we're past RB and oracle it could work! *)
-          admit.
-        } 
+        { inversion i_neq_0. }
+
         (* i != 0 *)
         { Print GenUpdate_oc_instantiate.
           unfold Instantiate. simplify.
@@ -2693,10 +2755,10 @@ Proof.
 Qed.
 
   (* 8/8/16 *)
-  (* - figure out how to solve the Instantiate swap problem above and apply IH X
-     - think thru i = 0 case (need version of GenUpdate_oc_noV with k update pulled out)
-        and then what?
+  (* - think thru i = 0 case (need version of GenUpdate_oc_noV with k update pulled out) X
+        - prove i_eq_0 lemma
      - apply this thm with the first thm to the top-level thm, see if it's true
+         ----- goals for today
      - do second induction for calls > i
      - do induction for top-level theorem
      - fill in miscellaneous admits, inductions, etc
@@ -2825,7 +2887,7 @@ Instantiate, oracleMap
 right:
 Instantiate, Instantiate, oracleCompMap (calls = i: generate bits)
 
-(irr)->
+(irr_r)->
 
 left: 
 Instantiate, oracleMap
@@ -2842,6 +2904,32 @@ right:
 kv -> oracleCompMap (calls = i: generate bits)
 
 and inside the inner computation, we should be able to skip the two loops and end up with unchanged k and their two v's will be the same!
+
+----
+
+for i = 0, top-level theorem:
+
+Instantiate, oracleMap
+Instantiate, RndK, oracleCompMap (calls=0: generate)
+
+->
+
+RndK, RndV, oracleMap
+RndK, RndV, RndK, oracleCompMap (calls=0: generate)
+
+-> (irr_r)
+
+RndK, RndV, oracleMap
+RndV, RndK, oracleCompMap (calls=0: generate)
+
+-> (swap)
+
+RndK, RndV, oracleMap
+RndK, RndV, oracleCompMap (calls=0: generate)
+
+-> proceed as above (split out lemma??)
+
+see Lemma i_eq_0_k_mask_test above for proof that this works
 
 ----
 
