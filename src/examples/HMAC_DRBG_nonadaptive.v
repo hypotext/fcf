@@ -2454,6 +2454,8 @@ Lemma wf_instantiate : well_formed_comp Instantiate.
 Proof. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
        unfold RndV. fcf_well_formed. Qed.
 Ltac wfi := apply wf_instantiate.
+Ltac rewrite_r := apply comp_spec_symm; eapply comp_spec_eq_trans_l.
+Ltac flip := apply comp_spec_symm.
 
 Notation "A = B = C" := (A = B /\ B = C).
 
@@ -2471,8 +2473,7 @@ Proof.
   fcf_skip_eq. simplify. fcf_skip_eq. simplify. fcf_spec_ret.
 Qed.
 
-Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l calls i state,
-    calls <= i ->
+Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l i state,
     beq_nat i 0 = true ->                                        (* separate theorem *)
     comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
               ([k, v] <-$2 Instantiate;
@@ -2482,7 +2483,7 @@ Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l calls i state,
                                 (pair_EqDec nat_EqDec eqDecState))
                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i)
                     (* note Oi_oc': need to rewrite w first theorem in outer *)
-                    (calls, (k, v)) l) (list (Blist * Bvector eta))
+                    (O, (k, v)) l) (list (Blist * Bvector eta))
                  (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
                ret a)
               ([k, v] <-$2 Instantiate;
@@ -2492,24 +2493,50 @@ Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l calls i state,
                     (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                 (pair_EqDec nat_EqDec eqDecState))
                     (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
-                    (calls, (k, v)) l) (list (Blist * Bvector eta))
+                    (O, (k, v)) l) (list (Blist * Bvector eta))
                  (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
                ret a).
 Proof.
   intros.
-  rename H into calls_leq_i. rename H0 into i_eq_0.
-  (* swap kv in latter as in the mask thm below *)
+  (* rename H into calls_leq_i. *)
+  rename H into i_eq_0.
+  (* swap kv in latter as in the mask thm above *)
   destruct l as [ | x xs].
-  - simplify. admit.
+  - simplify. unfold Instantiate. simplify. fcf_irr_r. unfold RndK. fcf_well_formed.
+    simplify. rewrite_r.
+    { instantiate
+      (1 :=
+         (k0 <-$ RndK;
+          a <-$ RndV;
+          z <-$ ret (b, a);
+          [_, v]<-2 z;
+          a0 <-$ (x <-$ ret (nil, (O, (k0, v))); ret (x, state)); ret a0)).
+    fcf_swap fcf_right. fcf_skip_eq. admit. admit. fcf_skip_eq. admit. admit. simplify.
+    fcf_spec_ret. }
+    fcf_skip_eq. admit. simplify. fcf_skip_eq. admit. simplify. fcf_spec_ret.
   -
-    (* assert calls = i *)
+    (* calls = 0 and i = 0 *)
     Opaque Oi_oc''. Opaque Oi_oc'''.
     simplify.
     fcf_skip_eq. admit. admit. simplify.
     Transparent Oi_oc''. Transparent Oi_oc'''.
-    simpl. admit.
-(* get to i = 0 case *)
-(* induction on rest of list, show calls > i *)
+    simpl. apply beq_nat_true in i_eq_0. subst. simplify.
+    fcf_skip_eq. admit. admit.
+    simplify. fcf_skip. admit. admit.
+    { instantiate (1 := (fun x y => fst x = y)).
+      revert b0 a state. induction x as [ | x']; intros.
+      - simplify. fcf_spec_ret.
+      - simplify. unfold rb_oracle. simplify. fold rb_oracle.
+        fcf_skip_eq. fcf_skip. simplify. fcf_spec_ret.
+    } 
+    simpl in H1. destruct b3. inversion H1. subst.
+    simplify. fcf_skip_eq. admit. admit.
+
+(* did i prove this before? for i = 0 and calls >= i and equal input kv, outputs are equal *)
+(* separate lemma for induction on rest of list, show calls > i *)
+    { admit. }
+
+    { simplify. fcf_spec_ret. }
 Qed.
 
 (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
@@ -2560,56 +2587,10 @@ Proof.
     + Opaque Oi_oc''. Opaque Oi_oc'''.
       simplify. Transparent Oi_oc''. simplify.
       destruct (lt_dec calls i). Focus 2. omega.
-      (* can't get GenUpdate_rb_intermediate_oc_v below? *)
-      (* try a different lemma -- intermediate game w alternate form of GenUpdate-rb with no (k,v)? *)
-      (* TODO this raises the question: what stuff can be done w intermediate game, w/o changing top level structure? *)
-      (* lemma: comp_spec EQ (?)
 
-k,v <-2 Instantiate; 
-(bits,(S calls,(k',v')),state') <-n GenUpdate_rb (calls, (k,v) n) rb_oracle state;
-(bits', (S S calls, (k'', v'')), state'') <-n
-           oracleCompMap_inner (Oi_oc''' i) (S calls, (k',v')) rb_oracle state' xs;
-ret (bits ++ bits', (S S calls, (k'',v'')), state''
-
-(bits,(S calls),state') <-n GenUpdate_rb_nokv (calls,n) rb_oracle state;
-k,v <-2 Instantiate; 
-(bits', (S S calls, (k', v')), state'') <-n
-           oracleCompMap_inner (Oi_oc''' i) (S calls, (k,v)) rb_oracle state' xs;
-ret (bits ++ bits', (S S calls, (k',v')), state''
-
-that is,
-
-comp_spec EQ (?)
-
-k,v <-2 Instantiate; 
-res@(bits,(S calls,(k',v')),state') <-n GenUpdate_rb (calls, (k,v) n) rb_oracle state;
-ret res
-
-(bits,(S calls),state') <-n GenUpdate_rb_nokv (calls,n) rb_oracle state;
-k,v <-2 Instantiate; 
-ret (bits, (S calls, (k', v')), state')
-
-- is it true? i think both of the top ones are true
-- how do i prove it? unfold GenUpdate_rb, need ANOTHER LOOP without kv, show those two produce the same result
-- then i have to apply that lemma to this, and apply this lemma above... *)
-
-      (* a <-$
-      (GenUpdate_rb_intermediate_oc_v (k, v) x) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, state']<-2 z; $ ret (bits, (S calls, state')))
-         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-         rb_oracle s'); *)
-      (* use GenUpdate_rb instead *)
-
-      (* wait i can't do this because it needs a v to return.... so instantiate does matter...unless all inputs are non-nil... why did i rewrite with returning v again?? because i need it in the calls = i case (the Gen_loop_oc updates v). so...?? now i have to add the non-nil assumption everywhere *)
-      Ltac rewrite_r := apply comp_spec_symm; eapply comp_spec_eq_trans_l.
-      Ltac flip := apply comp_spec_symm.
       rewrite_r. 
       { instantiate
           (1 := (
-(* Check (( *)
                  res <-$ Gen_loop_rb x;
                  kv <-$ Instantiate;
                  (* can't unpack bc swap *)
@@ -2642,7 +2623,6 @@ ret (bits, (S calls, (k', v')), state')
       eapply comp_spec_eq_trans_r.
       Focus 2.
       instantiate (1 :=
-      (* Check ( *)
                      (res <-$
                           ([k', v'] <-$2 Instantiate;
                            a <-$
