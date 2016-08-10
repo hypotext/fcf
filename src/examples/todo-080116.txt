@@ -8,6 +8,7 @@ thursday: 2:45-8:30, minus 45 min, is 5.5 hrs
 friday: 1:20-7:40?? -1 hour = 5h 20
 
 monday 8/8: from 1:40-8 minus 20 min is 6 hrs
+tuesday 8/9: from 3:30-8:30 minus 30 min + another hour at home is 5.5 hrs
 
 * scroll around and see what else might break X
   - might need to prove another equivalence between GenUpdate_rb_intermediate and Genupdate_rb_intermediate_kv to preserve G2_Gi_n_equal. 
