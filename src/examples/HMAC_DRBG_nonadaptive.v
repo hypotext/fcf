@@ -2456,6 +2456,7 @@ Proof. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
 Ltac wfi := apply wf_instantiate.
 Ltac rewrite_r := apply comp_spec_symm; eapply comp_spec_eq_trans_l.
 Ltac flip := apply comp_spec_symm.
+Ltac prog_equiv := repeat (simplify; fcf_skip_eq); try simplify.
 
 Notation "A = B = C" := (A = B /\ B = C).
 
@@ -2728,12 +2729,36 @@ that would work but would that still apply to prove the top-level theorem??
         simpl. reflexivity. }
 Qed.
 
+(* TODO have to expand this with the fold and acc/++ *)
+Lemma oracleMap_oracleCompMap_equiv_modified : forall l k v i state calls acc,
+    calls <= i ->
+    comp_spec
+      (fun (x : list (list (Bvector eta)) * (nat * KV))
+           (y : list (list (Bvector eta)) * (nat * KV) *
+                list (Blist * Bvector eta)) => x = fst y)
+      (compFold
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                     (pair_EqDec nat_EqDec eqDecState))
+         (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+            [rs, s]<-2 acc;
+          z <-$ Oi_prg (S i) s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+         (acc, (calls, (k,v))) l)
+      ((oracleCompMap_inner
+          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                      (pair_EqDec nat_EqDec eqDecState))
+          (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+          (calls, (k, v)) l) (list (Blist * Bvector eta))
+                             (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state).
+Proof.
+
+Admitted.
+
 (* 8/10/16 *)
-(* - apply these two thms (casework on i=0) with the first thm to the top-level thm, see if it's true
-   - do induction for top-level theorem
-   - fill in miscellaneous admits, inductions, etc
+(* - apply these two thms (casework on i=0) with the first thm to the top-level thm, see if it's true X
+   - do induction for top-level theorem (expand oracleCompMap w ++ and merge)
    - what stuff can be done w intermediate game, w/o changing top level structure?
-     - merge GenUpdate_rb_intermediate_v and re-prove Gi_normal_prf *)
+     - merge GenUpdate_rb_intermediate_v and re-prove Gi_normal_prf 
+   - fill in miscellaneous admits, inductions, etc *)
 
   (* TODO figure out how to compose and apply the thms with correct postconditions *)
   (* theorems:
@@ -2818,18 +2843,90 @@ Proof.
           z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b, _]<-2 z; ret b)).
     {
     (* need to isolate first 4 lines of each, rewrite with each, prove each equiv, then rewrite with oracleCompMap_rb_instantiate_outer_i_eq_0 *)
+      flip. rewrite_r.
+      instantiate
+        (1 :=
+           (top <-$
+                ([k,v] <-$2 Instantiate;
+                  a <-$ (oracleCompMap_inner
+                         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                     (pair_EqDec nat_EqDec eqDecState))
+                         (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i) 
+                         (0, (k, v)) maxCallsAndBlocks) 
+                       (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                       rb_oracle nil;
+                 ret a);
+            z <-$ ([bnkv, s']<-2 top; [bits, _] <-2 bnkv; x <-$ A bits; ret (x, s')); [b, _]<-2 z; ret b)).
+      { prog_equiv. }
+      rewrite_r.
+      instantiate
+        (1 :=
+           (top <-$
+                ([k,v] <-$2 Instantiate;
+                 k <-$ RndK;
+                 a <-$ (oracleCompMap_inner
+                         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                     (pair_EqDec nat_EqDec eqDecState))
+                         (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                         (0, (k, v)) maxCallsAndBlocks
+                       (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                       rb_oracle nil);
+                 ret a);
+                z <-$ ([bnkv, s']<-2 top; [bits, _] <-2 bnkv; x <-$ A bits; ret (x, s')); [b, _]<-2 z; ret b)).
+      { prog_equiv. }
+      fcf_skip. flip. apply oracleCompMap_rb_instantiate_outer_i_eq_0. auto.
+
+      simpl in H2. destruct b0. destruct a. simpl in *. destruct p. simpl in *. subst.
+      simplify. fcf_skip_eq. simplify. fcf_spec_ret.
+
+      simpl in H2. destruct p. destruct l1. simpl in *. rewrite H2.
+      simplify. fcf_skip_eq. simplify. fcf_spec_ret.
+
+      simpl in H2. rewrite H2.
+      simplify. fcf_skip_eq. simplify. fcf_spec_ret.
     } 
     flip.
-    admit.
+    unfold Instantiate. simplify.
+    fcf_irr_r. unfold RndK. fcf_well_formed.
+    simplify.
+    rewrite_r.
+    instantiate
+      (1 :=
+         (k0 <-$ RndK;
+          a <-$ RndV;
+          z1 <-$ ret (b, a);
+          [_, v]<-2 z1;
+          a0 <-$ ret (k0, v, nil);
+          a1 <-$
+             ([z, s']<-2 a0;
+              ([k1, v0]<-2 z;
+               z0 <--$
+                  oracleCompMap_inner
+                  (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                              (pair_EqDec nat_EqDec eqDecState))
+                  (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                  (0, (k1, v0)) maxCallsAndBlocks; [bits, _]<-2 z0; $ ret bits)
+                (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                rb_oracle s');
+          z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b0, _]<-2 z; ret b0)).
+    { fcf_swap fcf_right. prog_equiv. }
+    flip. prog_equiv.
     (* factor out lemma and apply it to both cases *)
+    fcf_skip. instantiate (1 := (fun x y => x = fst y)).
+    (* they have the same k and v, former is S i, latter is i without updates in RB, so i hope this works! *)
+    unfold oracleMap.
+    apply oracleMap_oracleCompMap_equiv_modified; omega.
+
+    simpl in H3. destruct b0. repeat destruct p. simpl in *. inversion H3. subst.
+    fcf_ident_expand_l. simplify. prog_equiv. fcf_spec_ret.
 
   (* i != 0 *)
   - rewrite_r.
     instantiate
       (1 :=
-         (a <-$ Instantiate;
-         (a <-$ Instantiate;
-          a0 <-$ ret (a, nil);
+         ([k,v] <-$2 Instantiate;
+          [k,v] <-$2 Instantiate;
+          a0 <-$ ret ((k,v), nil);
           a1 <-$
              ([z, s']<-2 a0;
               ([k, v]<-2 z;
@@ -2841,14 +2938,65 @@ Proof.
                   (0, (k, v)) maxCallsAndBlocks; [bits, _]<-2 z0; $ ret bits)
                 (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
                 rb_oracle s');
-          z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b, _]<-2 z; ret b))).
-    { admit.
-    }
-    
-    flip.
-    admit.
+          z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b, _]<-2 z; ret b)).
+    {
+    (* need to isolate first 4 lines of each, rewrite with each, prove each equiv, then rewrite with oracleCompMap_rb_instantiate_outer_i_eq_0 *)
+      flip. rewrite_r.
+      instantiate
+        (1 :=
+           (top <-$
+                ([k,v] <-$2 Instantiate;
+                  a <-$ (oracleCompMap_inner
+                         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                     (pair_EqDec nat_EqDec eqDecState))
+                         (list_EqDec (list_EqDec eqdbv)) (Oi_oc'' i) 
+                         (0, (k, v)) maxCallsAndBlocks) 
+                       (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                       rb_oracle nil;
+                 ret a);
+            z <-$ ([bnkv, s']<-2 top; [bits, _] <-2 bnkv; x <-$ A bits; ret (x, s')); [b, _]<-2 z; ret b)).
+      { prog_equiv. }
+      rewrite_r.
+      instantiate
+        (1 :=
+           (top <-$
+                ([k,v] <-$2 Instantiate;
+                 [k,v] <-$2 Instantiate;
+                 a <-$ (oracleCompMap_inner
+                         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                     (pair_EqDec nat_EqDec eqDecState))
+                         (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                         (0, (k, v)) maxCallsAndBlocks
+                       (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                       rb_oracle nil);
+                 ret a);
+                z <-$ ([bnkv, s']<-2 top; [bits, _] <-2 bnkv; x <-$ A bits; ret (x, s')); [b, _]<-2 z; ret b)).
+      { prog_equiv. }
+      fcf_skip. flip. apply oracleCompMap_rb_instantiate_outer_i_neq_0. omega. auto.
 
-  (* factor out lemma and apply it to both cases *)
+      simpl in H2. destruct b0. destruct a. simpl in *. destruct p. simpl in *. subst.
+      prog_equiv. fcf_spec_ret.
+
+      simpl in H2. destruct p. destruct l1. simpl in *. rewrite H2.
+      prog_equiv. fcf_spec_ret.
+
+      simpl in H2. rewrite H2.
+      prog_equiv. fcf_spec_ret.
+    } 
+    flip.
+    fcf_irr_r. wfi. simplify.
+    fcf_skip_eq. simplify.
+
+    (* factor out lemma and apply it to both cases *)
+    fcf_skip. instantiate (1 := (fun x y => x = fst y)).
+    unfold oracleMap.
+    apply oracleMap_oracleCompMap_equiv_modified; omega.
+
+    simpl in H3. destruct b3. destruct l. simpl in *. repeat destruct p. inversion H3. subst.
+    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
+
+    simpl in *. repeat destruct p. inversion H3. subst. 
+    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
 Qed.
 
   (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
