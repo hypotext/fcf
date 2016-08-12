@@ -2386,7 +2386,7 @@ Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat)
   let GenUpdate_choose :=
       (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc (* does not use last v *)
+      then GenUpdate_rb_intermediate_oc
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
            then GenUpdate_noV_oc_k (* k pulled to beginning; does use last v *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
@@ -2590,7 +2590,7 @@ Proof.
 Qed.
 
 (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
-Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state,
+Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state (any_v : Bvector eta),
     calls <= i ->
     beq_nat i 0 = false ->                                        (* separate theorem *)
     comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
@@ -2638,9 +2638,12 @@ Proof.
       simplify. Transparent Oi_oc''. simplify.
       destruct (lt_dec calls i). Focus 2. omega.
 
+      (* the problem is that here, we lost v's distribution, when in fact we need it so we do any_v and then re-instantiate it .... wait we can't do that can we? what about the bits generated? but they don't depend on the actual input v at all!!! *)
+      (* can i use this proof as a black box? revert to no v-update and go back to the main theorem and add another intermediate game? *)
       rewrite_r. 
       { instantiate
           (1 := (
+      (* Check (( *)
                  res <-$ Gen_loop_rb x;
                  kv <-$ Instantiate;
                  (* can't unpack bc swap *)
@@ -2659,8 +2662,10 @@ Proof.
         fcf_swap fcf_right.
         fcf_skip_eq. admit. admit.
         Transparent Oi_oc'''. simplify. destruct (lt_dec calls i). Focus 2. omega.
-        simplify. 
+        simplify.
+        (* somehow we need to retain the distribution of b0??  and skip v' above with it?? *)
         fcf_skip_eq. admit. admit.
+        (* apply Gen_loop_rb_intermediate_nok_eq. admit. (* TODO assume num blocks <> 0 *) *)
         simplify. fcf_skip_eq. admit. admit.
       }
       flip.
@@ -2824,7 +2829,7 @@ Proof.
                       (* vs. (v <-$ RndV; bits <-$ Gen_loop (S n'); ret (bits, v) *)
                       (* = (v <-$ RndV; block <-$ {0,1}^eta; bits <-$ Gen_loop n';
                                                              ret (block :: bits, v) *)
-                      (* THESE ARE DIFFERENT. *)
+                      (* THESE ARE DIFFERENT. TODO change v to v' name below *)
                       (* this isn't the *)
                       (bits <-$ Gen_loop_rb n'; v <-$ RndV; ret (bits ++ (v :: nil), v))
                       ([bits, v] <-$2 Gen_loop_rb_intermediate k v n; ret (bits, v)).
@@ -2838,11 +2843,11 @@ Proof.
             fcf_swap fcf_left.
             remember (S n'') as S_n''.
             simplify.
-            rewrite HeqS_n'' at 1.
-            simplify.
-            fcf_skip_eq.
-            remember (S n'') as S_n''.
-            simplify.
+            (* rewrite HeqS_n'' at 1. *)
+            (* simplify. *)
+            (* fcf_skip_eq. *)
+            (* remember (S n'') as S_n''. *)
+            (* simplify. *)
             
           
         Admitted.
@@ -3193,7 +3198,82 @@ Proof.
                 rb_oracle s');
           z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b0, _]<-2 z; ret b0)).
     { fcf_swap fcf_right. prog_equiv. }
-    flip. prog_equiv.
+    flip.
+    rewrite_r.
+
+(* uses genupdate rb on any call <= i *)
+Definition Oi_oc4 (i : nat) (sn : nat * KV) (n : nat) 
+  : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
+  [callsSoFar, state] <-2 sn;
+  let GenUpdate_choose :=
+      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
+      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
+      then GenUpdate_rb_intermediate_oc (* does not use last v *)
+      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
+           then GenUpdate_rb_intermediate_oc (* does use last v *)
+           else if beq_nat callsSoFar i (* callsSoFar = i *)
+                then GenUpdate_rb_intermediate_oc_v (* does use last v *)
+                else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
+  [bits, state'] <--$2 GenUpdate_choose state n;
+    $ ret (bits, (S callsSoFar, state')).
+
+instantiate
+  (1 :=
+     (k0 <-$ RndK;
+      a <-$ RndV;
+      z1 <-$ ret (b, a);
+      [_, v]<-2 z1;
+      a0 <-$ ret (k0, v, nil);
+      a1 <-$
+         ([z, s']<-2 a0;
+          ([k1, v0]<-2 z;
+           z0 <--$
+              oracleCompMap_inner
+              (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                          (pair_EqDec nat_EqDec eqDecState))
+              (list_EqDec (list_EqDec eqdbv)) (Oi_oc4 i) 
+              (0, (k1, v0)) maxCallsAndBlocks; [bits, _]<-2 z0; $ ret bits)
+            (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+            rb_oracle s');
+      z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b1, _]<-2 z; ret b1)).
+(* can i add another intermediate game here about the v-updating? we only need that the output bits are equal. is this true? *)
+{
+(* well... comp_spec eq is probably true on the whole computation *)
+(* can i just prove that the subcomputation returns the same bits only? *)
+(* i don't understand? isn't this exactly what i was trying to do before?? *)
+(* 1. does it?
+2. can i prove that?
+calls <= i: go in w same k,v
+left:
+bits <- gen_loop_rb n
+ret bits
+
+right:
+bits,v' <- gen_loop_rb_inter v n (where n <> 0)
+ret (bits,v') 
+
+v' is NOT USED for anything... until... 
+
+calls > i: 
+left:
+receive some (k,v) that are the same
+
+right:
+receive k, that's the same, v that's not
+??? what to do ???
+is the theorem even true?
+
+is there some other intermediate game i can try?
+rewrite all the Gen_loop_rb_intermediate in terms of Gen_loop? (if i can prove comp_spec eq)
+then?
+maybe just on calls=i?
+ *)
+
+} 
+
+
+
+    prog_equiv.
     (* factor out lemma and apply it to both cases *)
     fcf_skip. instantiate (1 := (fun x y => x = fst y)).
     (* they have the same k and v, former is S i, latter is i without updates in RB, so i hope this works! *)
@@ -4133,7 +4213,7 @@ Gi_prg 2:    RB  RB  PRF
 Gi_rf  2:    RB  RB  RF
 Gi_prg 3:    RB  RB  RB *)
 Lemma Gi_rf_rb_close : forall (i : nat), (* not true for i = 0 (and not needed) *)
-  | Pr[Gi_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions.
+  | Pr[Gi_rf i] - Pr[Gi_prg (S i)] | <= Pr_collisions. 
 Proof.
   intros.
   Print Gi_rf.
