@@ -2386,7 +2386,7 @@ Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat)
   let GenUpdate_choose :=
       (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc
+      then GenUpdate_rb_intermediate_oc_v
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
            then GenUpdate_noV_oc_k (* k pulled to beginning; does use last v *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
@@ -2402,7 +2402,7 @@ Definition Oi_oc''' (i : nat) (sn : nat * KV) (n : nat)
   let GenUpdate_choose :=
       (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
       if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc (* does not use last v *)
+      then GenUpdate_rb_intermediate_oc_v (* does not use last v *)
       else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
            then GenUpdate_rb_intermediate_oc_v (* does use last v *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
@@ -2588,6 +2588,193 @@ Proof.
       apply Oi_ocs_eq_calls_gt_i; omega. }
     { simplify. simpl in H4. destruct p. inversion H4. subst. fcf_spec_ret. }
 Qed.
+
+(* attempting proof for when every RB uses the last v:
+BUT need to make the change at the top level, 
+merge it into Gi_normal_prf, (just check first)
+and add 'list <> 0' assumptions everywhere
+and confirm it doesn't break ANYTHING referring to Gi_prg
+  looks like Pr_collisions could be fine too?
+STEP BACK: is this theorem actually true? intuition says yes bc the structures are the same now
+
+WANT TO PROVE
+
+eq
+([k,v] <-2 Instantiate;
+oracleMap (Oi_prg (S i)) (0, (k,v)) l)
+([k,v] <-2 Instantiate;
+oracleCompMap_inner (Oi_oc' i) (0, (k,v)) l)
+
+----
+
+calls < i:
+
+eq
+([k,v] <-2 Instantiate;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleMap (Oi_prg (S i)) (1, (k,v'')) ns)
+
+([k,v] <-2 Instantiate;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) ns)
+
+what structures do I use? remember, CAN'T UPDATE K AT ALL. not even on both sides
+anyway, should be ok for calls < i, since same structure
+how to do induction like last time? push instantiate in? TODO?
+the calls=i case looks good but can i even push the Instantiate in? I didn't manage to pull one out either? so now I'm just confused? is the below possible? I definitely need to push the k in for the later k update (and the k *can* be pushed in). and apparently I don't need to push the v in?
+
+try this form:
+
+WANT TO PROVE
+
+eq
+(v <- RndV;
+k <- RndK;
+oracleMap (Oi_prg (S i)) (0, (k,v)) l)
+(v <- RndV;
+k <- RndK;
+oracleCompMap_inner (Oi_oc' i) (0, (k,v)) l)
+
+so we skip. forall v,
+
+eq
+(k <- RndK;
+oracleMap (Oi_prg (S i)) (0, (k,v)) l)
+(k <- RndK;
+oracleCompMap_inner (Oi_oc' i) (0, (k,v)) l)
+
+and, after reverting, we're given IH: forall v,
+
+eq
+(k <- RndK;
+oracleMap (Oi_prg (S i)) (calls, (k,v)) xs)
+(k <- RndK;
+oracleCompMap_inner (Oi_oc' i) (calls, (k,v)) xs)
+
+and we now want to prove:
+
+eq
+(k <- RndK;
+oracleMap (Oi_prg (S i)) (0, (k,v)) x::xs)
+(k <- RndK;
+oracleCompMap_inner (Oi_oc' i) (0, (k,v)) x::xs)
+
+expanding the call:
+
+eq
+(k <-$ Rnd;
+v' <- Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleMap (Oi_prg (S i)) (1, (k,v'')) ns)
+
+(k <-$ Rnd;
+v' <- Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) ns)
+
+the k is irrelevant so we can swap it to the back and skip the v and bits?
+(BTW the intermediate postcondition may be different, but it'll probably be eq)
+
+eq
+(k <-$ Rnd;
+oracleMap (Oi_prg (S i)) (1, (k,v'')) ns)
+
+(k <-$ Rnd;
+oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) ns)
+
+does this match the IH? yes, actually.... because it's forall v now?
+so, this could work??
+
+----
+
+calls = i:
+
+eq
+([k,v] <-2 Instantiate;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
+
+([k,v] <-2 Instantiate;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+k' <-$ Rnd;
+oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
+
+unsure if both instantiates will still be here
+so... there's just an extra k? manipulate the rightmost
+not sure if the variable names are right... 
+
+eq
+(k <- Rnd;
+v <- Rnd;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
+
+(k <- Rnd;
+v <- Rnd;
+k' <-$ Rnd;
+
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
+
+--> do irr + switch
+
+eq
+(k <- Rnd;
+v <- Rnd;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
+
+(k' <-$ Rnd;
+v <- Rnd;
+
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
+
+--> skip
+
+eq
+(v <- Rnd;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
+
+(v <- Rnd;
+v' <-$ Rnd;
+[bits,v''] <- Gen_loop_last v' n;
+oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
+
+then... both are the same?? so k,v,bits are the same?
+in fact we don't need the v from instantiate, just the k
+TODO wait how do i deal with noV then? lol apparently it doesn't matter?
+that only matters if
+
+----
+
+calls > i:
+
+again unsure if both instantiates will still be here? 
+just need that the inputted k v are the same and the outputted bits are the same 
+
+eq
+([k,v] <-2 Instantiate;
+v' <-$ f k v;
+[bits,v''] <- Gen_loop_PRF k v n;
+k' <-$ f k (v''||00);
+oracleMap (Oi_prg (S i)) (?, (k',v'')) ns)
+
+([k,v] <-2 Instantiate;
+v' <-$ f k v;
+[bits,v''] <- Gen_loop_PRF k v n;
+k' <-$ f k (v''||00);
+oracleCompMap_inner (Oi_oc' i) (?, (k',v'')) ns) *)
 
 (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
 Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state (any_v : Bvector eta),
@@ -3199,80 +3386,6 @@ Proof.
           z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b0, _]<-2 z; ret b0)).
     { fcf_swap fcf_right. prog_equiv. }
     flip.
-    rewrite_r.
-
-(* uses genupdate rb on any call <= i *)
-Definition Oi_oc4 (i : nat) (sn : nat * KV) (n : nat) 
-  : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
-  [callsSoFar, state] <-2 sn;
-  let GenUpdate_choose :=
-      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
-      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc (* does not use last v *)
-      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
-           then GenUpdate_rb_intermediate_oc (* does use last v *)
-           else if beq_nat callsSoFar i (* callsSoFar = i *)
-                then GenUpdate_rb_intermediate_oc_v (* does use last v *)
-                else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
-  [bits, state'] <--$2 GenUpdate_choose state n;
-    $ ret (bits, (S callsSoFar, state')).
-
-instantiate
-  (1 :=
-     (k0 <-$ RndK;
-      a <-$ RndV;
-      z1 <-$ ret (b, a);
-      [_, v]<-2 z1;
-      a0 <-$ ret (k0, v, nil);
-      a1 <-$
-         ([z, s']<-2 a0;
-          ([k1, v0]<-2 z;
-           z0 <--$
-              oracleCompMap_inner
-              (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-                          (pair_EqDec nat_EqDec eqDecState))
-              (list_EqDec (list_EqDec eqdbv)) (Oi_oc4 i) 
-              (0, (k1, v0)) maxCallsAndBlocks; [bits, _]<-2 z0; $ ret bits)
-            (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-            rb_oracle s');
-      z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b1, _]<-2 z; ret b1)).
-(* can i add another intermediate game here about the v-updating? we only need that the output bits are equal. is this true? *)
-{
-(* well... comp_spec eq is probably true on the whole computation *)
-(* can i just prove that the subcomputation returns the same bits only? *)
-(* i don't understand? isn't this exactly what i was trying to do before?? *)
-(* 1. does it?
-2. can i prove that?
-calls <= i: go in w same k,v
-left:
-bits <- gen_loop_rb n
-ret bits
-
-right:
-bits,v' <- gen_loop_rb_inter v n (where n <> 0)
-ret (bits,v') 
-
-v' is NOT USED for anything... until... 
-
-calls > i: 
-left:
-receive some (k,v) that are the same
-
-right:
-receive k, that's the same, v that's not
-??? what to do ???
-is the theorem even true?
-
-is there some other intermediate game i can try?
-rewrite all the Gen_loop_rb_intermediate in terms of Gen_loop? (if i can prove comp_spec eq)
-then?
-maybe just on calls=i?
- *)
-
-} 
-
-
-
     prog_equiv.
     (* factor out lemma and apply it to both cases *)
     fcf_skip. instantiate (1 := (fun x y => x = fst y)).
@@ -3338,7 +3451,8 @@ maybe just on calls=i?
                  ret a);
                 z <-$ ([bnkv, s']<-2 top; [bits, _] <-2 bnkv; x <-$ A bits; ret (x, s')); [b, _]<-2 z; ret b)).
       { prog_equiv. }
-      fcf_skip. flip. apply oracleCompMap_rb_instantiate_outer_i_neq_0. omega. auto.
+      fcf_skip. flip. apply oracleCompMap_rb_instantiate_outer_i_neq_0. admit. (* TODO any_v *)
+      omega. auto.
 
       simpl in H2. destruct b0. destruct a. simpl in *. destruct p. simpl in *. subst.
       prog_equiv. fcf_spec_ret.
@@ -4229,7 +4343,13 @@ Proof.
   rewrite Gi_rb_return_bad_eq. 
   rewrite Gi_rf_dups_return_bad_eq.
 
+  (* NOTE still parametrized by i, so the hybrid matters *)
   rewrite Gi_rb_rf_identical_until_bad.
+  unfold Gi_rb_bad. unfold PRF_Adversary. simplify.
+  (* ??? shouldn't Pr_collisions depend on the hybrid. or just an upper bound? *)
+  unfold Pr_collisions.
+  (* rb oracle is queried when? i'm confused. only on ith call? yeah only on ith call (when RF is replaced with RB) *)
+  (* so we "zoom in" here and it doesn't really matter if RB before it use new v... or if on the ith call we use new v... only the `bvector eta` getting generated matters? *)
   apply Gi_rb_bad_collisions.
 
 (* want lemmas saying
