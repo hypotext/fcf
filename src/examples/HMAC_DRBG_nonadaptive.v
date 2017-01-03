@@ -2439,7 +2439,19 @@ Proof.
       (* calls = i *)
       { destruct (lt_dec calls i).
         (* TODO: here we need to weaken the precondition bc GenUpdate_rb_intermediate_oc_v also updates the v. but wait... the output bits aren't the same. so, we actually need to change this in Oi_oc' and Gi_normal_prf_eq.  *)
-        { admit. }
+        {
+          simplify.
+          fcf_skip. admit. admit.
+          { instantiate (1 := (fun x y => x = fst y)).
+            (* is this true? i just put the precondition here experimentally *)
+            (* anyway, it's not strong enough for the rest of the proof. looks like just the outputted v's aren't equal *)
+            unfold Gen_loop_rb.
+            unfold Gen_loop_rb_intermediate.
+            admit. }
+          simpl in *. subst.
+          simplify.
+          fcf_spec_ret. simpl. repeat f_equal. admit.
+        }
         destruct (beq_nat calls 0). admit.
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = fst y)). (* rb state might not be equal *)
@@ -2526,7 +2538,7 @@ Qed.
 
 Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l i state,
     beq_nat i 0 = true ->                                        (* separate theorem *)
-    comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
+    comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition--just k's equal? *)
               ([k, v] <-$2 Instantiate;
                a <-$
                  (oracleCompMap_inner
@@ -2645,15 +2657,16 @@ oracleMap (Oi_prg (S i)) (0, (k,v)) l)
 (k <- RndK;
 oracleCompMap_inner (Oi_oc' i) (0, (k,v)) l)
 
-and, after reverting, we're given IH: forall v,
+and, after reverting, we induct on l. now we are GIVEN
 
+IH: forall v, (and forall calls, k, v, i)
 eq
 (k <- RndK;
 oracleMap (Oi_prg (S i)) (calls, (k,v)) xs)
 (k <- RndK;
 oracleCompMap_inner (Oi_oc' i) (calls, (k,v)) xs)
 
-and we now want to prove:
+and WANT TO PROVE:
 
 eq
 (k <- RndK;
@@ -2662,78 +2675,81 @@ oracleMap (Oi_prg (S i)) (0, (k,v)) x::xs)
 oracleCompMap_inner (Oi_oc' i) (0, (k,v)) x::xs)
 
 expanding the call:
+( * assuming in the beginning we do GenUpdate_rb on both left and right?)
 
 eq
 (k <-$ Rnd;
 v' <- Rnd;
 [bits,v''] <- Gen_loop_last v' n;
-oracleMap (Oi_prg (S i)) (1, (k,v'')) ns)
+oracleMap (Oi_prg (S i)) (1, (k,v'')) xs) 
 
 (k <-$ Rnd;
 v' <- Rnd;
 [bits,v''] <- Gen_loop_last v' n;
-oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) ns)
+oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) xs)
 
 the k is irrelevant so we can swap it to the back and skip the v and bits?
+*** being able to prove k irrelevant and swap it to the back seems like a major lemma
+*** if k is used anywhere in between, then we need to skip the k sample, otherwise there's no variable
+(however, it doesn't look like GenUpdate_rb uses the k at all)
 (BTW the intermediate postcondition may be different, but it'll probably be eq)
 
 eq
 (k <-$ Rnd;
-oracleMap (Oi_prg (S i)) (1, (k,v'')) ns)
+oracleMap (Oi_prg (S i)) (1, (k,v'')) xs)
 
 (k <-$ Rnd;
-oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) ns)
+oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) xs)
 
 does this match the IH? yes, actually.... because it's forall v now?
-so, this could work??
+so, this could work?
 
 ----
 
-calls = i:
+calls = i: 
+( *ns here should be xs?)
 
 eq
-([k,v] <-2 Instantiate;
+(k <-$ Rnd;
 v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
 
-([k,v] <-2 Instantiate;
+(k <-$ Rnd;
 v' <-$ Rnd;
+<**>
 [bits,v''] <- Gen_loop_last v' n;
 k' <-$ Rnd;
 oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
 
-unsure if both instantiates will still be here
-so... there's just an extra k? manipulate the rightmost
-not sure if the variable names are right... 
+<**> how come we can ignore the v from instantiate? did I forget to type this line?
+if every RB uses the last v, then it doesn't matter if v is re-sampled, since we'll just sample it again (as long as we never request 0 blocks)?
+
+there's just an extra k, so manipulate the rightmost. 
+the last k re-sampling can be moved to before the loop
 
 eq
 (k <- Rnd;
-v <- Rnd;
 v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
 
 (k <- Rnd;
-v <- Rnd;
 k' <-$ Rnd;
-
 v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
 
---> do irr + switch
+--> do fcf_irr_r *on the first k on the right (from the instantiate) 
++ switch *the resulting first 2 lines on the left
 
 eq
 (k <- Rnd;
-v <- Rnd;
 v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
 
 (k' <-$ Rnd;
-v <- Rnd;
-
 v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
@@ -2741,21 +2757,23 @@ oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
 --> skip
 
 eq
-(v <- Rnd;
-v' <-$ Rnd;
+(v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
 
-(v <- Rnd;
-v' <-$ Rnd;
+(v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
 
-then... both are the same?? so k,v,bits are the same?
+then both are the same? so we can prove k,v,bits are the same?
 in fact we don't need the v from instantiate, just the k
-TODO wait how do i deal with noV then? lol apparently it doesn't matter?
+TODO how do i deal with noV then? apparently it doesn't matter?
 that only matters if
+* if what?
+* do we use the IH here? why or why not? no IH, only for calls < i, different IH for calls > i
 
+maybe I mistyped the statement and the end result actually has an extra v-sampling, but it doesn't matter
+(see email)
 ----
 
 calls > i:
@@ -2764,13 +2782,13 @@ again unsure if both instantiates will still be here?
 just need that the inputted k v are the same and the outputted bits are the same 
 
 eq
-([k,v] <-2 Instantiate;
+(k <-$ RndK;
 v' <-$ f k v;
 [bits,v''] <- Gen_loop_PRF k v n;
 k' <-$ f k (v''||00);
 oracleMap (Oi_prg (S i)) (?, (k',v'')) ns)
 
-([k,v] <-2 Instantiate;
+(k <-$ RndK;
 v' <-$ f k v;
 [bits,v''] <- Gen_loop_PRF k v n;
 k' <-$ f k (v''||00);
@@ -2851,7 +2869,8 @@ Proof.
         Transparent Oi_oc'''. simplify. destruct (lt_dec calls i). Focus 2. omega.
         simplify.
         (* somehow we need to retain the distribution of b0??  and skip v' above with it?? *)
-        fcf_skip_eq. admit. admit.
+
+(*        fcf_skip_eq. admit. admit.
         (* apply Gen_loop_rb_intermediate_nok_eq. admit. (* TODO assume num blocks <> 0 *) *)
         simplify. fcf_skip_eq. admit. admit.
       }
@@ -2936,7 +2955,7 @@ that would work but would that still apply to prove the top-level theorem??
 
         simplify. fcf_spec_ret. simpl in H6. destruct p. inversion H6. subst.
         simpl. reflexivity. }
-Qed.
+Qed. *)
 
 Lemma oracleMap_oracleCompMap_equiv_modified_calls_gt_i : forall l k v i state calls init,
    calls = i ->
@@ -3200,7 +3219,16 @@ Proof.
       (* postcondition: output keys are unchanged from input *)
       instantiate (1 := (fun x y => x = fst y /\ fst (snd x) = fst (snd (fst y)) = k)).
       unfold GenUpdate_rb_intermediate.
-      simplify. fcf_skip_eq. admit. admit. prog_equiv. fcf_spec_ret.
+      simplify. admit.
+
+      (* added to make it compile *)
+      admit. }
+    admit.
+    admit.
+
+(*       admit.
+
+      fcf_skip_eq. admit. admit. prog_equiv. fcf_spec_ret.
 
       simpl in H2. destruct b0. destruct p. simpl in *. destruct b. destruct k0. simpl in *. inversion H2. inversion H3. subst. breakdown H2.
       prog_equiv. fcf_spec_ret. simpl. auto.
@@ -3219,14 +3247,14 @@ Proof.
       { fcf_skip_eq. admit. admit.
         simplify.
         fcf_spec_ret. f_equal. f_equal. rewrite <- app_assoc. f_equal.
-      }
+1      }
     } 
     
     (* calls = i *)
     + clear IHxs.
       clear H.
       apply oracleMap_oracleCompMap_equiv_modified_calls_gt_i; omega.
-      (* apply Gi_normal_rb_eq_calls_eq_i; omega. *)
+      (* apply Gi_normal_rb_eq_calls_eq_i; omega. *) *)
 Qed.
 
 (* 8/10/16 *)
@@ -3269,8 +3297,10 @@ Proof.
   fcf_to_prhl_eq.
   simplify.
 
+(* Why didn't this work? *)
   (* apply first theorem *)
   rewrite_r.
+  (* replace Oi_oc' with Oi_oc'' *)
   instantiate
     (1 :=
          (a <-$ Instantiate;
@@ -3286,7 +3316,7 @@ Proof.
           (0, (k, v)) maxCallsAndBlocks; [bits, _]<-2 z0; $ ret bits)
          (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
          rb_oracle s');
-      z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b, _]<-2 z; ret b)).
+      z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b, _]<-2 z; ret b)). 
   { fcf_skip_eq. simplify. fcf_skip. apply oracleCompMap_rb_instantiate_inner.
     simplify. simpl in *. destruct p. inversion H1. subst. fcf_skip_eq.
     simplify. fcf_reflexivity. }
@@ -3298,7 +3328,7 @@ Proof.
   destruct i_cases.
 
   (* i = 0 *)
-  - rewrite_r. 
+  - rewrite_r.                  (* replace Oi_oc'' with Oi_oc''' *)
     instantiate
       (1 :=
          ([k,v] <-$2 Instantiate;
@@ -3451,7 +3481,15 @@ Proof.
                  ret a);
                 z <-$ ([bnkv, s']<-2 top; [bits, _] <-2 bnkv; x <-$ A bits; ret (x, s')); [b, _]<-2 z; ret b)).
       { prog_equiv. }
-      fcf_skip. flip. apply oracleCompMap_rb_instantiate_outer_i_neq_0. admit. (* TODO any_v *)
+
+      (* Added to make it compile *)
+      admit. }
+      admit.
+
+(*      fcf_skip. flip. 
+
+      apply oracleCompMap_rb_instantiate_outer_i_neq_0. admit. (* TODO any_v *)
+      (* can't find reference in current environment? *)
       omega. auto.
 
       simpl in H2. destruct b0. destruct a. simpl in *. destruct p. simpl in *. subst.
@@ -3479,7 +3517,7 @@ Proof.
     fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
 
     simpl in *. repeat destruct p. inversion H3. subst. 
-    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
+    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity. *)
 Qed.
 
   (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
@@ -4350,7 +4388,10 @@ Proof.
   unfold Pr_collisions.
   (* rb oracle is queried when? i'm confused. only on ith call? yeah only on ith call (when RF is replaced with RB) *)
   (* so we "zoom in" here and it doesn't really matter if RB before it use new v... or if on the ith call we use new v... only the `bvector eta` getting generated matters? *)
-  apply Gi_rb_bad_collisions.
+Check Gi_rb_bad_collisions.
+(* Why doesn't this compile?? *)
+  (* apply Gi_rb_bad_collisions. *)
+  admit.
 
 (* want lemmas saying
 - key updating: calling a RF with an input of longer length whereas all other inputs had same length = randomly sampled <<<

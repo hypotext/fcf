@@ -1,0 +1,165 @@
+11/25/16
+* fixed emacs, git pulled to both repos, opened file, opened all relevant tabs
+* checked buffer w/ coq up to point of last commit
+* coq fails on line 2854. i don't know why
+
+-----
+
+12/19/16
+did
+- reread emails 
+- reread thesis 
+  - how does HMAC-DRBG work?
+  - how does the proof work?
+- what's left to prove?
+- skim code
+
+TODO
+- what do i need to comment out to get it to compile
+- look at last three commits
+- deep dive into problem w proof (and be able to explain it)
+  - why is it obviously true
+  - why is it hard to prove
+    	something about sampling k
+  - why isn't it compiling. breaks *after* the new stuff
+    - if i bisect, what's the most recent commit it compiles on?
+
+looks like the main ones left are Gi_normal_rb_eq, PRF_Advantages, and Gi_rb_bad_eq_(i)
+
+new TODO
+- ping adam?
+- start documenting code as i read it
+- start documenting what my thesis got wrong
+- review existing proofs and fcf techniques
+- email andrew about dates/times
+
+- also formalize proof of backtracking resistance?
+
+------
+
+1/2/17
+working notes
+1. Gi_normal_rb_eq
+- need to deal with calls < i, calls = i, calls > i. which one is the hard case?
+- what's the name of the theorem that I'm trying to prove in the written proof?
+- how do I use that to prove the overall thing?
+- did I already try this proof, and what parts of it did or did not work?
+
+calls < i
+- watch out for quantifiers and IH
+- oracleMap vs. oracleCompMap_inner?
+- start with calls=0, i as abstract?
+- what were the intermediate games I did to get Gen_loop_last?
+- why are we updating v on the first call? thought it was noV
+- iirc it was hard to prove the k was irrelevant, e.g. if it's present in Gen_loop
+- so on what call do we actually use the k?
+- what's the structural problem with RB-substitution again?
+
+calls = i
+- how am i breaking it up into calls < i, = i, > i?
+- what theorem structure is common between them?
+- 
+
+calls > i
+- assuming calls = i works out, has same incoming state?
+- so should it be a simple induction? 
+
+- so the problem is between GenUpdate_rb_intermediate (oracleMap, calls < i) and
+GenUpdate_oc (oracleCompMap_inner, calls = i)
+calls = 0   1   2   3
+        RB  RB  PRF PRF <-- oracleMap (S 0)
+        RB |RB| PRF PRF <-- oracleCompMap 0, use RB when i=1? 
+(numbering may be off)
+
+oracleMap (i = S 1) (calls = 0) l does 
+bits <-$ Gen_loop_rb n;
+ret (bits, v)
+
+and oracleCompMap (i = 1) (calls = 0) rb_oracle l does
+v <-$ |OC_query v0|; 
+[bits, v'] <-$ Gen_loop_oc v n;
+k <-$ |OC_query (v' || 00)|
+ret (bits, (k', v'))
+
+which simplifies to
+v <-$ RndV; 
+[bits, v'] <-$ Gen_loop_oc v n;
+k <-$ RndK;
+ret (bits, (k', v'))
+
+which simplifies to
+v <-$ RndV; 
+v' <-$ RndV; // roughly, since the above loop re-samples v a bunch of times ind.?
+bits <-$ Gen_loop_rb n;
+k <-$ RndK;
+ret (bits, (k', v'))
+
+which simplifies to
+v <-$ RndV; 
+v' <-$ RndV; // roughly, since the above loop re-samples v a bunch of times ind.?
+bits <-$ Gen_loop_rb n;
+k <-$ RndK;
+ret (bits, (k', v'))
+
+- how did i get rid of the v re-sampling??
+- there's also an Instantiate to deal with
+- TODO ^ numbering is wrong
+
+- is doing (S i) really okay when the 0th call gets special treatment (no v)?
+
+stepping through Gi_normal_rb_eq
+- replace Oi_oc' with Oi_oc'': what's the difference? 
+  is that lemma (oracleCompMap_rb_instantiate_inner) fully proven?
+  pulls k and kv updating to the beginning of a call, BEFORE bit generation
+- replace Oi_oc'' with Oi_oc'''  
+  uses GenUpdate_rb_intermediate_oc_v on any call <= i
+  should this be GenUpdate_rb (NOT intermediate)?
+  takes in (k,v) state but does not use or update k
+- oraclecompmap_rb_instantiate_inner requires some changes in Oi_oc'? why?
+
+---
+
+TODO
+- get the code to compile
+  - why are Gi_rf_rb_close, Gi_normal_rb_eq, and the inner lemma not checking?
+  - bisect/revert to earlier commits
+  - from july 30-august 12?? 21 commits
+  - why does the aug 4 proof idea (pull out instantiate) not work?
+  - why do i need `list <> nil` assumptions?
+- understand prev. work on proof and where it broke
+  - how did I get rid of the v-sampling? read the earlier defs
+- review easier induction proofs
+  - e.g. why doesn't the same approach in Gi_normal_prf_eq (?) work?
+- practice explaining the proof (e.g. can we deal with no v-updating?)
+
+- figure out why the other strategies from the email don't work:
+  1. changing the structure so (k,v) are updated breaks Gi_normal_prf_eq--why?
+  2. selectively skipping the instantiate statements--does my proof work?
+     why does it break the double induction?
+
+- make another attempt at proof
+- start documenting code as i read it
+- look at previous commits
+- forward email to adam about the problem
+- email andrew, matt, and adam about the status of the proof
+
+explain the following lemmas:
+1. Gi_normal_rb_eq
+2. PRF_Advantages
+3. Gi_rb_bad_eq_(i)
+
+- start documenting what my thesis got wrong
+- review existing proofs and fcf techniques
+- clean up old comments from file		
+
+DONE
+- read the proof in commit 3; commented (sampling in call i seems wrong?)
+- read email to adam
+- figure out the theorem statement and problem with structure
+- deep dive into problem w proof (and be able to explain it)
+  - why is it obviously true
+  - why is it hard to prove? something about sampling k
+- send email
+
+need to update TODOs above
+also see changes in HMAC_DRBG_nonadaptive.v
