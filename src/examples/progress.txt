@@ -163,3 +163,59 @@ DONE
 
 need to update TODOs above
 also see changes in HMAC_DRBG_nonadaptive.v
+
+-----
+
+1/26/17
+
+it's been 24 days (3.5 weeks). i spent that time hacking on penrose and writing/practicing the talk, so i'm not sure what's going on.
+
+read:
+- notes from last meeting X
+- old email to adam X
+- proof i wrote in file X
+- email to andrew X
+- code i wrote months ago (did not do)
+
+intuition: the outputted bits and kv at the end should follow the same distribution for both executions because in the first execution, the kv (uniformly randomly sampled) are just passed straight thru to the PRF calls which then use and update them. and in the second execution, they are uniformly randomly sampled, passed thru to the RB calls (whicn don't use them) and the special RB call (which doesn't use them but uniformly randomly sampled them again) and then to the PRF calls (which use and update them in the same manner as in the first execution.
+
+the lemma in question is Gi_normal_rb_eq
+the proposed proof resides at line 2604
+
+reading proof:
+- did i deal with the calls=0 special case? 
+- what if i=0? that's fine, we start with calls < i \/ calls = i, which deals w it
+- induction statement isn't quite right since we do induct-then-destruct. check this while setting up
+- what should the intermediate/final postconditions be besides eq? make sure they match up
+- being able to prove k irrelevant + swap it to the back seems like a major lemma. TODO confirm that it's true for Gen_loop_last (whatever that is)
+- what are the intermediate games i need to get k and v in the right place in the special RB execution, or get rid of the extra v-sampling?
+  - getting rid of v-sampling seems like a major lemma too. it works bc Gen_loop_last doesn't actually use the sampled v that's passed in (if n > 0). the v'' are resampled
+- i think last time i *was* able to match the IH correctly on calls<i. i should test that i can do it again
+- what is gen_loop_last? do i need an intermediate game to change that? what do i change it to?
+
+answer:
+- how do i make the code compile? add a bunch of admits to the ...i_neq_0 lemma X
+- what was the problem? extra k,v sampling X
+
+- what was the intuition behind the paper proof? k dealt with by IH, v dealt with by irrelevance X
+- what's all that stuff i wrote above? (X doesn't matter)
+
+- ***what do i need to prototype to get it to work? 
+  - theorem for Gi_normal_rb, theorem with hypothesis (calls < i \/ calls = i), induct and destruct, apply IH successfully, second theorem on calls > i
+  - intermediate games/lemmas to get rid of v-sampling in special RB call, move k to end in calls < i, and maybe for Gen_loop
+- What's the minimum (and maximum) goal for the meeting this thursday afternoon?
+  - prototype all of the above and start filling in proofs
+- what intermediate goals should i set for sunday, monday, tuesday, wednesday, thursday?
+  - mon: interview prep / tues, wed, thurs: prototype 
+- what goals should i be setting afterward? e.g. february, march, april, may
+  - unclear, what else is left to prove?
+
+- figure out what's up w/ the "no element in the list is 0" assumption. casework?
+- what was i prototyping last time?
+- why didn't what i tried last time work?
+- how much of that can i salvage?
+- am i fundamentally misunderstanding something? e.g. the goal, FCF, the proof, probability theory, distributions, sampling
+
+this context switching is very difficult...
+
+

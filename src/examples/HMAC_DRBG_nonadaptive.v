@@ -2601,7 +2601,7 @@ Proof.
     { simplify. simpl in H4. destruct p. inversion H4. subst. fcf_spec_ret. }
 Qed.
 
-(* attempting proof for when every RB uses the last v:
+(* attempting proof for when every RB uses the last v: (meaning the adversary doesn't request 0 blocks?)
 BUT need to make the change at the top level, 
 merge it into Gi_normal_prf, (just check first)
 and add 'list <> 0' assumptions everywhere
@@ -2632,7 +2632,7 @@ v' <-$ Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) ns)
 
-what structures do I use? remember, CAN'T UPDATE K AT ALL. not even on both sides
+what structures do I use? remember, CAN'T UPDATE K AT ALL. not even on both sides ( * why?)
 anyway, should be ok for calls < i, since same structure
 how to do induction like last time? push instantiate in? TODO?
 the calls=i case looks good but can i even push the Instantiate in? I didn't manage to pull one out either? so now I'm just confused? is the below possible? I definitely need to push the k in for the later k update (and the k *can* be pushed in). and apparently I don't need to push the v in?
@@ -2674,8 +2674,13 @@ oracleMap (Oi_prg (S i)) (0, (k,v)) x::xs)
 (k <- RndK;
 oracleCompMap_inner (Oi_oc' i) (0, (k,v)) x::xs)
 
+(-this isn't quite right--it's actually calls < i \/ calls = i, not calls = 0. but the overall induct-then-destruct structure is okay)
+(-did i deal with the calls=0 special case?
+i think it's ok since they both do the same thing? but what if i=0 or something)
+(-when i do the proof, need to verify these theorem statements are correct)
+
 expanding the call:
-( * assuming in the beginning we do GenUpdate_rb on both left and right?)
+( * assuming in the beginning we do GenUpdate_rb on both left and right? if i=0)
 
 eq
 (k <-$ Rnd;
@@ -2688,7 +2693,8 @@ v' <- Rnd;
 [bits,v''] <- Gen_loop_last v' n;
 oracleCompMap_inner (Oi_oc' i) (1, (k,v'')) xs)
 
-the k is irrelevant so we can swap it to the back and skip the v and bits?
+(this expansion assumes calls < i)
+the k is irrelevant so we can swap it to before the last line, and skip the v and bits first
 *** being able to prove k irrelevant and swap it to the back seems like a major lemma
 *** if k is used anywhere in between, then we need to skip the k sample, otherwise there's no variable
 (however, it doesn't look like GenUpdate_rb uses the k at all)
@@ -2723,7 +2729,9 @@ k' <-$ Rnd;
 oracleCompMap_inner (Oi_oc' i) (S i, (k',v'')) ns)
 
 <**> how come we can ignore the v from instantiate? did I forget to type this line?
-if every RB uses the last v, then it doesn't matter if v is re-sampled, since we'll just sample it again (as long as we never request 0 blocks)?
+if every RB uses the last v, then it doesn't matter if v is re-sampled, since we'll just sample it again (-in gen_loop_last?) 
+(as long as we never request 0 blocks)?
+(-gen_loop_last doesn't use the input v', and the v'' are resampled uniformly as long as n>0)
 
 there's just an extra k, so manipulate the rightmost. 
 the last k re-sampling can be moved to before the loop
@@ -2956,6 +2964,10 @@ that would work but would that still apply to prove the top-level theorem??
         simplify. fcf_spec_ret. simpl in H6. destruct p. inversion H6. subst.
         simpl. reflexivity. }
 Qed. *)
+        admit. }
+        admit.
+      +  admit.
+Qed.                            (* TODO added to make this lemma compile *)
 
 Lemma oracleMap_oracleCompMap_equiv_modified_calls_gt_i : forall l k v i state calls init,
    calls = i ->
