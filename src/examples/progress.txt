@@ -218,4 +218,47 @@ answer:
 
 this context switching is very difficult...
 
+-------
+2/1/17
+- i will have worked on this proof for a grand total of 7+3 = 10 hours since last time
 
+proof resides at line 2607
+
+try to bridge GenUpdate_oc_instantiate (oracle RB) and GenUpdate_rb_intermediate_oc (just sample bits, don't update state)
+Oi_oc': normal, uses oracle on ith call
+Oi_oc'': hardcode oracle everywhere to be RB oracle, normal RBs now update v
+  but can we really prove this equivalence for "normal RBs now update v"?
+  TODO look at proof (name = ?)
+Oi_oc''': removes all extra k,v sampling from beginning of functions
+
+TODO
+- can we really prove this equivalence for "normal RBs now update v"?
+- what part of the proof didn't work?? what do i need to change for my proof??
+
+- step thru Gi_normal_rb_eq
+  - what was I doing previously? 
+  - why didn't it work? what parts of it are broken? what parts of the prev code need to change?
+  - what is this any_v business?
+  - how much of it can I salvage?
+  - what do I need to change to make it work?
+- what is the FIRST THING i need to define or do in Gi_normal_rb?
+  - figure out what Oi_oc', Oi_oc'', Oi_oc''' are, and if i can reuse them
+  - figure out what comes after them
+  - figure out what the main lemmas are that are used
+- do the following
+  - theorem: inside Gi_normal_rb
+  - theorem: with hypothesis (calls < i \/ calls = i)
+  - tactic: induct and destruct
+  - tactic: apply IH successfully, 
+  - theorem: second one on calls > i
+  - definitions: intermediate games/lemmas to get rid of v-sampling in special RB call
+  - definition: move k to end in calls < i, and maybe for Gen_loop
+  - understand the stuff I wrote last time
+- write email
+  - goal for email: "i prototyped it and it still seems to work, here are the main holes, i want to finish it by next week"
+
+- PLEASE leave a high-level comment on top of a lemma describing 
+1. where it's used 
+2. what it uses
+3. what it's for
+4. what the proof idea is

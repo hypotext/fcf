@@ -1850,6 +1850,9 @@ Lemma Gi_rb_return_bad_eq : forall (i : nat),
 Proof.
 Admitted.
 
+(* ---------------------------------- *)
+(* Assuming the Gi_normal_rb_eq stuff starts here *)
+
 (* second induction used to prove the lemma after it. calls = i, then destruct, the induction on calls > i *)
 Lemma Gi_normal_rb_eq_calls_eq_i : forall l k v i calls init rb_state,
     calls = i ->
@@ -2317,6 +2320,9 @@ Print Oi_oc'.
 Print GenUpdate_rb_intermediate_oc.
 (* bits <--$ $ Gen_loop_rb n; $ ret (bits, state) *)
 
+(* used in Oi_oc''. the difference between this function and GenUpdate_oc is that
+it hardcodes the oracle to be RB oracle, and moves the k update to be the first line, 
+rather than being after the bit generation, because k no longer depends on the new v *)
 (* takes in key but doesn't use it, to match the type of other GenUpdates *)
 Definition GenUpdate_oc_instantiate (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
@@ -2326,7 +2332,11 @@ Definition GenUpdate_oc_instantiate (state : KV) (n : nat) :
   [bits, v'] <--$2 Gen_loop_oc v n;
   $ ret (bits, (k', v')).
 
-(* updates v but not k *)
+(* used in Oi_oc''. the difference between this function and GenUpdate_rb_intermediate_oc
+is that it now updates v (but still does not update k). 
+why do we need to update v in the normal RB cases??? *)
+(* okay, i see that we're trying to match the form of GenUpdate_oc_instantiate *)
+(* at a high level, we're trying to bridge GenUpdate_oc_instantiate and GenUpdate_rb_intermediate_oc *)
 Definition GenUpdate_rb_intermediate_oc_v (state : KV) (n : nat) 
   : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
@@ -2334,6 +2344,7 @@ Definition GenUpdate_rb_intermediate_oc_v (state : KV) (n : nat)
   $ ret (bits, (k, v')).
 
 (* does not carry the k state around *)
+(* TODO: this function and the next theorem aren't used anywhere?? *)
 Fixpoint Gen_loop_rb_intermediate_v (v : Bvector eta) (n : nat)
   : Comp (list (Bvector eta) * Bvector eta) :=
   match n with
@@ -2358,6 +2369,10 @@ Proof.
       simpl. fcf_skip_eq. fcf_skip.
 Qed.
 
+(* used in Oi_oc''. the difference between this function and GenUpdate_noV is that
+1. we assume the oracle passed in is the RB oracle
+2. because we make that assumption, k is independent of v, so we resample it
+before the bits are generated (for ease of skipping) rather than after *)
 (* note oracle state won't be the same as GenUpdate_noV_oc *)
 Definition GenUpdate_noV_oc_k (state : KV) (n : nat) :
   OracleComp (list bool) (Bvector eta)  (list (Bvector eta) * KV) :=
@@ -2379,38 +2394,41 @@ Print Gen_loop_oc.
 (*  z <--$ GenUpdate_choose state n; *)
 (*  [bits, state']<-2 z; $ ret (bits, (S callsSoFar, state'))) *)
 
-(* i: index for oracle; callsSoFar; n *)
+(* hardcode oracle everywhere to be RB oracle *)
+(* moves k sampling to the beginning of each relevant function *)
 Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
   [callsSoFar, state] <-2 sn;
   let GenUpdate_choose :=
-      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
-      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
-      then GenUpdate_rb_intermediate_oc_v
-      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
-           then GenUpdate_noV_oc_k (* k pulled to beginning; does use last v *)
+      if lt_dec callsSoFar i
+      then GenUpdate_rb_intermediate_oc_v (* CHANGE:  *)
+      else if beq_nat callsSoFar O
+           then GenUpdate_noV_oc_k (* CHANGE: k pulled to beginning; does use last v *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
-                then GenUpdate_oc_instantiate   (* kv pulled to beginning; does use last v*)
-                else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
+                then GenUpdate_oc_instantiate   (* CHANGE: kv pulled to beginning; does use last v *)
+                else GenUpdate_PRF_oc in
   [bits, state'] <--$2 GenUpdate_choose state n;
     $ ret (bits, (S callsSoFar, state')).
 
 (* uses genupdate rb on any call <= i *)
+(* removes the extra k or k,v sampling before bit gen *)
 Definition Oi_oc''' (i : nat) (sn : nat * KV) (n : nat) 
   : OracleComp Blist (Bvector eta) (list (Bvector eta) * (nat * KV)) :=
   [callsSoFar, state] <-2 sn;
   let GenUpdate_choose :=
-      (* this behavior (applied with f_oracle) needs to match that of Oi_prg's *)
-      if lt_dec callsSoFar i (* callsSoFar < i (override all else) *)
+      if lt_dec callsSoFar i
       then GenUpdate_rb_intermediate_oc_v (* does not use last v *)
-      else if beq_nat callsSoFar O (* use oracle on 1st call w/o updating v *)
-           then GenUpdate_rb_intermediate_oc_v (* does use last v *)
+      else if beq_nat callsSoFar O
+           then GenUpdate_rb_intermediate_oc_v
+           (* CHANGE: diff b/t GenUpdate_oc_k and this fn is, this one removes the k sampling before bit gen *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
-                then GenUpdate_rb_intermediate_oc_v (* does use last v *)
-                else GenUpdate_PRF_oc in        (* uses PRF with (k,v) updating *)
+                then GenUpdate_rb_intermediate_oc_v (* CHANGE: does use last v *)
+                (* diff b/t GenUpdate_oc_instantiate and this fn is, this one removes the k,v sampling before bit gen *)
+                else GenUpdate_PRF_oc in
   [bits, state'] <--$2 GenUpdate_choose state n;
     $ ret (bits, (S callsSoFar, state')).
 
+(* Oi_oc' to Oi_oc'' *)
 Lemma oracleCompMap_rb_instantiate_inner : forall l i k v calls state1 state2,
     comp_spec (fun x y => fst x = fst y) (* rb state might not be equal *)
               ((oracleCompMap_inner
@@ -2503,6 +2521,7 @@ Proof.
   fcf_skip_eq. simplify. fcf_skip_eq. simplify. fcf_spec_ret.
 Qed.
 
+(* Oi_oc'' to Oi_oc''', case: calls > i *)
 Lemma Oi_ocs_eq_calls_gt_i : forall l k v state1 state2 calls i,
     calls > i ->
    comp_spec (fun x y => fst x = fst y)
@@ -2536,6 +2555,7 @@ Proof.
     fcf_spec_ret.
 Qed.
 
+(* Oi_oc'' to Oi_oc''', case: i = 0 *)
 Lemma oracleCompMap_rb_instantiate_outer_i_eq_0 : forall l i state,
     beq_nat i 0 = true ->                                        (* separate theorem *)
     comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition--just k's equal? *)
@@ -2802,6 +2822,7 @@ v' <-$ f k v;
 k' <-$ f k (v''||00);
 oracleCompMap_inner (Oi_oc' i) (?, (k',v'')) ns) *)
 
+(* Oi_oc'' to Oi_oc''', third (and last) case: calls <= i and i != 0 *)
 (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
 Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state (any_v : Bvector eta),
     calls <= i ->
@@ -2969,6 +2990,10 @@ Qed. *)
       +  admit.
 Qed.                            (* TODO added to make this lemma compile *)
 
+(* not sure what this lemma is *)
+(* the oracleMap using Oi_prg (original computation) is equivalent to oracleCompMap using Oi_oc''' (the final one) 
+for the second case of calls = i (leading to calls > i) *)
+(* did this proof work? why did it break? *)
 Lemma oracleMap_oracleCompMap_equiv_modified_calls_gt_i : forall l k v i state calls init,
    calls = i ->
    comp_spec
@@ -3176,6 +3201,9 @@ Proof.
 Qed.
 
 (* TODO have to expand this with the fold and acc/++ *)
+(* first case of the main proof: the original computation (oracleMap using Oi_prg) is equivalent to oracleCompMap Oi_oc'''
+but only for the first case (calls <= i)
+(TODO check the postcondition!) *)
 Lemma oracleMap_oracleCompMap_equiv_modified : forall l k v i state calls init,
     calls <= i ->
     comp_spec
