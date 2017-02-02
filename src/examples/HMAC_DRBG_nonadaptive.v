@@ -2401,7 +2401,7 @@ Definition Oi_oc'' (i : nat) (sn : nat * KV) (n : nat)
   [callsSoFar, state] <-2 sn;
   let GenUpdate_choose :=
       if lt_dec callsSoFar i
-      then GenUpdate_rb_intermediate_oc_v (* CHANGE:  *)
+      then GenUpdate_rb_intermediate_oc_v (* CHANGE: uses the last v *)
       else if beq_nat callsSoFar O
            then GenUpdate_noV_oc_k (* CHANGE: k pulled to beginning; does use last v *)
            else if beq_nat callsSoFar i (* callsSoFar = i *)
@@ -3201,8 +3201,9 @@ Proof.
 Qed.
 
 (* TODO have to expand this with the fold and acc/++ *)
-(* first case of the main proof: the original computation (oracleMap using Oi_prg) is equivalent to oracleCompMap Oi_oc'''
-but only for the first case (calls <= i)
+(* first case of the main proof (and the hardest case / main lemma): 
+the original computation (oracleMap using Oi_prg) is equivalent to oracleCompMap Oi_oc'''
+but only for the first case (calls <= i). is this induct, THEN destruct?
 (TODO check the postcondition!) *)
 Lemma oracleMap_oracleCompMap_equiv_modified : forall l k v i state calls init,
     calls <= i ->
@@ -3227,6 +3228,7 @@ Lemma oracleMap_oracleCompMap_equiv_modified : forall l k v i state calls init,
        ret (init ++ bits, nkv, state')).
 Proof.
   (* modeled off Gi_normal_rb_eq_compspec *)
+  (* induct, then destruct *)
   induction l as [ | x xs]; intros.
   - simplify. fcf_spec_ret. simpl. rewrite app_nil_r. repeat (split; auto).
   - assert (H_ilen : calls < i \/ calls = i) by omega.
@@ -3236,6 +3238,7 @@ Proof.
     Opaque Oi_prg. Opaque Oi_oc'''.
     simplify.
     fcf_skip. admit. admit.
+    (* case: call on first element of list *)
     (* strengthen postcondition so we can prove calls < i -> S calls <= i to apply IHxs *)
     (* also strengthen it again because if calls < i then the keys must still be the same *)
     instantiate (1 := (fun c d => bitsVEq c d
@@ -3468,6 +3471,7 @@ Proof.
 
     simpl in H3. destruct b0. repeat destruct p. simpl in *. inversion H3. subst.
     fcf_ident_expand_l. simplify. prog_equiv. fcf_spec_ret.
+  (* looks like the i=0 case is fully proved *)
 
   (* i != 0 *)
   - rewrite_r.

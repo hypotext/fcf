@@ -235,6 +235,18 @@ TODO
 - can we really prove this equivalence for "normal RBs now update v"?
 - what part of the proof didn't work?? what do i need to change for my proof??
 
+- oh, i see the second bullet point was supposed to be answered by the first bullet point. i had specifically just *added* the any_v parameter in the main theorem (oracleMap_oracleCompMap_equiv_modified) and the "normal RBs now update v" change in GenUpdate_RB_intermediate_oc_v in order to address.... some problem. new sub-questions:
+  - what exactly was the problem?
+    on the (S i)th call, Oi_prg just gens random bits, does NOT update state
+    on the ith call, Oi_oc''' gens random bits and ONLY updates v
+  - will this work?
+  - what do i need to propagate (and fix) in the rest of the code?
+    block numbers != 0?
+  - there was an Oi_oc4 at some point. not sure why I added or removed it
+  - wait. aug 11 commit was complaining about why i ADDED _v. it seemed to *break* something. then in a commit after that, i had figured out why i had added it?
+  - problem: GenUpdate_noV_oc_k (and variants with oracle sub'd) DO update the v to be the last block generated, whereas GenUpdate_rb (and variants) just generate the random bits and pass the state thru
+  - so... does this actually matter WRT the postconditions? what part of my (paper) proof does this break? (if any) @@@
+
 - step thru Gi_normal_rb_eq
   - what was I doing previously? 
   - why didn't it work? what parts of it are broken? what parts of the prev code need to change?
@@ -255,10 +267,11 @@ TODO
   - definition: move k to end in calls < i, and maybe for Gen_loop
   - understand the stuff I wrote last time
 - write email
-  - goal for email: "i prototyped it and it still seems to work, here are the main holes, i want to finish it by next week"
 
 - PLEASE leave a high-level comment on top of a lemma describing 
 1. where it's used 
 2. what it uses
 3. what it's for
 4. what the proof idea is
+
+future: @@@ is the active area of what i'm working on
