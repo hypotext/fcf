@@ -2738,7 +2738,7 @@ calls = i:
 eq
 (k <-$ Rnd;
 v' <-$ Rnd;
-[bits,v''] <- Gen_loop_last v' n;
+[bits,v''] <- Gen_loop_last v' n; <--- @@@ this is the problem: the real RB does not currently update v, but we'll change it to do so
 oracleMap (Oi_prg (S i)) (S i, (k,v'')) ns)
 
 (k <-$ Rnd;
@@ -2824,7 +2824,7 @@ oracleCompMap_inner (Oi_oc' i) (?, (k',v'')) ns) *)
 
 (* Oi_oc'' to Oi_oc''', third (and last) case: calls <= i and i != 0 *)
 (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
-Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state (any_v : Bvector eta),
+Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state,
     calls <= i ->
     beq_nat i 0 = false ->                                        (* separate theorem *)
     comp_spec (fun x y => fst (fst x) = fst (fst y)) (* weaker precondition *)
@@ -2899,7 +2899,7 @@ Proof.
         simplify.
         (* somehow we need to retain the distribution of b0??  and skip v' above with it?? *)
 
-(*        fcf_skip_eq. admit. admit.
+(*       fcf_skip_eq. admit. admit.
         (* apply Gen_loop_rb_intermediate_nok_eq. admit. (* TODO assume num blocks <> 0 *) *)
         simplify. fcf_skip_eq. admit. admit.
       }
@@ -3527,14 +3527,13 @@ Proof.
       { prog_equiv. }
 
       (* Added to make it compile *)
-      admit. }
-      admit.
+      (* admit. } *)
+      (* admit. *)
 
-(*      fcf_skip. flip. 
+     fcf_skip. flip. 
 
-      apply oracleCompMap_rb_instantiate_outer_i_neq_0. admit. (* TODO any_v *)
-      (* can't find reference in current environment? *)
-      omega. auto.
+      apply oracleCompMap_rb_instantiate_outer_i_neq_0. admit. (* removed any_v *)
+      auto.
 
       simpl in H2. destruct b0. destruct a. simpl in *. destruct p. simpl in *. subst.
       prog_equiv. fcf_spec_ret.
@@ -3561,7 +3560,7 @@ Proof.
     fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
 
     simpl in *. repeat destruct p. inversion H3. subst. 
-    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity. *)
+    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
 Qed.
 
   (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
