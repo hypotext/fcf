@@ -208,10 +208,19 @@ Fixpoint Gen_loop_rb (n : nat) : Comp (list (Bvector eta)) :=
   end.
 
 (* passes the state around to match the types in Oi_oc' *)
-Definition GenUpdate_rb_intermediate (state : KV) (n : nat) 
+(* Old version: did not update v *)
+(* Definition GenUpdate_rb_intermediate (state : KV) (n : nat) *)
+(*   : Comp (list (Bvector eta) * KV) := *)
+(*   bits <-$ Gen_loop_rb n; *)
+(*   ret (bits, state). *)
+
+(* New version: updates state vector v to be the last element of bits. Doesn't matter b/c all bits sampled randomly unless n=0 *)
+(* needs this for the proof of Gi_normal_rb_eq *)
+Definition GenUpdate_rb_intermediate (state : KV) (n : nat)
   : Comp (list (Bvector eta) * KV) :=
-  bits <-$ Gen_loop_rb n;
-  ret (bits, state).
+  [k, v] <-2 state;
+  [bits, v'] <-$2 Gen_loop_rb_intermediate k v n; (* I hope the k doesn't give us trouble *)
+  ret (bits, (k, v')).
 
 Definition GenUpdate_rb_oracle (tt : unit) (n : nat) : Comp (list (Bvector eta) * unit) :=
   bits <-$ Gen_loop_rb n;
