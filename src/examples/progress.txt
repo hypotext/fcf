@@ -275,3 +275,125 @@ TODO
 4. what the proof idea is
 
 future: @@@ is the active area of what i'm working on
+
+-------
+
+2/15/17
+
+- best-case scenario: i try the fix and the top-level proof works entirely in coq! <-- GOALS
+- OK-case scenario: i try the fix and the top-level proof might work (might break but can be salvaged), and other stuff might break, but i don't know for sure
+- worst-case scenario: i try the fix and the top-level proof doesn't work for some new reason, AND other stuff breaks, and i don't know how to fix the top-level proof
+
+done so far
+- read commits
+- read email
+- understand problem
+- review proof idea
+- look at thesis (proof tree and top-level proof outline)
+- figure out what needs to be changed
+- figure out what else (besides the top-level proof) might break
+- figure out if the top-level proof will break
+
+from my email: what does this mean??
+> - Changing the structure so (k,v) are updated. I can't change it because I need GenUpdate_rb_intermediate and the corresponding GenUpdate_rb_intermediate_oc to not change the (k,v) state. Otherwise, it will make the following similar theorem false, and I've already proved it. 
+
+> Lemma Gi_normal_prf_eq : forall (i : nat),
+  Pr[Gi_prg i] == Pr[Gi_prf i].
+
+how did that proof work? looking at page 56 of my thesis:
+
+RB RB  PRF  PRF
+RB RB |PRF| PRF
+
+it shouldn't break that proof, since the RBs are lined up, but i may need to dive into
+the earlier inductions and fix some conditions
+
+wait, but does updating v invalidate the trick for getting rid of the v-sampling??? from email 2:
+
+> 2. the extra v-sampling doesn't matter in `calls = i` as long as the adversary never requests 0 blocks and because the random bits oracle doesn't use the sampled v. The combination of the two mean that the outputted bits are sampled uniformly at random, independently from v.
+
+what does "every RB uses the last v" mean?
+
+RB  RB  PRF PRF
+RB |RB| PRF PRF
+
+ok, the idea is that in the version w/o k-sampling:
+
+(1) GenUpdate_oracle_rb ((k,v) : KV) (n : nat) : (list (Bvector eta) * KV) :=
+v' <-$ {0,1}^n;
+(bits, v'') <-$ Gen_loop n v';
+ret (bits, (k, v''))
+
+it doesn't matter if the v is resampled, since the input v is never used, UNLESS n=0. 
+so, if we update v in all RBs, we need to extend our assumption that n_i !=0 (only for calls=i) 
+to n_i != 0 (for ALL i in 1..n, where n is the length of the list of blocks).
+otherwise, the trick still works.
+
+---
+
+something in the written proof must be wrong on calls = i. fix it:
+around line 2741, oracleMap Oi_prg mistakely has Gen_loop_last updating v, when it actually does not
+
+---
+
+most of the earlier proofs don't touch the ideal hybrid. things that involve the idea-world game or last hybrid:
+- G2_Gi_n_equal: the ideal-world game is equal to the last hybrid
+- i have no idea if this change affects the identical until bad lemmas?? bad event = dups in RB oracle state
+   i feel like it shouldn't affect anything b/c it still does not affect the output bits, and no one cares abt the state. maybe i'll have to fix the types and quantifiers over v somewhere
+- Gi_rb_bad_collisions, Gi_rb_bad_eq_i: some intermediate lemmas may need to change
+
+---
+
+the top-level theorem, Gi_normal_rb_eq, currently resides at line 3332
+
+reverting any_v: dang guys, blame works https://github.com/hypotext/fcf/blame/master/src/examples/HMAC_DRBG_nonadaptive.v
+- now Gi_normal_rb compiles (what are the holes? what did i prove?)
+- fix oracleCompMap_rb_instantiate_outer_i_neq_0, which still doesn't compile for unknown reasons
+  (the blame is confusing too)
+- should GenUpdate_RB_intermediate_oc_v be modified? or is that the right version? no, that's the right form
+
+- modify GenUpdate_rb to use the last element of bits as v
+  - maybe i should eliminate the k? (modify gen_loop_rb_intermediate. does anyone else use that)
+
+- lol, an induction hypothesis breaks on line 705 :S
+  - and rightfully so. compMap_oracleMap_rb still uses Gen_loop_rb, but maybe it should now use the other one
+  - actually maybe i should change the last hybrid
+  - i have no idea what the prove is trying to prove
+  - maybe i should admit all things that break and check them before chasing one thing that breaks, which may require many changes...
+
+--------
+
+things that break: (keyword @v)
+- compMap_oracleMap_rb (need to change G2 or prove it equivalent)
+- (2) a case of Gi_normal_prf_eq_compspec: return types of Gen_loop and Gen_loop_inter. are different
+  - do i need to change the intermediate postcondition??
+  - also, bitsVEq isn't true because of the way GenUdpate_rb_intermediate_oc is defined... RIP. do we need bitsVEq? also TODO: if we *also* change GU_rb_int_oc, what else will break??
+  - i added Gen_loop_rb_and_intermediate_eq though
+
+- ok, i just also changed GenUpdate_rb_intermediate_oc to use the last v, which fixed (2)
+
+- (3) a case in Gi_normal_rb_eq_calls_eq_i?
+  that case is wrong because the k is re-sampled, so the output k's aren't equal. i suspect it's an old lemma that i don't use (it goes straight from Oi_prg to Oi_oc')
+
+- a case now works in oracleCompMap_rb_instantiate_inner (Oi_oc' to Oi_oc''). TODO dig through the remaining cases
+
+- made some changes in oracleMap_oracleCompMap_equiv_modified_calls_gt_i: (*)
+now k's aren't equal in case. why?
+also TODO the calls > i induction (why can't we use subst?)
+
+- the sequence of rewrites: WTP Oi_prg <-> Oi_oc'.
+  intermediate rewrites: Oi_oc' -> Oi_oc'' -> Oi_oc''', then Oi_prg <-> Oi_oc''' (what (*) does)
+
+- 
+
+TODO
+- fix G2_gi_n_equal
+- clone old proofs in a different file and check out how those proofs work
+- PUSH THE CODE and notes before i leave
+- try it and see what breaks! and fix it!
+- look into detailed proof breakdowns (Oi_oc' -> Oi_oc'' -> Oi_oc''', and for i < 0 etc.)
+- how much of the proof actually worked already? did it break down at any_v? and where else?
+
+- maybe i should eliminate the k? (modify gen_loop_rb_intermediate. does anyone else use that. yes, all the Gi_rb_normal_eq intermediate lemmas use it. why?)
+- fix oracleCompMap_rb_instantiate_outer_i_neq_0, which still doesn't compile for unknown reasons
+  (the blame is confusing too)
