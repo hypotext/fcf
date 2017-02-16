@@ -365,6 +365,7 @@ reverting any_v: dang guys, blame works https://github.com/hypotext/fcf/blame/ma
 
 things that break: (keyword @v)
 - compMap_oracleMap_rb (need to change G2 or prove it equivalent)
+  - nvm, was able to fix just by changing an internal proof a bit (meaning everything else shld check)
 - (2) a case of Gi_normal_prf_eq_compspec: return types of Gen_loop and Gen_loop_inter. are different
   - do i need to change the intermediate postcondition??
   - also, bitsVEq isn't true because of the way GenUdpate_rb_intermediate_oc is defined... RIP. do we need bitsVEq? also TODO: if we *also* change GU_rb_int_oc, what else will break??
@@ -379,21 +380,52 @@ things that break: (keyword @v)
 
 - made some changes in oracleMap_oracleCompMap_equiv_modified_calls_gt_i: (*)
 now k's aren't equal in case. why?
-also TODO the calls > i induction (why can't we use subst?)
+also TODO the calls > i induction (why can't we use subst?)u
 
 - the sequence of rewrites: WTP Oi_prg <-> Oi_oc'.
   intermediate rewrites: Oi_oc' -> Oi_oc'' -> Oi_oc''', then Oi_prg <-> Oi_oc''' (what (*) does)
 
-- 
+----- now keeping track of the holes in the proof
+
+Gi_normal_rb_eq seems to be totally proven. relies on sublemmas: 
+
+1. oracleCompMap_rb_instantiate_inner: Oi_oc' to Oi_oc''
+- admitted: how to swap k-sampling under Gen_loop (make a small test case, or another int. game?)
+- admitted: same swapping k-sampling (but with a v)
+- admitted: same k-sampling case (noV)
+
+2. oracleCompMap_rb_instantiate_outer_i_eq_0: i = 0, Oi_oc'' to Oi_oc'''
+- fully proved
+
+3. oracleMap_oracleCompMap_equiv_modified: Oi_oc''' and Oi_prg 
+- fully proved
+- calls < i: ok
+- calls = i: ok, IHxs is being applied correctly
+- TODO: but there's no sampling in the IHxs?
+
+3a. oracleMap_oracleCompMap_equiv_modified_calls_gt_i (used inside (3)): 
+- commented out "rest of calls: induct on new list" (so, haven't proved the calls > i case yet)
+
+4. oracleCompMap_rb_instantiate_outer_i_neq_0: i != 0, Oi_oc'' to Oi_oc'''
+- not fully proved; bunch of stuff commented out. why is this harder than (2)?
+- looks like there's an extra instantiate on the outside now, and the goal is to repeatedly pull it out
+- need to fix the rewrites to use Gen_loop_rb_intermediate correctly
+
+(5. oracleMap_oracleCompMap_equiv_modified (again): Oi_oc''' and Oi_prg)
+
+---
+
+- why do i need 2 and 4? how do they differ?
+- where does the nasty k-swapping induction / applying IH / v-ignoring actually happen?
+- how do these lemmas map to my paper proof? the workhorse is oracleMap_oracleCompMap_equiv_modified
+
+---
+
+now keeping track of the holes in each individual lemma
+
 
 TODO
-- fix G2_gi_n_equal
-- clone old proofs in a different file and check out how those proofs work
-- PUSH THE CODE and notes before i leave
-- try it and see what breaks! and fix it!
-- look into detailed proof breakdowns (Oi_oc' -> Oi_oc'' -> Oi_oc''', and for i < 0 etc.)
-- how much of the proof actually worked already? did it break down at any_v? and where else?
-
-- maybe i should eliminate the k? (modify gen_loop_rb_intermediate. does anyone else use that. yes, all the Gi_rb_normal_eq intermediate lemmas use it. why?)
-- fix oracleCompMap_rb_instantiate_outer_i_neq_0, which still doesn't compile for unknown reasons
-  (the blame is confusing too)
+- for good hygiene: NAME ALL OF YOUR HYPOTHESES!!!
+- get rid of the dual admits; it's making it hard for me to see what I actually admitted
+- fill in the holes
+  - k-swapping
