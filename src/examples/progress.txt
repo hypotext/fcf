@@ -429,3 +429,42 @@ TODO
 - get rid of the dual admits; it's making it hard for me to see what I actually admitted
 - fill in the holes
   - k-swapping
+
+--------------------------
+
+saturday 2/25/17, 10 pm
+
+- reread above progress
+- figure out what the 4 proof holes *are*
+  - and figure out how to solve them
+- figure out either how to prove k,v line swapping, 
+  - or how to ask a coherent Q with a minimal example about it (by Sunday night!!)
+
+line 2990
+
+first, what was the problem with oracleCompMap_rb_instantiate_outer_i_neq_0?
+why is it harder than i_eq_0? what's the intuition behind the proof
+
+2/27/17, 8:30-11:30 pm
+
+what are Oi_oc'' and Oi_oc'''? see thm statement: the instantiate lines are now pulled out
+ah, look at the differences b/t the thm statements: i_eq_0 only has instantiate and k-sampling; i_neq_0 has both (why? because on the ith call we do NoV)
+
+wait, the two theorems' proofs should be substantially similar, then...
+proof of the first: no swapping needed (or even an induction), just a destruct, and skip the lined-up k-samplings (inner and outer)
+
+ok, i cleaned up oracleCompMap_rb_instantiate_outer_i_neq_0 and got it to compile
+the problem now lies with oracleCompMap_Oi_oc3_v_diff and where it's used
+basically, since we now use the last v in GenUpdate_rb_oc_v (?), we can no longer swap instantiate to after the bits are generated, because the state is updated with the new v instead of being ignored. 
+
+the subsidiary theorem (if we just roll with the v's being different) has a postcondition of eq, but that's not true b/c the KV states are not exactly the same; just the output bits are. it still upholds the *original* postcondition of fst--can I use that to rewrite somehow?
+
+proof holes:
+1. thm TODO: k-swapping 
+2. thm TODO: v-swapping 
+3. thm TODO: calls > i
+4. thm TODO: gt_i (?)
+
+- email adam about line swapping
+- clean up file for lennart
+- keep track of hours spent

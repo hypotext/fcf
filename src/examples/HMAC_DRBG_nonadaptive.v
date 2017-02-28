@@ -2705,11 +2705,19 @@ Proof.
     (* calls = 0 and i = 0 *)
     Opaque Oi_oc''. Opaque Oi_oc'''.
     simplify.
+    (* Skip the two initial Instantiates *)
     fcf_skip_eq. admit. admit. simplify.
     Transparent Oi_oc''. Transparent Oi_oc'''.
     simpl. apply beq_nat_true in i_eq_0. subst. simplify.
+    (* GenUpdate_noV_oc_k is inlined in first, GenUpdate_rb_intermediate_oc_v in second *)
+    Print GenUpdate_noV_oc_k.
+    Print GenUpdate_rb_intermediate_oc_v. (* like the above but with no k sampling *)
+
+    (* Skip the lined-up a-sampling (inline k-sampling) and k-sampling *)
     fcf_skip_eq. admit. admit.
     simplify. fcf_skip. admit. admit.
+
+    (* Gen_loop_oc ~ Gen_loop_rb_intermediate *)
     { instantiate (1 := (fun x y => fst x = y)).
       revert b0 a state. induction x as [ | x']; intros.
       - simplify. fcf_spec_ret.
@@ -2724,6 +2732,45 @@ Proof.
       apply Oi_ocs_eq_calls_gt_i; omega. }
     { simplify. simpl in H4. destruct p. inversion H4. subst. fcf_spec_ret. }
 Qed.
+
+(* used below *)
+Lemma oracleCompMap_Oi_oc3_v_diff : forall i state k v1 v2 xs calls,
+    calls < i ->
+    beq_nat i 0 = false ->
+     comp_spec eq
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+         (calls, (k, v1)) xs) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+         (calls, (k, v2)) xs) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state).
+Proof.
+  intros i state k v1 v2 xs calls calls_lt_i i_neq_0.
+
+  Check      ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+         (calls, (k, v1)) xs) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state).
+(*      : Comp
+         (list (list (Bvector eta)) * (nat * KV) * list (Blist * Bvector eta)) *)
+(* ok, this isn't actually true, but it preserves the first postcondition below... *)
+(* 1. rb_state may differ?
+2. v in the KV state may differ for calls < i; we only get eq when calls > i
+so, is there some way to get rid of the eq postcondition below?
+also, the condition i actually need to prove is 'S calls <= i' or 'S calls < i' which may or may not be true *)
+
+(* TODO *)
+  
+Admitted.
+  
 
 (* Oi_oc'' to Oi_oc''', third (and last) case: calls <= i and i != 0 *)
 (* states same or different? going to have same so i can do eq (diff might let IH apply) *)
@@ -2761,7 +2808,7 @@ Proof.
 
   rename b into k. rename b0 into v.
   revert calls i state H k v i_neq_0.
-  induction l as [ | x xs]; intros. 
+  induction l as [ | x xs]; intros. (* there isn't an induction in the i_eq_0 version, only a destruct *)
   (* base case *)
   - fcf_irr_r. wfi. simplify. fcf_spec_ret.
 
@@ -2772,83 +2819,150 @@ Proof.
 
     (* calls < i: apply induction hypothesis *)
     (* maybe i don't need induction? induct separately on inside *)
+    (* this case might be hard because I need to "push" the extra instantiate on the right inside *)
 
     + Opaque Oi_oc''. Opaque Oi_oc'''.
       simplify. Transparent Oi_oc''. simplify.
+      (* intuitively, what should the calls < i proof look like? *)
       destruct (lt_dec calls i). Focus 2. omega.
 
       (* the problem is that here, we lost v's distribution, when in fact we need it so we do any_v and then re-instantiate it .... wait we can't do that can we? what about the bits generated? but they don't depend on the actual input v at all!!! *)
       (* can i use this proof as a black box? revert to no v-update and go back to the main theorem and add another intermediate game? *)
       (* calls < i *)
+      Transparent Oi_oc'''. simplify. destruct (lt_dec calls i). Focus 2. omega.
+      simplify.
+
       rewrite_r.
       Print Ltac rewrite_r.
-
-      { instantiate
+      {
+        (* Swap the first two lines on the left (Gen_loop_rb_intermediate and Instantiate). *)
+        instantiate
           (1 := (
-      (* Check (( *)
-                 res <-$ Gen_loop_rb x;
+                 (* can't unpack either result bc swap *)
+                 res <-$ Gen_loop_rb_intermediate k v x; (* k0,v0 are swapped after, so just use any k,v in env *)
+                 (* k <-$ RndK; *)
+                 (* v <-$ RndV; *)
                  kv <-$ Instantiate;
-                 (* can't unpack bc swap *)
+                 [bits, last_bv] <-2 res;
+                 [k, v] <-2 kv;
                  a <-$
                    (oracleCompMap_inner
                       (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                   (pair_EqDec nat_EqDec eqDecState))
-                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) (S calls, kv) xs)
+                      (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) (S calls, (k, v)) xs)
                    (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
                    rb_oracle state;
                  a0 <-$
                     ([z, s']<-2 a;
-                     ([resList, state'']<-2 z; $ ret (res :: resList, state''))
+                     ([resList, state'']<-2 z; $ ret (bits :: resList, state''))
                        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
                        rb_oracle s'); ret a0)).
-        fcf_swap fcf_right.
-        fcf_skip_eq. admit. admit.
-        Transparent Oi_oc'''. simplify. destruct (lt_dec calls i). Focus 2. omega.
-        simplify.
-        (* somehow we need to retain the distribution of b0??  and skip v' above with it?? *)
 
-        fcf_skip. admit. admit.
-        instantiate (1 := (fun x y => fst x = y)).
-        (* TODO why is gen_loop_rb here? oh, i wrote it in the instantiate above. what should it be? *)
+        (* Print Ltac comp_swap. *)
+        (* prog_swap fcf_right. *)
+        (* Unset Ltac Debug. *)
+        (* Set Ltac Debug. *)
+        Print Ltac prog_swap.
+        Print Ltac prog_swap_r.
+        Print Ltac rewrite_r.
+        Ltac rewrite_l := apply comp_spec_symm; eapply comp_spec_eq_trans_l.
+        rewrite_l.
+        Check comp_spec_eq_swap.
+        (* Show Existentials. *)
+        (* Set Printing All. simpl. *)
+        instantiate (1 :=
+                       (kv <-$ Instantiate;
+                        res <-$ Gen_loop_rb_intermediate k v x;
+                        [bits, last_bv]<-2 res;
+                        [k, v] <-2 kv;
+                        a <-$
+                          (oracleCompMap_inner
+                             (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                         (pair_EqDec nat_EqDec eqDecState))
+                             (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                             (S calls, (k, v)) xs) (list (Blist * Bvector eta))
+                          (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
+                        a0 <-$
+                           ([z, s']<-2 a;
+                            ([resList, state'']<-2 z; $ ret (bits :: resList, state''))
+                              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                              rb_oracle s'); ret a0)).
+        eapply comp_spec_eq_swap.
+        apply comp_spec_symm.
+        (* Finished inner swap. *)
+
+        fcf_skip_eq. admit. admit.
+
         simplify.
-        (* fcf_skip_eq. admit. admit.
-      }
-      flip.
-      (* now back to original, but w an extra instantiate below Oi_oc''' *)
-      simplify.
+        fcf_skip_eq. admit. admit.
+
+        { revert b b0 k v.
+          induction x as [ | x']; intros; simpl.
+          - fcf_spec_ret. f_equal. admit. (* NEED X <> 0 ASSUMPTION HERE. TODO *)
+          - fcf_skip_eq. fcf_skip_eq. }
+
+        (* instantiate (1 := (fun x y => fst x = fst y)).
+        (* weaker postcondition that doesn't work-- *)
+        (* TODO: the full equality is true if x > 0 *)
+        { revert b b0 any_k any_v. 
+          induction x as [ | x']; intros; simpl.
+          - fcf_spec_ret.
+          - fcf_skip_eq. fcf_skip_eq.
+            (* another induction! *)
+            revert b a any_k. clear IHx'.
+            induction x' as [ | x'']; intros; simpl.
+            + fcf_spec_ret.
+            + fcf_skip_eq. fcf_skip_eq.
+            + fcf_spec_ret.
+       } *)
+
+        (* is the postcondition above ok? what am I trying to prove now? *)
+        simpl in *. simplify.
+        fcf_skip_eq. admit. admit.
+      (* TODO the difference between (b,b1) in the first and (b,b0) in the second (essentially, the v's are different when calls < i) may not matter if the v's are re-sampled? well... we removed all the sampling lines. so why is this happening? why do i have to use last_bv above? ugh this worked before when i didn't use the last v, it's probably the fault of Gen_loop_rb_intermediate--note that we do Instantiate and then generate a bunch of bits and use the last v :-/ *)
+      (* actually, there is an instantiate in GenUpdate_oc_instantiate when calls=i, so there may be hope that the initial k and v don't matter? *)
+        apply oracleCompMap_Oi_oc3_v_diff. auto. admit. auto.
+                (* TODO this admit is important *)
+      } (* finished original swap. now back to case 1 *)
+
+      simpl.
+      apply comp_spec_symm.
       fcf_skip_eq. admit. admit.
       simplify.
+      (* oh no, the other form doesn't match the IH because (fst kv) is used instead of k *)
 
       (* get the right side 2 lines together to apply IH *)
+      simpl.
       eapply comp_spec_eq_trans_r.
       Focus 2.
-      instantiate (1 :=
-                     (res <-$
-                          ([k', v'] <-$2 Instantiate;
-                           a <-$
-                             (oracleCompMap_inner
-                                (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-                                            (pair_EqDec nat_EqDec eqDecState))
-                                (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
-                                (S calls, (k', v')) xs) (list (Blist * Bvector eta))
-                             (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
-                           ret a);
-                      a1 <-$
-                         ([z, s']<-2 res;
-                          ([resList, state'']<-2 z; $ ret (a :: resList, state''))
-                            (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-                            rb_oracle s'); ret a1)).
-      simplify. fcf_skip_eq. admit. admit. simplify. fcf_skip_eq. admit. admit.
+
+      instantiate (1 :=      (res <-$ (kv <-$ Instantiate;
+                                       [k0, v0]<-2 kv;
+                                       a <-$
+                                         (oracleCompMap_inner
+                                            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                                        (pair_EqDec nat_EqDec eqDecState))
+                                            (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                                            (S calls, (k0, v0)) xs) (list (Blist * Bvector eta))
+                                         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state;
+                                       ret a
+                                      );
+                              a1 <-$
+                                 ([z, s']<-2 res;
+                                  ([resList, state'']<-2 z; $ ret (a0 :: resList, state''))
+                                    (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                                    rb_oracle s'); ret a1)).
+       simplify. fcf_skip. admit. admit. simplify. fcf_skip_eq. admit. admit. 
 
       fcf_skip. admit. admit. fcf_ident_expand_l.
-      instantiate (1 := (fun x y => fst (fst x) = fst (fst y))).
-      apply IHxs; try omega; try auto.
+      eapply IHxs. omega. auto.
 
-      simpl in H2. destruct b0. destruct p. simpl in *. subst. simplify.
+      simpl in H2. destruct b1. destruct p. simpl in *. subst. simplify.
       fcf_spec_ret.
       
     (* ------------------ *)
 
+    (* this just seems to work out of the box after changes *)
     (* calls = i *)
     + Opaque Oi_oc''. Opaque Oi_oc'''.
       simplify.
@@ -2881,7 +2995,12 @@ that would work but would that still apply to prove the top-level theorem??
         fcf_skip. admit. admit.
         instantiate (1 := (fun x y => fst x = y)).
         (* both start with same v and x so postcondition holds *)
-        admit.
+        (* TODO is this admit okay? *)
+        { revert a a0 state. induction x as [ | x']; intros; simpl.
+          - simplify. fcf_spec_ret.
+          - unfold rb_oracle. simplify. fold rb_oracle. fcf_skip_eq.
+            fcf_skip. simplify. fcf_spec_ret.
+        }
 
         simpl in H3. destruct b1. inversion H3. subst.
         simplify.
@@ -2894,11 +3013,7 @@ that would work but would that still apply to prove the top-level theorem??
 
         simplify. fcf_spec_ret. simpl in H6. destruct p. inversion H6. subst.
         simpl. reflexivity. }
-Qed. *)
-        admit. admit. }
-        admit.
-      +  admit.
-Qed.                            (* TODO added to make this lemma compile *)
+Qed.
 
 (* the oracleMap using Oi_prg (original computation) is equivalent to oracleCompMap using Oi_oc''' (the final one) 
 for the second case of calls = i (leading to calls > i) *)
