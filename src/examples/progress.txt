@@ -468,3 +468,19 @@ proof holes:
 - email adam about line swapping
 - clean up file for lennart
 - keep track of hours spent
+
+---------
+
+thursday 2/3/17 2:52 am
+
+ok, it occurs to me that my proof broke due to the "last v being used" for a totally valid reason--now the v is no longer being "passed straight through" to the ith call, but being re-sampled! so... the instantiate can no longer be pulled out. what if we did the same thing with the k's? what if on all calls < i, the ideal-world game calls also re-sampled k? (and re-sampled v?) that would change the structure of all the ideal-world calls to be pretty much exactly that of "calls = i, with oracle substituted for 
+
+v' <- oracle // i don't think this line matters if n <> 0, but what if we just put it in?
+bits, v'' <- gen_loop k v' n
+k' <- oracle
+return (oracle, (k', v''))
+
+soooo does this break gi_normal_prf_eq? i constantly forget what breaks there.
+does this break other ideal-world game stuff?
+try it and see!
+it feels natural to do this
