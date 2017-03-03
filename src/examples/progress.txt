@@ -638,3 +638,15 @@ i changed all the oracles
 fixed oraclecompmap_rb_instantiate_inner
 broke: oraclecompmap_rb_instantiate_outer_i_eq_0  ??
 
+------
+
+wait seriously?? UGH if calls = 0, then Oi_prg is going to sample v (bc it sees calls = 1), and Oi_oc''' (since calls = 0) is NOT
+
+well, it doesn't matter if x <> 0, right?
+
+i should really delete the simplifies above line 3257; it makes checking the file really slow
+
+holes so far:
+- k-swapping in above theorem
+- x <> 0 in oracleMap_oracleCompMap_equiv_modified_calls_gt_i
+- top-level theorem
