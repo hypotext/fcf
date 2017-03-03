@@ -471,7 +471,7 @@ proof holes:
 
 ---------
 
-thursday 2/3/17 2:52 am
+thursday 3/3/17 2:52 am
 
 ok, it occurs to me that my proof broke due to the "last v being used" for a totally valid reason--now the v is no longer being "passed straight through" to the ith call, but being re-sampled! so... the instantiate can no longer be pulled out. what if we did the same thing with the k's? what if on all calls < i, the ideal-world game calls also re-sampled k? (and re-sampled v?) that would change the structure of all the ideal-world calls to be pretty much exactly that of "calls = i, with oracle substituted for 
 
@@ -481,6 +481,160 @@ k' <- oracle
 return (oracle, (k', v''))
 
 soooo does this break gi_normal_prf_eq? i constantly forget what breaks there.
+(i think it would break the first induction, but i would just add more skip-lines.)
 does this break other ideal-world game stuff?
 try it and see!
 it feels natural to do this
+
+-------------
+
+friday 3/3/17 12:17 am
+
+- see what might break (looking at proof tree)
+  - could break gi_normal_prf_eq
+  - could break g2_gi_n_equal
+  - does this mess with the collision probabilities? since now the oracle is going to be queried 2n more times... or maybe i can remove the oracle, idk
+  - would it mess with "identical until bad"? maybe not, since 
+  - hm, NO, only care about collisions in the RF oracle used on the ith call
+  - What about Gi_rb_bad_collisions? seems fine
+
+1:07 am
+
+- make change to both GenUpdate_rbs in Oi_prg and Oi_oc' so they look like ith call
+- admit/record the things that break, and go back and fix each
+- delete old proof stuff 
+- prototype the new proof!?!?
+- fill in the new proof
+
+broke: 
+- compmap_oraclemap_rb 
+  - because G2_prg is defined in a particular way... but in the short term, we can just redefine it to be Gi_prg numCalls (with the extra k,v samplings and all)
+  - in the long term, i guess this is where the problem lies? extra samplings got pushed into the end
+  - TODO fix this later
+- Oi_numcalls_oracle_irrelevance X (fixed)
+- Gi_normal_prf_eq_compspec (calls <= i, as expected). two cases broke--why?
+  maybe the postcondition is too strong. do i need it? oh wait, the postconditions aren't true, but the resulting keys *are* equal
+  oh no some horrible thing has happened with the induction hypothesis and keys?
+  oh no. the keys cannot be updated because Oi_prg just has k1, whereas f_oracle has k1 (which is never updated) and another k2 (which is updated), and we need Oi_prg to continue having k1... ughhhh unless we can push k2 elsewhere. NO!OO!O!O
+
+Gi_normal_rb_eq: lines 1915-3488
+
+- Gi_normal_rb_eq_calls_eq_i broke (is it even relevant?)
+  -> I commented out all of the Gi_normal_rb_eq stuff, need to prototype the proof again simlarly to Gi_normal_prf_eq...
+
+3:24 am
+
+possible fix:
+
+- still need to fix compmap_oraclemap_rb
+- add v-sampling back (fixing the problem in relating Oi_oc'' to Oi_oc''' in rb)
+- BUT remove k-sampling (fixing the problem in Gi_normal_prf_eq)
+  - still gotta do the k-swapping though, don't know if that works
+
+- broke: oraclecompmap_rb_instantiate_inner? Oi_oc' to Oi_oc''
+  -> not sure about these intermediate oracles anymore
+
+Will this work? need to check what exactly the problem in the former was.
+
+=====
+
+Oi_oc' -> Oi_oc'': on calls=i, put RB in box and move k-sampling to before loop. can i also just get rid of the k in the loop?
+Oi_oc'' -> Oi_oc''': on calls=i, Oi_oc''' has k-sampling outside of the bare GenUpdate_oc call. skip both
+  (*) here's where the problem was with v-sampling last time
+Oi_oc''' -> Oi_prg: selectively skip k,v, extra k-sampling in beginning and then just straightforward induction
+
+=============
+calls < i:
+
+---
+
+Oi_oc':
+
+v' <- 0,1^n
+bits,v <- loop k v' n
+return (bits, v'')
+
+---
+
+Oi_oc'':
+
+same
+
+---
+
+Oi_oc''':
+
+k,v <- Instantiate;
+k <- Instantiate;
+OCM Oi_oc'''
+
+v' <- {0,1}^n
+[bits,v''] <- loop k v' n
+NO K UPDATE?
+return (bits, (k,v''))
+
+---
+
+Oi_prg:
+
+GenUpdate_rb_intermediate
+v <- 0,1^n
+bits, v <- loop k v' n
+return (bits, v'')
+
+======================
+calls = i: 
+
+---
+
+Oi_oc': 
+
+GenUpdate_oc
+(like GenUpdate but using the rb oracle in place of f)
+can i actually move the k to the beginning here?
+
+v' <- {0,1}^n
+[bits,v''] <- loop k v' n
+k' <- {0,1}^n
+return (bits, (k',v''))
+
+---
+
+Oi_oc'': 
+
+v' <- {0,1}^n
+k' <- {0,1}^n
+[bits,v''] <- loop k v' n
+return (bits, (k',v''))
+
+---
+
+Oi_oc''': 
+
+k <- {0,1}^n; (external to call)
+
+(GenUpdate_rb_intermediate_oc_v but maybe it should be _oc)
+v' <- {0,1}^n
+[bits,v''] <- loop k v' n;
+ret (bits, (k,v''))
+
+---
+
+Oi_prg: (Pr[Gi_prg (S i)] == Pr[Gi_rb i])
+here, calls = S i
+
+GenUpdate_rb_intermediate
+v <- 0,1^n
+bits, v <- loop k v' n
+return (bits, v'')
+
+==========
+
+k-swapping on the right *should* work (line 2587)
+
+========
+
+i changed all the oracles
+fixed oraclecompmap_rb_instantiate_inner
+broke: oraclecompmap_rb_instantiate_outer_i_eq_0  ??
+

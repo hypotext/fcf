@@ -19,6 +19,8 @@ Ltac fif := fcf_inline_first.
 Ltac s := simpl.
 Ltac fsr := fcf_spec_ret.
 Ltac fskip := fcf_skip.
+Ltac simplify :=
+  repeat (try simpl; try fcf_inline_first; try fcf_simp).
 
 Theorem PRPL_demo : forall (n m : nat),
   comp_spec (fun a b => a = fst b)
@@ -215,12 +217,14 @@ Fixpoint Gen_loop_rb (n : nat) : Comp (list (Bvector eta)) :=
 (*   ret (bits, state). *)
 
 (* New version: updates state vector v to be the last element of bits. Doesn't matter b/c all bits sampled randomly unless n=0 *)
+(* New new version: exactly like GenUpdate but with f replaced by uniform random sampling *)
 (* needs this for the proof of Gi_normal_rb_eq *)
 Definition GenUpdate_rb_intermediate (state : KV) (n : nat)
   : Comp (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  [bits, v'] <-$2 Gen_loop_rb_intermediate k v n; (* I hope the k doesn't give us trouble *)
-  ret (bits, (k, v')).
+  v' <-$ {0,1}^eta;
+  [bits, v''] <-$2 Gen_loop_rb_intermediate k v' n;
+  ret (bits, (k, v'')).
 
 Definition GenUpdate_rb_oracle (tt : unit) (n : nat) : Comp (list (Bvector eta) * unit) :=
   bits <-$ Gen_loop_rb n;
@@ -717,9 +721,11 @@ Proof.
     (* n < numCalls *)
     - unfold GenUpdate_rb_intermediate.
       fcf_inline_first.
-      fcf_skip. admit.
-
-      instantiate (1 := (fun x y => x = fst y)).
+      (* fcf_skip. admit. *)
+      admit.
+Admitted.
+      
+(*      instantiate (1 := (fun x y => x = fst y)).
       { apply Gen_loop_rb_and_intermediate_eq2. }
 
       simpl in *. destruct b. simpl in *. subst.
@@ -729,7 +735,8 @@ Proof.
 
     (* n >= numCalls: impossible *)
     - simpl in *. omega.
-Qed.
+Qed. *)
+(* TODO *)
 
 Close Scope nat.
 
@@ -753,6 +760,7 @@ Proof.
   unfold G2_prg'.
   unfold Gi_prg.
   unfold GenUpdate_rb_oracle.
+  Print G2_prg.
   (* prove something about Oi_prg with numCalls *)
   fcf_irr_r. 
   { unfold Instantiate. fcf_well_formed.
@@ -860,12 +868,13 @@ Definition GenUpdate_PRF_oc (state : KV) (n : nat) :
 (*   bits <--$ $ Gen_loop_rb n;    (* promote comp to oraclecomp, then remove from o.c. *) *)
 (*   $ ret (bits, state). *)
 
-(* @v new version: uses last v *)
+(* @v new version: uses last v and updates (k,v) anyway *)
 Definition GenUpdate_rb_intermediate_oc (state : KV) (n : nat) 
   : OracleComp (list bool) (Bvector eta) (list (Bvector eta) * KV) :=
   [k, v] <-2 state;
-  [bits, v'] <--$2 $ Gen_loop_rb_intermediate k v n;    (* promote comp to oraclecomp, then remove from o.c. *)
-  $ ret (bits, (k, v')).
+  v' <--$ $ {0,1}^eta;
+  [bits, v''] <--$2 $ Gen_loop_rb_intermediate k v' n;    (* promote comp to oraclecomp, then remove from o.c. *)
+  $ ret (bits, (k, v'')).
 
 (* same as Oi_prg but each GenUpdate in it has been converted to OracleComp *)
 (* number of calls starts at 0 and ends at q. e.g.
@@ -1128,6 +1137,7 @@ PRF_Advantage_Game n = 0
 thus, forall i, PRF_Advantage_Game i <= PRF_Advantage_Game 0 *)
 
 Open Scope nat.
+(* the oracles don't matter (for those two specific oracles) *)
 (* could generalize this further to hold for any oracles, instead of f_oracle and RndR_func *)
 Lemma Oi_numcalls_oracle_irrelevance : forall calls k v a (numCalls init : nat) acc tt,
     init + length calls = numCalls ->
@@ -1165,9 +1175,14 @@ Proof.
         fcf_inline_first.
         fcf_skip.
         admit. admit.
-        fcf_simp.
+        simplify.
+        fcf_skip_eq. admit. admit.
+        simplify.
+        fcf_skip_eq. admit. admit.
+        simplify.
         fcf_spec_ret.
-      * omega.
+
+     * omega.
     }
     simpl in H2.
     destruct b1.
@@ -1190,6 +1205,7 @@ Proof.
     fcf_simp.
     fcf_spec_ret.
 Qed.
+
 Close Scope nat.
 
 Lemma PRF_Advantage_0 : 
@@ -1380,9 +1396,6 @@ Definition fst3 {A B C : Type} (abc : A * B * C) : A :=
   a.
 
 Open Scope nat.
-
-Ltac simplify :=
-  repeat (try simpl; try fcf_inline_first; try fcf_simp).
 
 (* These examples take a long time to check because of `simplify`. Commented out for now. *)
 
@@ -1767,8 +1780,9 @@ Proof.
                                     (* calls incremented by 1 *)
                                     /\ fst (snd c) = S calls /\ fst (snd (fst d)) = S calls
                                     (* output keys are the input keys *)
-                                    /\ fst (snd (snd c)) = k1
-                                    /\ fst (snd (snd (fst d))) = k2)).
+                                    /\ fst (snd (snd c)) = fst (snd (snd (fst d))) )).
+                                    (* /\ fst (snd (snd c)) = k1 *)
+                                    (* /\ fst (snd (snd (fst d))) = k2)). *)
       (* includes calls *)
       (* one call with linked keys TODO *)
       {
@@ -1781,8 +1795,12 @@ Proof.
         simplify.
         (* @v *)
         fcf_skip_eq. admit. admit.
+        simplify.
+        fcf_skip. admit. admit.
         apply Gen_loop_rb_intermediate_keys_diff.
         subst. simplify.
+        fcf_skip_eq. admit. admit.
+        simplify.
         fcf_spec_ret.
         unfold bitsVEq. simpl. auto.
       }
@@ -1798,7 +1816,7 @@ Proof.
         (* now prove oracleCompMap_inner's eq *)
         { fcf_skip_eq. admit. admit.
           simplify.
-          instantiate (1 := k2).
+          instantiate (1 := b).
           destruct u.
           fcf_reflexivity.
           simplify.
@@ -1904,7 +1922,7 @@ Admitted.
 (* Assuming the Gi_normal_rb_eq stuff starts here *)
 
 (* Used in the below proof: relates Gen_loop_rb_intermediate and Gen_loop_oc *)
-Lemma Gen_loop_rb_intermediate_oc_related : forall (n : nat) (k v : Bvector eta) (rb_state : list (Blist * (Bvector eta))),
+(* Lemma Gen_loop_rb_intermediate_oc_related : forall (n : nat) (k v : Bvector eta) (rb_state : list (Blist * (Bvector eta))),
    comp_spec
      (fun (x : list (Bvector eta) * Bvector eta)
         (y : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta)) =>
@@ -3474,6 +3492,7 @@ Gi_rb 0 : RB PRF PRF...
 (* proof very similar to Gi_normal_prf_eq 
 used in Gi_rf_rb_close to move from Gi_prg (S i) to Gi_rb i *)
 Transparent Oi_prg.
+*)
 Lemma Gi_normal_rb_eq : forall (i : nat),
     Pr[Gi_prg (S i)] == Pr[Gi_rb i].
 Proof.
@@ -3485,6 +3504,7 @@ Proof.
   fcf_to_prhl_eq.
   simplify.
 
+(*
 (* Why didn't this work? *)
   (* apply first theorem *)
   rewrite_r.
@@ -3705,8 +3725,9 @@ Proof.
     fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
 
     simpl in *. repeat destruct p. inversion H3. subst. 
-    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
-Qed.
+    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity. *)
+(* TODO *)
+Admitted.
 
   (* what would it mean to put the former in terms of an oracle interaction? wouldn't that just be this theorem? *)
   (* TODO email adam about PRF adversary *)
