@@ -515,7 +515,7 @@ broke:
 - Gi_normal_prf_eq_compspec (calls <= i, as expected). two cases broke--why?
   maybe the postcondition is too strong. do i need it? oh wait, the postconditions aren't true, but the resulting keys *are* equal
   oh no some horrible thing has happened with the induction hypothesis and keys?
-  oh no. the keys cannot be updated because Oi_prg just has k1, whereas f_oracle has k1 (which is never updated) and another k2 (which is updated), and we need Oi_prg to continue having k1... ughhhh unless we can push k2 elsewhere. NO!OO!O!O
+  oh no. the keys cannot be updated because Oi_prg just has k1, whereas f_oracle has k1 (which is never updated) and another k2 (which is updated), and we need Oi_prg to continue having k1... unless we can push k2 elsewhere. ugh
 
 Gi_normal_rb_eq: lines 1915-3488
 
@@ -640,13 +640,11 @@ broke: oraclecompmap_rb_instantiate_outer_i_eq_0  ??
 
 ------
 
-wait seriously?? UGH if calls = 0, then Oi_prg is going to sample v (bc it sees calls = 1), and Oi_oc''' (since calls = 0) is NOT
+problem: if calls = 0, then Oi_prg is going to sample v (bc it sees calls = 1), and Oi_oc''' (since calls = 0) is NOT
 
 well, it doesn't matter if x <> 0, right?
 
 i should really delete the simplifies above line 3257; it makes checking the file really slow
 
 holes so far:
-- k-swapping in above theorem
 - x <> 0 in oracleMap_oracleCompMap_equiv_modified_calls_gt_i
-- top-level theorem
