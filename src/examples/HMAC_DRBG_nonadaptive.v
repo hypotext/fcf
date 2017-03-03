@@ -3344,71 +3344,6 @@ Proof.
     } 
 Qed.
 
-      (* old *)
-      (* avoid using subst... why? *)
-      (* rewrite H5. rewrite H3. rewrite H7. rewrite H8. rewrite H10.
-      assert (n_eq : n = n0) by omega.
-      rewrite n_eq.
-      clear H5 H3 H7 H4 n_eq H calls H0 H1 H8 H10.
-      rename n0 into calls.
-
-      assert (H_calls : calls > i) by omega.
-      rename b2 into v'.
-      admit. } *)
-
-(* TODO calls > i induction *)
-     (* clear k v H2 b1 b2 H4 x l1 x.
-      revert init k' v' l0 i calls l1 H_calls.
-      induction xs as [ | x' xs']; intros.
-
-      (* xs = nil *)
-      + simplify. fcf_spec_ret. simpl. repeat (split; auto).
-      (* xs = x' :: xs', use IH *)
-      + simplify.
-        fcf_skip. admit. admit.
-
-        (* one call with calls > i (calls = S i) *)
-        (* PRF oracle only *)
-        instantiate (1 := (fun c d => bitsVEq c d
-                                      (* calls incremented by one *)
-                                      /\ fst (snd c) = S calls
-                                      /\ fst (snd (fst d)) = S calls
-                                      (* KV equal *)
-                                      /\ fst (snd (snd c)) = fst (snd (snd (fst d))))).
-        {
-          Transparent Oi_prg. Transparent Oi_oc'''.
-          unfold Oi_prg. unfold Oi_oc'''. simplify.
-          destruct (lt_dec calls (S i)). omega. (* calls > i, so ~(calls < S i) *)
-          destruct (lt_dec calls i). omega.     (* calls > i, so ~(calls < i) *)
-          assert (beq_nat calls 0 = false).
-          { apply Nat.eqb_neq. omega. }
-          rewrite H. Opaque GenUpdate.
-          assert (beq_nat calls i = false).
-          { apply Nat.eqb_neq. omega. }
-          rewrite H0.
-          Transparent GenUpdate.
-          simplify.
-          fcf_spec_ret. simpl. auto.
-          Opaque Oi_prg. Opaque Oi_oc'''.
-        }
-
-        simpl in H1. destruct b0. destruct b. destruct p. destruct p. destruct k. simpl in *.
-        breakdown H1.
-        simplify.
-        
-        eapply comp_spec_eq_trans_r.
-        eapply IHxs'; omega.
-        
-        (* now prove oracleCompMap_inner's eq *)
-        { fcf_skip_eq. admit. admit.
-          simplify. fcf_spec_ret.
-          f_equal. f_equal.
-          rewrite <- app_cons_eq.
-          reflexivity.
-        }
-    } 
-Qed.*)
-
 (* TODO have to expand this with the fold and acc/++ *)
 (* first case of the main proof (and the hardest case / main lemma): 
 the original computation (oracleMap using Oi_prg) is equivalent to oracleCompMap Oi_oc'''
@@ -3474,7 +3409,10 @@ Proof.
       unfold GenUpdate_rb_intermediate.
       simplify.
       fcf_skip_eq. admit.
-      simplify. fcf_spec_ret.
+      simplify.
+      fcf_skip_eq. admit.
+      simplify.
+      fcf_spec_ret.
 
       simpl in *. inversion H2. destruct b0. simpl in *. destruct b. destruct p. simpl in *. destruct k0. simpl in *.
       inversion H4. inversion H3. subst. simplify. fcf_spec_ret. simpl. auto.
@@ -3515,8 +3453,6 @@ Proof.
   fcf_to_prhl_eq.
   simplify.
 
-
-(* Why didn't this work? *)
   (* apply first theorem *)
   rewrite_r.
   (* replace Oi_oc' with Oi_oc'' *)
@@ -3654,7 +3590,8 @@ Proof.
     instantiate
       (1 :=
          ([k,v] <-$2 Instantiate;
-          [k,v] <-$2 Instantiate;
+          (* [k,v] <-$2 Instantiate; *)
+          k <-$ RndK;
           a0 <-$ ret ((k,v), nil);
           a1 <-$
              ([z, s']<-2 a0;
@@ -3690,7 +3627,8 @@ Proof.
         (1 :=
            (top <-$
                 ([k,v] <-$2 Instantiate;
-                 [k,v] <-$2 Instantiate;
+                 (* [k,v] <-$2 Instantiate; *)
+                 k <-$ RndK;
                  a <-$ (oracleCompMap_inner
                          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
                                      (pair_EqDec nat_EqDec eqDecState))
@@ -3708,8 +3646,8 @@ Proof.
 
      fcf_skip. flip. 
 
-      apply oracleCompMap_rb_instantiate_outer_i_neq_0. admit. (* removed any_v *)
-      auto.
+      apply oracleCompMap_rb_instantiate_outer_i_neq_0.
+      omega. auto.
 
       simpl in H2. destruct b0. destruct a. simpl in *. destruct p. simpl in *. subst.
       prog_equiv. fcf_spec_ret.
@@ -3721,21 +3659,47 @@ Proof.
       prog_equiv. fcf_spec_ret.
     } 
     flip.
-    fcf_irr_r. wfi. simplify.
+    unfold Instantiate. simplify.
+    fcf_irr_r. unfold RndK. fcf_well_formed.
+    simplify.
+
+    rewrite_r.
+    instantiate (1 := 
+                   (k0 <-$ RndK;
+                    a <-$ RndV;
+                    z1 <-$ ret (b, a);
+                    [_, v]<-2 z1;
+                    a0 <-$ ret (k0, v, nil);
+                    a1 <-$
+                       ([z, s']<-2 a0;
+                        ([k1, v0]<-2 z;
+                         z0 <--$
+                            oracleCompMap_inner
+                            (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+                                        (pair_EqDec nat_EqDec eqDecState))
+                            (list_EqDec (list_EqDec eqdbv)) (Oi_oc''' i) 
+                            (0, (k1, v0)) maxCallsAndBlocks; [bits, _]<-2 z0; $ ret bits)
+                          (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+                          rb_oracle s');
+                    z <-$ ([z, s']<-2 a1; x <-$ A z; ret (x, s')); [b0, _]<-2 z; ret b0) ).
+    { fcf_swap fcf_right. prog_equiv. }
+
     fcf_skip_eq. simplify.
+    fcf_skip_eq. simplify.
+    apply comp_spec_symm.
 
     (* factor out lemma and apply it to both cases *)
-    fcf_skip. instantiate (1 := (fun x y => x = fst y)).
+    fcf_skip. 
+    (* instantiate (1 := (fun x y => x = fst y)). *)
     unfold oracleMap.
-    pose proof oracleMap_oracleCompMap_equiv_modified.
-    eapply comp_spec_eq_trans_r. apply H1. omega. 
+    pose proof oracleMap_oracleCompMap_equiv_modified as om_ocm_equiv.
+    eapply comp_spec_eq_trans_r. apply om_ocm_equiv. omega. 
     instantiate (1 := nil). fcf_ident_expand_r. fcf_skip_eq. admit. admit.
     simpl. fcf_spec_ret.
 
-    simpl in H3. destruct b3. destruct l. simpl in *. repeat destruct p. inversion H3. subst.
-    fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
-
-    simpl in *. repeat destruct p. inversion H3. subst. 
+    simpl in H3. destruct b0.
+    simpl in *. destruct p. destruct p. inversion H3. subst.
+    simplify.
     fcf_ident_expand_l. simplify. prog_equiv. fcf_reflexivity.
 Qed.
 
