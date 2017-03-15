@@ -651,33 +651,33 @@ holes so far:
 
 ---------------------
 
-3/14/17 7:18 pm
+3/14/17 7:18 pm-2:34 am (6 hrs)
 
-(my left shoulder/neck suddenly hurts... why?)
 
 TODO (goals for thursday's meeting) (goal time: 15 hours)
 
-- figure out the double admit issue X
-- figure out 5 remaining issues:
+- figure out 4 remaining issues:
 
   - line 750, compMap_oracleMap_rb
+    - prove oracleMap_rb_eq
+    - eventually pull out external lemma about blocks not being 0
+
+  - Gi_rf_dups_return_bad_eq (1907)
 
   - line 4174: well_formed_oc (entire oracleComp expression). TODO email Adam?
 
   - segment termination proof (1017)
 
-  - Gi_rf_dups_return_bad_eq and friends (1907)
-
 ---
 
 - look thru last 3 commits
-- clean up code from last time and inspect admits
-  - look at line 392 above
+- clean up code from last time 
+  - look at line 392 in progress file
   - maybe pull out external lemma about blocks not being 0
-  - clean up G2 lemma (or change G2)
 
 - inspect PRF advantage proof
   - try to prove it / email matt
+
 - inspect the collisions proof (with new G2)
   - try to prove it / write out proof steps in prose
 

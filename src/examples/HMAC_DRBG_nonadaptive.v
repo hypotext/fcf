@@ -430,6 +430,13 @@ Qed.
 
 (* TODO: intermediate games with random functions and random bits *)
 
+(* proving Pr[G2_prg'] == Pr[G2_prg''] could be hard (new intermediate game) *)
+
+Definition G2_prg'' : Comp bool :=
+  kv <-$ Instantiate;           (* OK to instantiate them? *)
+  [bits, _] <-$2 oracleMap _ _ GenUpdate_rb_intermediate kv maxCallsAndBlocks;
+  A bits.
+
 (* uses simplified RB versions *)
 Definition G2_prg' : Comp bool :=
   [bits, _] <-$2 oracleMap _ _ GenUpdate_rb_oracle tt maxCallsAndBlocks;
@@ -675,6 +682,63 @@ Proof.
   fcf_reflexivity.
 Qed.
 
+Lemma oracleMap_v_sampling_eq : forall blocks k v init tt',
+   comp_spec (fun x y => fst x = fst y)
+      (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) unit_EqDec)
+        (fun (acc : list (list (Bvector eta)) * unit) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ GenUpdate_rb_oracle s d;
+         [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) (init, tt') blocks)
+      (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
+        (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ GenUpdate_rb_intermediate s d;
+         [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) (init, (k,v)) blocks).
+Proof.
+  induction blocks as [ | block blocks']; intros.
+  - simplify. fcf_spec_ret.
+  - fcf_skip; kv_exist.
+    instantiate (1 := (fun x y => fst x = fst y)).
+    {
+      unfold GenUpdate_rb_oracle. simplify.
+      fcf_irr_r.
+      simplify.
+      fcf_skip; kv_exist.
+      (* this goes thru without needing the non-0 block hypothesis *)
+      { instantiate (1 := (fun x y => x = fst y)).
+        clear H H0.               (* ok? *)
+        revert block k b.
+        induction block as [ | n']; intros.
+        - Print Gen_loop_rb_intermediate.
+          simpl. fcf_spec_ret.
+        - simpl. fcf_skip_eq. fcf_skip. simplify. fcf_spec_ret.
+      }
+      simpl in *. destruct b0. simpl in *. subst.
+      simplify. fcf_spec_ret.
+    }
+    simpl in *. destruct b0. simpl in *. subst. fold compFold.
+    simplify.
+    destruct k0.
+    destruct b.
+    apply IHblocks'.
+Qed.
+
+(* This intermediate game isn't strictly necessary--G2_prg' is also an acceptable definition for the final game.
+If we wanted to go with that definition, we would simply replace G2_prg with G2_prg' everywhere *)
+Lemma G2_oracle_eq_v_sampling :
+  Pr[G2_prg'] == Pr[G2_prg''].
+Proof.
+  unfold G2_prg', G2_prg''.
+  unfold oracleMap.
+  fcf_to_prhl_eq.
+  fcf_irr_r. wfi.
+  fcf_skip.
+  destruct b.
+  eapply oracleMap_v_sampling_eq.
+  simplify. simpl in *. subst.
+  fcf_ident_expand_l. fcf_ident_expand_r. fcf_skip.
+Qed.
+
 (* Relate Gen_loop_rb_intermediate (newly being used) with Gen_loop_rb *)
 Lemma Gen_loop_rb_and_intermediate_eq : forall (n : nat) (k v : Bvector eta),
   comp_spec (fun x y => fst x = y) (Gen_loop_rb_intermediate k v n) (Gen_loop_rb n).
@@ -693,7 +757,8 @@ Proof.
   - fcf_skip_eq. fcf_skip. fcf_simp. fcf_spec_ret.
 Qed.
 
- (* extend the proof above to hold on (Oi_prg numCalls) using the invariant *)
+(* extend the proof above to hold on (Oi_prg numCalls) using the invariant *)
+(* from the old proof; not currently used *)
 Lemma compMap_oracleMap_rb :
   forall (calls : list nat) (k v : Bvector eta) (n : nat) (acc : list (list (Bvector eta))) (u : unit),
     (* nice invariant *)
@@ -764,6 +829,50 @@ Proof.
   * simpl. rewrite IHn. reflexivity.
 Qed.  
 
+(* TODO: need to use fact that i = numCalls? *)
+(* see invariant in above proof *)
+(* TODO: think about whether this is actually true *)
+Lemma oracleMap_rb_eq : forall blocks k v calls res,
+   comp_spec
+     (fun (x : list (list (Bvector eta)) * KV)
+        (y : list (list (Bvector eta)) * (nat * KV)) => 
+      fst x = fst y)
+     (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
+        (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ GenUpdate_rb_intermediate s d;
+         [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) (res, (k, v))
+        blocks)
+     (compFold
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg numCalls s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (res, (calls, (k, v))) blocks).
+Proof.
+  induction blocks as [ | block blocks']; intros.
+  - simplify. fcf_spec_ret.
+  - (* v-sampling *)
+    Opaque GenUpdate_rb_intermediate.
+    simplify.
+    fcf_skip_eq; kv_exist.
+    destruct (lt_dec calls numCalls).
+    + Transparent GenUpdate_rb_intermediate.
+      repeat (simplify; fcf_skip_eq; simplify).
+    + destruct (beq_nat calls 0).
+      * simpl.
+        fcf_irr_l.
+        fcf_inline_first.
+        (* need to expand the right into an oracle *)
+        admit.
+      * simpl.
+        admit.
+      + simplify.
+        (* apply IHblocks'. *)
+        admit.
+Qed.    
+
 (* G2 is equal to last hybrid *)
 (* should be even easier than G1 since no GenUpdate_noV happening? Wrong *)
 Lemma G2_Gi_n_equal :
@@ -771,34 +880,28 @@ Lemma G2_Gi_n_equal :
 Proof.
   Print G2_prg.
   rewrite G2_oracle_eq.
+  rewrite G2_oracle_eq_v_sampling.
   fcf_to_prhl_eq.
-  unfold G2_prg'.
+  unfold G2_prg''.
   unfold Gi_prg.
-  unfold GenUpdate_rb_oracle.
-  Print G2_prg.
-  (* prove something about Oi_prg with numCalls *)
-  fcf_irr_r. 
-  { unfold Instantiate. fcf_well_formed.
-  unfold RndK. fcf_well_formed.
-  unfold RndV. fcf_well_formed. }
-  fcf_simp.
-  rename b into k.
-  rename b0 into v.
+  fcf_skip_eq. simplify.
+
+  rename b into k. rename b0 into v.
   fcf_skip.
   instantiate (1 := (fun x y => fst x = fst y)).
 
   (* note: switching between windows is C-x o *)
   - unfold oracleMap.
-    apply compMap_oracleMap_rb.
-    unfold maxCallsAndBlocks.
-    simpl.
-    apply length_replicate.
+    (* need to use fact that i = numCalls? *)
+    apply oracleMap_rb_eq.
+    (* from the old proof *)
+    (* apply compMap_oracleMap_rb. *)
+    (* unfold maxCallsAndBlocks. *)
+    (* simpl. *)
+    (* apply length_replicate. *)
 
-  - simpl in *.
-    subst.
-    fcf_simp.
-    simpl.
-    fcf_reflexivity.
+  - simpl in *. subst.
+    simplify. fcf_reflexivity.
 Qed.
 
 (* ---------------------------------- *)
@@ -1925,6 +2028,48 @@ Definition Gi_rf_dups_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ randomFunc_withDups nil;
   ret (b, hasInputDups state). 
 
+Lemma oracleCompMap_rf_oracle_irrelevance : forall blocks calls i k v state,
+   comp_spec eq
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k, v)) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv))
+        (randomFunc ({ 0 , 1 }^eta) eqdbl) state)
+     ((oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k, v)) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) randomFunc_withDups state).
+Proof.
+  induction blocks as [ | block blocks']; intros.
+  - simplify. fcf_spec_ret.
+  - simplify. fcf_skip_eq; kv_exist.
+    {
+      destruct (beq_nat calls 0).
+      + destruct (lt_dec calls i); repeat (simplify; fcf_skip_eq; kv_exist; simplify). fcf_spec_ret.
+        admit.
+        SearchAbout randomFunc_withDups.
+        (* TODO import that fn from PRF_DRBG instead and weaken precondition for randomFunc_withDups_spec *)
+        admit. (* didn't adam prove this? *)
+      + destruct (lt_dec calls i); repeat (simplify; fcf_skip_eq; kv_exist; simplify). fcf_spec_ret.
+        destruct (beq_nat calls i); repeat (simplify; fcf_skip_eq; kv_exist; simplify).
+        admit.
+        admit.
+        admit.
+
+        unfold GenUpdate_PRF_oc.
+        fcf_inline_first.
+        simplify.
+        fcf_spec_ret.
+    }
+    simplify. destruct b0.
+    fcf_skip_eq; kv_exist.
+    simplify. fcf_spec_ret.
+Qed.
+
 Lemma Gi_rf_dups_return_bad_eq : forall (i : nat),
     Pr[x <-$ Gi_rf_bad i; ret fst x] == Pr[x <-$ Gi_rf_dups_bad i; ret fst x].
 Proof.
@@ -1933,10 +2078,8 @@ Proof.
   unfold Gi_rf_bad.
   unfold Gi_rf_dups_bad.
   repeat (simplify; fcf_skip_eq).
-
-  (* TODO: induction with oracle irrelevant if it records state *)
-
-Admitted.
+  apply oracleCompMap_rf_oracle_irrelevance.
+Qed.
 
 (* expose the bad event (dups) *)
 Lemma Gi_rb_return_bad_eq : forall (i : nat),
@@ -4967,6 +5110,7 @@ Definition G1_prg_dup : Comp bool := (* copy of G1_prg *)
   [tail_bits, _] <-$2 oracleMap _ _ GenUpdate state' (tail maxCallsAndBlocks);
   A (head_bits :: tail_bits).
 
+(* TODO change this because I changed G2_prg *)
 Definition G2_prg_dup : Comp bool := (* copy of G2_prg *)
   bits <-$ compMap _ GenUpdate_rb maxCallsAndBlocks;
   A bits.
