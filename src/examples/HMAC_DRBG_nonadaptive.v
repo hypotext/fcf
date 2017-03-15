@@ -757,69 +757,6 @@ Proof.
   - fcf_skip_eq. fcf_skip. fcf_simp. fcf_spec_ret.
 Qed.
 
-(* extend the proof above to hold on (Oi_prg numCalls) using the invariant *)
-(* from the old proof; not currently used *)
-Lemma compMap_oracleMap_rb :
-  forall (calls : list nat) (k v : Bvector eta) (n : nat) (acc : list (list (Bvector eta))) (u : unit),
-    (* nice invariant *)
-    n + length calls = numCalls ->
-        comp_spec
-     (fun (x : list (list (Bvector eta)) * unit)
-        (y : list (list (Bvector eta)) * (nat * KV)) => 
-      fst x = fst y)
-     (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) unit_EqDec)
-        (fun (acc : list (list (Bvector eta)) * unit) (d : nat) =>
-         [rs, s]<-2 acc;
-         z <-$ (bits <-$ Gen_loop_rb d; ret (bits, s));
-         [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) (acc, u) calls)
-     (compFold
-        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-           (pair_EqDec nat_EqDec eqDecState))
-        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
-         [rs, s]<-2 acc;
-         z <-$ Oi_prg numCalls s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
-        (acc, (n, (k, v))) calls).
-(* comp_spec *)
-(*   (fun (x : list (list (Bvector eta))) *)
-(*      (y : list (list (Bvector eta)) * (nat * KV)) => x = fst y) *)
-(* (ls <-$ compMap (list_EqDec eqdbv) GenUpdate_rb calls; ret acc ++ ls) *)
-(* (compFold *)
-(*    (pair_EqDec (list_EqDec (list_EqDec eqdbv)) *)
-(*       (pair_EqDec nat_EqDec eqDecState)) *)
-(*    (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) => *)
-(*     [rs, s]<-2 acc; *)
-(*     z <-$ Oi_prg numCalls s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) *)
-(*    (acc, (n, (k, v))) calls). *)
-Proof.
-  induction calls as [ | call calls']; intros.
-  * simpl.
-    fcf_spec_ret.
-  * simpl.
-    fcf_inline_first.
-    destruct (lt_dec n numCalls).
-
-    (* n < numCalls *)
-    - unfold GenUpdate_rb_intermediate.
-      fcf_inline_first.
-      (* fcf_skip. admit. *)
-      admit.
-Admitted.
-      
-(*      instantiate (1 := (fun x y => x = fst y)).
-      { apply Gen_loop_rb_and_intermediate_eq2. }
-
-      simpl in *. destruct b. simpl in *. subst.
-      fcf_simp.
-      apply IHcalls'.
-      omega.
-
-    (* n >= numCalls: impossible *)
-    - simpl in *. omega.
-Qed. *)
-(* TODO *)
-
-Close Scope nat.
-
 (* pull it out? *)
 Lemma length_replicate : forall {A : Type} (n : nat) (x : A),
     length (replicate n x) = n.
@@ -829,10 +766,10 @@ Proof.
   * simpl. rewrite IHn. reflexivity.
 Qed.  
 
-(* TODO: need to use fact that i = numCalls? *)
-(* see invariant in above proof *)
-(* TODO: think about whether this is actually true *)
-Lemma oracleMap_rb_eq : forall blocks k v calls res,
+Open Scope nat.
+(* oraclemap with intermediate rb is same as oi_prg with i = numcalls *)
+Lemma oracleMap_rb_eq : forall calls k v res n,
+    n + length calls = numCalls ->
    comp_spec
      (fun (x : list (list (Bvector eta)) * KV)
         (y : list (list (Bvector eta)) * (nat * KV)) => 
@@ -842,36 +779,30 @@ Lemma oracleMap_rb_eq : forall blocks k v calls res,
          [rs, s]<-2 acc;
          z <-$ GenUpdate_rb_intermediate s d;
          [r, s0]<-2 z; ret (rs ++ r :: nil, s0)) (res, (k, v))
-        blocks)
+        calls)
      (compFold
         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
            (pair_EqDec nat_EqDec eqDecState))
         (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
          [rs, s]<-2 acc;
          z <-$ Oi_prg numCalls s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
-        (res, (calls, (k, v))) blocks).
+        (res, (n, (k, v))) calls).
 Proof.
-  induction blocks as [ | block blocks']; intros.
+  induction calls as [ | call calls']; intros.
   - simplify. fcf_spec_ret.
   - (* v-sampling *)
     Opaque GenUpdate_rb_intermediate.
-    simplify.
+    simplify. simpl in *.
     fcf_skip_eq; kv_exist.
-    destruct (lt_dec calls numCalls).
+    destruct (lt_dec n (n + S (length calls'))).
+    Focus 2. omega.
     + Transparent GenUpdate_rb_intermediate.
       repeat (simplify; fcf_skip_eq; simplify).
-    + destruct (beq_nat calls 0).
-      * simpl.
-        fcf_irr_l.
-        fcf_inline_first.
-        (* need to expand the right into an oracle *)
-        admit.
-      * simpl.
-        admit.
-      + simplify.
-        (* apply IHblocks'. *)
-        admit.
+    + simplify. destruct b.
+      eapply IHcalls'.
+      omega.
 Qed.    
+Close Scope nat.
 
 (* G2 is equal to last hybrid *)
 (* should be even easier than G1 since no GenUpdate_noV happening? Wrong *)
@@ -892,13 +823,10 @@ Proof.
 
   (* note: switching between windows is C-x o *)
   - unfold oracleMap.
-    (* need to use fact that i = numCalls? *)
     apply oracleMap_rb_eq.
-    (* from the old proof *)
-    (* apply compMap_oracleMap_rb. *)
-    (* unfold maxCallsAndBlocks. *)
-    (* simpl. *)
-    (* apply length_replicate. *)
+    simpl.
+    unfold maxCallsAndBlocks.
+    apply length_replicate.
 
   - simpl in *. subst.
     simplify. fcf_reflexivity.
@@ -1483,8 +1411,9 @@ Proof.
   reflexivity. 
 Qed.
 
+(* I guess this should be `exists i`, not `forall i` *)
 Lemma Gi_prf_rf_close : forall (i : nat),
-  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_i.
+  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_i. (* this is the prf advantage for game 0, but should be `exists i` *)
 Proof.
   intros.
   eapply leRat_trans.
@@ -3458,6 +3387,7 @@ Proof.
         fcf_skip; kv_exist.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd (snd x) = snd (snd (fst y))
                     /\ fst (snd x) = fst (snd (fst y)) = k)).
+        (* can we weaken the postcondition? *)
         unfold GenUpdate_rb_intermediate. unfold GenUpdate_rb_intermediate_oc_noV.
         simplify.
         fcf_irr_l.
@@ -3466,7 +3396,7 @@ Proof.
         {
           revert a k H0.
           induction x as [ | x']; intros; simplify.
-          - fcf_spec_ret. admit. (* TODO HOLE!! ADD HYP: x <> 0 *)
+          - fcf_spec_ret. f_equal. admit. (* TODO HOLE!! ADD HYP: x <> 0 *)
           - fcf_skip_eq.
         }
         (* hmm this saves the v, meaning the v gets updated... *)
