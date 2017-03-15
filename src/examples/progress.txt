@@ -668,6 +668,7 @@ TODO (goals for thursday's meeting) (goal time: 15 hours)
 
 ---
 
+<<<<<<< HEAD
 look thru last 3 commits
 - clean up code from last time 
 - look at line 392 in progress file
@@ -717,3 +718,16 @@ which intermediate steps are the easiest?
 7 to 8: 
 
 TODO: unfold all and finish comments above!
+=======
+- look thru last 3 commits
+- clean up code from last time 
+  - look at line 392 in progress file
+
+- inspect PRF advantage proof
+  - try to prove it / email matt
+  - PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
+
+- inspect the collisions proof (with new G2)
+  - try to prove it / write out proof steps in prose
+
+>>>>>>> 385ec1e81d35eed1cc75899ddaa797095c8448b9
