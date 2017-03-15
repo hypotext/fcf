@@ -22,23 +22,31 @@ Ltac fskip := fcf_skip.
 Ltac simplify :=
   repeat (try simpl; try fcf_inline_first; try fcf_simp).
 
-Theorem PRPL_demo : forall (n m : nat),
-  comp_spec (fun a b => a = fst b)
+Ltac rewrite_r := apply comp_spec_symm; eapply comp_spec_eq_trans_l.
+Ltac flip := apply comp_spec_symm.
+Ltac prog_equiv := repeat (simplify; fcf_skip_eq); try simplify.
+
+Ltac bv_exist := try apply oneVector.
+
+Variable bve : Bvector 10.
+
+(* Lemma demonstrating use of `bv_exist` ltac *)
+Lemma fcf_skip_admits : forall (n m : nat),
+  comp_spec eq
             (x <-$ {0,1}^n;
              ret x)
-            (c <-$ {0,1}^n;
-             d <-$ {0,1}^m;
-             ret (c,d)).
+            (y <-$ {0,1}^n;
+             z <-$ {0,1}^n;
+             ret y).
 Proof.
   intros.
-  fcf_skip. admit. admit. admit.
-
+  (* Set Printing All. *)
+  simpl.
+  fcf_skip; bv_exist.
   fcf_irr_r.
-
-  fcf_spec_ret.
 Qed.
 
-  (* TODO:
+(* TODO:
 
 - Blist definitions X
 - New for PRF-DRBG etc functions (instantiate, generate, update) X
@@ -91,6 +99,8 @@ Variable eta : nat.
 Definition RndK : Comp (Bvector eta) := {0,1}^eta.
 Definition RndV : Comp (Bvector eta) := {0,1}^eta.
 
+Ltac kv_exist := try apply (oneVector eta, oneVector eta).
+
 Variable f : Bvector eta -> Blist -> Bvector eta.
 
 Definition KV : Set := (Bvector eta * Bvector eta)%type.
@@ -112,6 +122,11 @@ Definition Instantiate : Comp KV :=
   k <-$ RndK;
   v <-$ RndV;
   ret (k, v).
+
+Lemma wf_instantiate : well_formed_comp Instantiate.
+Proof. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
+       unfold RndV. fcf_well_formed. Qed.
+Ltac wfi := apply wf_instantiate.
 
 Print Comp.
 SearchAbout Comp.
@@ -1167,16 +1182,16 @@ Proof.
   - simpl in H.
     simpl.
     fcf_inline_first.
-    fcf_skip. admit. admit.
+    fcf_skip; kv_exist.
+
     { instantiate (1 := (fun x y => fst x = fst y)).
       destruct (lt_dec init (init + S (length calls'))).
       * unfold GenUpdate_rb_intermediate_oc.
         simpl.
         fcf_inline_first.
-        fcf_skip.
-        admit. admit.
+        fcf_skip; kv_exist.
         simplify.
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
         simplify.
         fcf_spec_ret.
 
@@ -1455,6 +1470,7 @@ Proof.
   intros.
   
 (* TODO prove this, but see if we can finish this proof using it + the ind hyp first *)
+(* not used anywhere *)
 Admitted.
 
 (* new postcondition *)
@@ -1597,7 +1613,7 @@ Proof.
     rewrite app_nil_r; reflexivity.
   -
     simplify.
-    fcf_skip. admit. admit.
+    fcf_skip; kv_exist.
     instantiate (1 := (fun c d => bitsVEq c d
                                   /\ fst (snd c) = S i /\ fst (snd (fst d)) = S i
                                   (* keys become equal afterward on call i *)
@@ -1612,7 +1628,7 @@ Proof.
       clear n.
       destruct (beq_nat i 0).
       -
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
         simpl. fcf_inline_first.
         eapply comp_spec_eq_trans_l.
@@ -1633,7 +1649,7 @@ Proof.
         destruct (beq_nat i i).
         Focus 2. inversion H.
         clear H.
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
         Transparent GenUpdate. unfold GenUpdate. unfold GenUpdate_oc.
         simpl. unfold setLet. prog_ret_r.
@@ -1665,7 +1681,7 @@ Proof.
       + simplify. fcf_spec_ret. simpl. repeat (split; auto).
       (* xs = x' :: xs', use IH *)
       + simplify.
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
 
         (* one call with calls > i (calls = S i) *)
         instantiate (1 := (fun c d => bitsVEq c d
@@ -1693,7 +1709,7 @@ Proof.
           { apply Nat.eqb_neq. omega. }
           rewrite H1.
           Transparent GenUpdate. simpl. fcf_inline_first.
-          fcf_skip. admit. admit.
+          fcf_skip; kv_exist.
           instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd x = snd (fst y))).
           fcf_simp. 
           fcf_spec_ret.
@@ -1710,7 +1726,7 @@ Proof.
         
         (* now prove oracleCompMap_inner's eq *)
         { instantiate (1 := k1). 
-          fcf_skip_eq. admit. admit.
+          fcf_skip_eq; kv_exist.
           simplify. fcf_spec_ret.
           f_equal. f_equal.
           rewrite <- app_cons_eq.
@@ -1771,7 +1787,7 @@ Proof.
     + Opaque Oi_prg. Opaque Oi_oc'.
       unfold oracleMap.
       simplify.
-      fcf_skip. admit. admit.
+      fcf_skip; kv_exist.
       (* strengthen postcondition so we can prove calls < i -> S calls <= i to apply IHxs *)
       (* also strengthen it again because if calls < i then the keys must still be the same *)
       instantiate (1 := (fun c d => bitsVEq c d
@@ -1792,9 +1808,9 @@ Proof.
         unfold GenUpdate_rb_intermediate.
         simplify.
         (* @v *)
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
         simplify.
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         apply Gen_loop_rb_intermediate_keys_diff.
         subst. simplify.
         fcf_spec_ret.
@@ -1810,7 +1826,7 @@ Proof.
         eapply IHxs; omega. 
 
         (* now prove oracleCompMap_inner's eq *)
-        { fcf_skip_eq. admit. admit.
+        { fcf_skip_eq; kv_exist.
           simplify.
           instantiate (1 := k2).
           destruct u.
@@ -1874,7 +1890,7 @@ Proof.
     eapply Gi_prf_compspec; omega.
     simplify.
     fcf_ident_expand_r.
-    fcf_skip_eq. admit. admit.
+    fcf_skip_eq; kv_exist.
 
   - simplify.
     simpl in H6. destruct b3. destruct p. destruct k. breakdown H6.
@@ -1888,7 +1904,13 @@ Qed.
 Lemma Gi_rf_return_bad_eq : forall (i : nat),
     Pr[Gi_rf i] == Pr[x <-$ Gi_rf_bad i; ret fst x].
 Proof.
-Admitted.
+  intros. (* over all i--could be hard? *)
+  fcf_to_prhl_eq.
+  unfold Gi_rf.
+  unfold Gi_rf_bad.
+  repeat (simplify; fcf_skip_eq).
+  simplify. fcf_spec_ret.
+Qed.
 
 Definition randomFunc_withDups ls x :=
   y <-$ 
@@ -1906,13 +1928,28 @@ Definition Gi_rf_dups_bad (i : nat) : Comp (bool * bool) :=
 Lemma Gi_rf_dups_return_bad_eq : forall (i : nat),
     Pr[x <-$ Gi_rf_bad i; ret fst x] == Pr[x <-$ Gi_rf_dups_bad i; ret fst x].
 Proof.
+  intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rf_bad.
+  unfold Gi_rf_dups_bad.
+  repeat (simplify; fcf_skip_eq).
+
+  (* TODO: induction with oracle irrelevant if it records state *)
+
 Admitted.
 
 (* expose the bad event (dups) *)
 Lemma Gi_rb_return_bad_eq : forall (i : nat),
     Pr[Gi_rb i] == Pr[x <-$ Gi_rb_bad i; ret fst x].
 Proof.
-Admitted.
+  intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rb.
+  unfold Gi_rb_bad.
+  repeat (simplify; fcf_skip_eq).
+  simplify.
+  fcf_spec_ret.
+Qed.
 
 (* ---------------------------------- *)
 (* Assuming the Gi_normal_rb_eq stuff starts here *)
@@ -2108,7 +2145,7 @@ does this break anything else? *)
         eapply IHxs'; omega.
         
         (* now prove oracleCompMap_inner's eq *)
-        { fcf_skip_eq. admit. admit.
+        { fcf_skip_eq; kv_exist.
           simplify. fcf_spec_ret.
           f_equal. f_equal.
           rewrite <- app_cons_eq.
@@ -2171,7 +2208,7 @@ Proof.
       assert (H_calls_lt : calls < S i) by omega.
       destruct (lt_dec calls (S i)).
       Focus 2. omega. fcf_inline_first.
-      fcf_skip_eq. admit. admit.
+      fcf_skip_eq; kv_exist.
       simplify.
       fcf_spec_ret. simpl. auto.
       Opaque Oi_prg. Opaque Oi_oc'.
@@ -2186,7 +2223,7 @@ Proof.
       eapply IHxs; omega. 
       instantiate (1 := l).
       (* now prove oracleCompMap_inner's eq *)
-      { fcf_skip_eq. admit. admit.
+      { fcf_skip_eq; kv_exist.
         simplify.
         fcf_spec_ret. f_equal. f_equal. rewrite <- app_assoc. f_equal.
       }
@@ -2517,14 +2554,6 @@ Definition Oi_oc''' (i : nat) (sn : nat * KV) (n : nat)
     $ ret (bits, (S callsSoFar, state')).
 
 
-Lemma wf_instantiate : well_formed_comp Instantiate.
-Proof. unfold Instantiate. fcf_well_formed. unfold RndK. fcf_well_formed.
-       unfold RndV. fcf_well_formed. Qed.
-Ltac wfi := apply wf_instantiate.
-Ltac rewrite_r := apply comp_spec_symm; eapply comp_spec_eq_trans_l.
-Ltac flip := apply comp_spec_symm.
-Ltac prog_equiv := repeat (simplify; fcf_skip_eq); try simplify.
-
 Lemma Gen_loop_oc_states_diff : forall x state2 state1 v ,
    comp_spec
      (fun
@@ -2584,7 +2613,7 @@ Proof.
                     ([bits, v']<-2 z2; $ ret (bits, (a, v'))) (list (Blist * Bvector eta))
                                                               (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state3)).
     eapply comp_spec_eq_swap.
-    fcf_skip_eq. admit. simplify.
+    fcf_skip_eq; kv_exist. simplify.
     fcf_skip_eq. simplify. fcf_spec_ret.
   }
 
@@ -2640,12 +2669,12 @@ Proof.
                     ([bits, v']<-2 z2; $ ret (bits, (a, v'))) (list (Blist * Bvector eta))
                                                               (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle state3)).
     eapply comp_spec_eq_swap.
-    fcf_skip_eq. admit. simplify.
-    fcf_skip_eq. admit. simplify. fcf_skip_eq. simplify. fcf_spec_ret.
+    fcf_skip_eq; kv_exist. simplify.
+    fcf_skip_eq; kv_exist. simplify. fcf_skip_eq. simplify. fcf_spec_ret.
   }
 
-  simplify. unfold rb_oracle. simplify. fold rb_oracle. fcf_skip_eq. admit. admit. simplify.
-  fcf_skip. admit.
+  simplify. unfold rb_oracle. simplify. fold rb_oracle. fcf_skip_eq; kv_exist. simplify.
+  fcf_skip; kv_exist.
 
   instantiate (1 := (fun x y => fst x = fst y)).
   apply Gen_loop_oc_states_diff.
@@ -2679,7 +2708,7 @@ Proof.
   - simplify.
     (*  "(list (Bvector eta) * (nat * KV) * list (Blist * Bvector eta))%type" with
  "(list (Bvector eta) * KV * list (Blist * Bvector eta))%type". *)
-    fcf_skip. admit. admit.
+    fcf_skip; kv_exist.
     (* might need casework on calls = i *)
     (* one call: Oi_oc' to Oi_oc'' *)
     +
@@ -2690,10 +2719,10 @@ Proof.
       { destruct (lt_dec calls i).
         { (* calls < i *)
           simplify.
-          fcf_skip. admit. admit.
+          fcf_skip; kv_exist.
           {
             simplify.
-            fcf_skip. admit. admit.
+            fcf_skip; kv_exist.
             simplify.
             fcf_spec_ret.
             (* @v hey this works now due to the v-updating changing. also i started redoing the bottom cases *)
@@ -2709,12 +2738,12 @@ Proof.
       } 
       (* calls != i *)
       { (* same computations, but with different rb_state *)
-        (* fcf_skip. admit. admit. *)
+        (* fcf_skip; kv_exist. *)
         (* instantiate (1 := (fun c d => fst c = fst d)). *)
         {
           destruct (lt_dec calls i).
-          - simplify. fcf_skip_eq. admit. admit. simplify.
-            fcf_skip. admit. admit.
+          - simplify. fcf_skip_eq; kv_exist. simplify.
+            fcf_skip; kv_exist.
             simplify.
             fcf_spec_ret.
           - SearchAbout (beq_nat _ _).
@@ -2735,7 +2764,7 @@ Proof.
         (* simplify. fcf_spec_ret. simpl in *. inversion H1. subst. f_equal. *)
       } 
     + simpl in H1. destruct b0. destruct b1. destruct p. simpl in *. destruct k0. inversion H1. subst.
-      fcf_skip. admit. admit.
+      fcf_skip; kv_exist.
       simplify.
       instantiate (1 := (fun x y => fst x = fst y)).
       fcf_spec_ret.
@@ -2750,20 +2779,6 @@ Qed.
 (* note i switched the order of k and v in GenUpdate_oc_instantiate *)
 
 Notation "A = B = C" := (A = B /\ B = C).
-
-Lemma i_eq_0_k_mask_test :
-  comp_spec eq
-  ([k,v] <-$2 Instantiate; ret (k,v))
-  ([k,v] <-$2 Instantiate; k <-$ RndK; ret (k,v)).
-Proof.
-  unfold Instantiate. simplify. fcf_irr_r. admit. simplify.
-  eapply comp_spec_eq_trans. Focus 2.
-  instantiate (1 := (k0 <-$ RndK; a <-$ RndV; z <-$ ret (b, a); [_, v]<-2 z; ret (k0, v))).
-  fcf_swap fcf_left.
-  fcf_skip_eq. simplify. fcf_skip_eq.
-
-  fcf_skip_eq. simplify. fcf_skip_eq. simplify. fcf_spec_ret.
-Qed.
 
 (* Oi_oc'' to Oi_oc''', case: calls > i *)
 Lemma Oi_ocs_eq_calls_gt_i : forall l k v state1 state2 calls i,
@@ -2792,7 +2807,7 @@ Proof.
     assert (calls_neq_0 : calls <> 0) by omega.
     apply beq_nat_false_iff in calls_neq_0.
     rewrite calls_neq_0.
-    simplify. fcf_skip. admit. admit.
+    simplify. fcf_skip; kv_exist.
     simplify. simpl in *. destruct l1. destruct p. inversion H2. subst.
     fcf_spec_ret.
     destruct p. inversion H2. subst.
@@ -2838,15 +2853,15 @@ Proof.
           z <-$ ret (b, a);
           [_, v]<-2 z;
           a0 <-$ (x <-$ ret (nil, (O, (k0, v))); ret (x, state)); ret a0)).
-    fcf_swap fcf_right. fcf_skip_eq. admit. admit. fcf_skip_eq. admit. admit. simplify.
+    fcf_swap fcf_right. fcf_skip_eq; kv_exist. fcf_skip_eq; kv_exist. simplify.
     fcf_spec_ret. }
-    fcf_skip_eq. admit. simplify. fcf_skip_eq. admit. simplify. fcf_spec_ret.
+    fcf_skip_eq; kv_exist. simplify. fcf_skip_eq; kv_exist. simplify. fcf_spec_ret.
   -
     (* calls = 0 and i = 0 *)
     Opaque Oi_oc''. Opaque Oi_oc'''.
     simplify.
     (* Skip the two initial Instantiates *)
-    fcf_skip_eq. admit. admit. simplify.
+    fcf_skip_eq; kv_exist. simplify.
     Transparent Oi_oc''. Transparent Oi_oc'''.
     simpl. apply beq_nat_true in i_eq_0. subst. simplify.
     (* GenUpdate_noV_oc_k is inlined in first, GenUpdate_rb_intermediate_oc_v in second *)
@@ -2854,8 +2869,8 @@ Proof.
     Print GenUpdate_rb_intermediate_oc. (* like the above but with no k sampling *)
 
     (* Skip the lined-up a-sampling (inline k-sampling) and k-sampling *)
-    fcf_skip_eq. admit. admit.
-    simplify. fcf_skip. admit. admit.
+    fcf_skip_eq; kv_exist.
+    simplify. fcf_skip; kv_exist.
 
     (* Gen_loop_oc ~ Gen_loop_rb_intermediate *)
     { instantiate (1 := (fun x y => fst x = y)).
@@ -2865,7 +2880,7 @@ Proof.
         fcf_skip_eq. fcf_skip. simplify. fcf_spec_ret.
     } 
     simpl in H1. destruct b3. inversion H1. subst.
-    simplify. fcf_skip. admit. admit.
+    simplify. fcf_skip; kv_exist.
 
 (* separate lemma for induction on rest of list, show calls > i *)
     { instantiate (1 := (fun x y => fst x = fst y)).
@@ -2943,7 +2958,7 @@ Proof.
        ([resList, state'']<-2 z; $ ret (bits :: resList, state''))
          (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
          rb_oracle s'); ret a0)).
-  { simplify. fcf_skip_eq. admit. admit. simplify. fcf_skip_eq. admit. admit. simplify. fcf_skip_eq. admit. admit. }
+  { simplify. fcf_skip_eq; kv_exist. simplify. fcf_skip_eq; kv_exist. simplify. fcf_skip_eq; kv_exist. }
   apply comp_spec_symm.
 
   rewrite_l.
@@ -2971,11 +2986,11 @@ Proof.
   apply comp_spec_symm.
 
   (* now k is at the top of both *)
-  fcf_skip_eq. admit. admit.
+  fcf_skip_eq; kv_exist.
   simplify.
-  fcf_skip_eq. admit. admit.
+  fcf_skip_eq; kv_exist.
   simplify.
-  fcf_skip_eq. admit. admit.
+  fcf_skip_eq; kv_exist.
 
   { revert a a0 k.
     induction x as [ | x']; intros; simpl.
@@ -2983,7 +2998,7 @@ Proof.
     - fcf_skip_eq. fcf_skip_eq. }
 
   simplify.
-  fcf_skip_eq. admit. admit.
+  fcf_skip_eq; kv_exist.
 Qed.
 
 (* Oi_oc'' to Oi_oc''', third (and last) case: calls <= i and i != 0 *)
@@ -3015,7 +3030,7 @@ Lemma oracleCompMap_rb_instantiate_outer_i_neq_0 : forall l calls i state,
 Proof.
   intros.
   rename H0 into i_neq_0.
-  fcf_skip_eq. admit. admit. simplify.
+  fcf_skip_eq; kv_exist. simplify.
   (* fcf_irr_r. wfi. simplify. *)
   (* calls < i: kv don't matter *)
   (* calls = i: there's an extra instantiate inside *)
@@ -3024,7 +3039,7 @@ Proof.
   revert calls i state H k v i_neq_0.
   induction l as [ | x xs]; intros. (* there isn't an induction in the i_eq_0 version, only a destruct *)
   (* base case *)
-  - fcf_irr_r. admit. simplify. fcf_spec_ret.
+  - fcf_irr_r. unfold RndK. fcf_well_formed. simplify. fcf_spec_ret.
 
   (* induction: l = x :: xs *)
   - assert (H_ilen : calls < i \/ calls = i) by omega.
@@ -3091,7 +3106,7 @@ Proof.
                             ([resList, state'']<-2 z; $ ret (bits :: resList, state''))
                               (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
                               rb_oracle s'); ret a0)).
-        { simplify. fcf_skip_eq. admit. admit. simplify. fcf_skip_eq. admit. admit. simplify. fcf_skip_eq. admit. admit. }
+        { simplify. fcf_skip_eq; kv_exist. simplify. fcf_skip_eq; kv_exist. simplify. fcf_skip_eq; kv_exist. }
         apply comp_spec_symm.
 
         rewrite_l.
@@ -3119,11 +3134,11 @@ Proof.
         apply comp_spec_symm.
 
         (* now k is at the top of both *)
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
         simplify.
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
         simplify.
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
 
         { revert a a0 k.
           induction x as [ | x']; intros; simpl.
@@ -3131,18 +3146,18 @@ Proof.
           - fcf_skip_eq. fcf_skip_eq. }
 
         simplify.
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
       }
 
       (* END SWAP PROOF *)
       (* ----- *)
 
       apply comp_spec_symm.
-      fcf_skip_eq. admit. admit.
+      fcf_skip_eq; kv_exist.
       simplify.
 
       (* get the right side 2 lines together to apply IH *)
-      fcf_skip_eq. admit. admit.
+      fcf_skip_eq; kv_exist.
       simplify.
       eapply comp_spec_eq_trans_r.
       Focus 2.
@@ -3164,9 +3179,9 @@ Proof.
                                   ([resList, state'']<-2 z; $ ret (a1 :: resList, state''))
                                     (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
                                     rb_oracle s'); ret a2)).
-       simplify. fcf_skip. admit. admit. simplify. fcf_skip_eq. admit. admit. 
+       simplify. fcf_skip; kv_exist. simplify. fcf_skip_eq; kv_exist. 
 
-      fcf_skip. admit. admit.
+      fcf_skip; kv_exist.
       fcf_ident_expand_l.
 
       instantiate (1 := (fun
@@ -3208,14 +3223,13 @@ that would work but would that still apply to prove the top-level theorem??
       { Print GenUpdate_oc_instantiate.
         unfold Instantiate. simplify.
         (* now we have instantiate at the head of both, we can skip it, and the kv going into the loop  *)
-        fcf_skip_eq. admit. admit.
-        simplify. fcf_skip_eq. admit. admit. simplify.
+        fcf_skip_eq; kv_exist.
+        simplify. fcf_skip_eq; kv_exist. simplify.
         (* in fact only the k-update matters?? not true, we need the v's going in to be the same *) 
         (* loops are related *)
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         instantiate (1 := (fun x y => fst x = y)).
         (* both start with same v and x so postcondition holds *)
-        (* TODO is this admit okay? *)
         { revert a a0 state. induction x as [ | x']; intros; simpl.
           - simplify. fcf_spec_ret.
           - unfold rb_oracle. simplify. fold rb_oracle. fcf_skip_eq.
@@ -3224,7 +3238,7 @@ that would work but would that still apply to prove the top-level theorem??
 
         simpl in H3. destruct b1. inversion H3. subst.
         simplify.
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         instantiate (1 := (fun x y => fst x = fst y)).
         apply Oi_ocs_eq_calls_gt_i. omega.
         (* kv same AND calls > i! *)
@@ -3269,8 +3283,11 @@ Proof.
     rewrite app_nil_r; reflexivity.
   -
     simplify.
-    eapply comp_spec_seq. admit. admit.
+    eapply comp_spec_seq.
     (* avoid fcf_skip, it will subst calls = i, which i don't want to link. TODO why? *)
+
+    apply (nil, (0, (oneVector eta, oneVector eta))).
+    apply ((nil, (0, (oneVector eta, oneVector eta)), nil)).
 
     (* when calls = i, one is Gen_loop_rb and the other is Gen_loop_oc using the rb_oracle *)
     instantiate (1 := (fun c d => bitsVEq c d
@@ -3295,13 +3312,13 @@ Proof.
       (* i = 0? shouldn't matter whether the v is updated an additional time in the latter *)
       (* TODO wait, i might need to pass the i=0 and i!=0 hypotheses down here? *)
       -
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         instantiate (1 := (fun x y => fst x = fst (fst y) /\ snd (snd x) = snd (snd (fst y))
                     /\ fst (snd x) = fst (snd (fst y)) = k)).
         unfold GenUpdate_rb_intermediate. unfold GenUpdate_rb_intermediate_oc_noV.
         simplify.
         fcf_irr_l.
-        fcf_skip_eq. admit.
+        fcf_skip_eq; kv_exist.
         (* TODO factor out *)
         {
           revert a k H0.
@@ -3321,9 +3338,9 @@ Proof.
         rewrite H_i_eq.
         apply beq_nat_false_iff in ifalse.
         rewrite ifalse. simplify.
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
         simplify.
-        fcf_skip_eq. admit. admit.
+        fcf_skip_eq; kv_exist.
         simplify. fcf_spec_ret. simpl. auto.
     }
 
@@ -3355,7 +3372,7 @@ Proof.
       + simplify.
         (*  "(list (Bvector eta) * KV * list (Blist * Bvector eta))%type" with
  "(list (Bvector eta) * KV)%type". *)
-        fcf_skip. admit. admit.
+        fcf_skip; kv_exist.
 
         (* one call with calls > i (calls = S i) *)
         (* PRF oracle only *)
@@ -3443,7 +3460,7 @@ Proof.
     (* calls < i *)
     Opaque Oi_prg. Opaque Oi_oc'''.
     simplify.
-    fcf_skip. admit. admit.
+    fcf_skip; kv_exist.
     (* case: call on first element of list *)
     (* strengthen postcondition so we can prove calls < i -> S calls <= i to apply IHxs *)
     (* also strengthen it again because if calls < i then the keys must still be the same *)
@@ -3464,14 +3481,14 @@ Proof.
       assert (H_calls_lt : calls < S i) by omega.
       destruct (lt_dec calls (S i)).
       Focus 2. omega. 
-      fcf_skip. admit. admit.   (* GenUpdate_rb_intermediate(_oc) *)
+      fcf_skip; kv_exist.   (* GenUpdate_rb_intermediate(_oc) *)
       (* postcondition: output keys are unchanged from input *)
       instantiate (1 := (fun x y => x = fst y /\ fst (snd x) = fst (snd (fst y)) = k)).
       unfold GenUpdate_rb_intermediate.
       simplify.
-      fcf_skip_eq. admit.
+      fcf_skip_eq; kv_exist.
       simplify.
-      fcf_skip_eq. admit.
+      fcf_skip_eq; kv_exist.
       simplify.
       fcf_spec_ret.
 
@@ -3489,7 +3506,7 @@ Proof.
       eapply IHxs; omega. 
       instantiate (1 := l).
       (* now prove oracleCompMap_inner's eq *)
-      { fcf_skip_eq. admit. admit.
+      { fcf_skip_eq; kv_exist.
         simplify.
         fcf_spec_ret. f_equal. f_equal. rewrite <- app_assoc. f_equal.
       }
@@ -3639,7 +3656,7 @@ Proof.
     unfold oracleMap.
     pose proof oracleMap_oracleCompMap_equiv_modified.
     eapply comp_spec_eq_trans_r. apply H1. omega. 
-    instantiate (1 := nil). fcf_ident_expand_r. fcf_skip_eq. admit. admit.
+    instantiate (1 := nil). fcf_ident_expand_r. fcf_skip_eq; kv_exist.
     simpl. fcf_spec_ret.
 
     simpl in H3. destruct b0. repeat destruct p. simpl in *. inversion H3. subst.
@@ -3751,7 +3768,7 @@ Proof.
     unfold oracleMap.
     pose proof oracleMap_oracleCompMap_equiv_modified as om_ocm_equiv.
     eapply comp_spec_eq_trans_r. apply om_ocm_equiv. omega. 
-    instantiate (1 := nil). fcf_ident_expand_r. fcf_skip_eq. admit. admit.
+    instantiate (1 := nil). fcf_ident_expand_r. fcf_skip_eq; kv_exist.
     simpl. fcf_spec_ret.
 
     simpl in H3. destruct b0.
@@ -4162,7 +4179,10 @@ Proof.
             (fun x => hasDups _ (fst (split x)))
             (fun x => hasDups _ (fst (split x))) eq); intuition.
 
-  - fcf_well_formed. admit.
+  - fcf_well_formed. (* TODO hole: prove entire oraclecompmap is well_formed (how?) *)
+    SearchAbout well_formed_oc.
+    (* unfold well_formed_oc. *)
+    admit.
   - intros. unfold rb_oracle. fcf_well_formed.
   - intros. unfold randomFunc_withDups. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
   - 
@@ -4388,7 +4408,7 @@ Proof.
   simplify.
   fcf_irr_r.
   simplify.
-  fcf_skip_eq. admit.
+  fcf_skip_eq; kv_exist.
   simplify.
   fcf_to_probability. admit. admit.
 (* all vars are from the same distribution? but some aren't independent? *)
@@ -4797,7 +4817,7 @@ Proof.
 
 (* TODO there's a more general lemma *)
   assert (length (forNats (S blocksPerCall)) = S blocksPerCall).
-  { admit. }
+  { apply forNats_length. }
   rewrite <- H at 2.
   (* apply Adam's collision bound here *)
   apply dupProb.
@@ -4835,17 +4855,15 @@ Proof.
 
   (* NOTE still parametrized by i, so the hybrid matters *)
   rewrite Gi_rb_rf_identical_until_bad.
-  unfold Gi_rb_bad. unfold PRF_Adversary. simplify.
+  (* unfold Gi_rb_bad. unfold PRF_Adversary. simplify. *)
   (* ??? shouldn't Pr_collisions depend on the hybrid. or just an upper bound? *)
-  unfold Pr_collisions.
+  (* unfold Pr_collisions. *)
   (* rb oracle is queried when? i'm confused. only on ith call? yeah only on ith call (when RF is replaced with RB) *)
   (* so we "zoom in" here and it doesn't really matter if RB before it use new v... or if on the ith call we use new v... only the `bvector eta` getting generated matters? *)
-Check Gi_rb_bad_collisions.
-(* Why doesn't this compile?? *)
-  (* apply Gi_rb_bad_collisions. *)
-  admit.
+  apply Gi_rb_bad_collisions.
+Qed.
 
-(* want lemmas saying
+(* for above, want lemmas saying
 - key updating: calling a RF with an input of longer length whereas all other inputs had same length = randomly sampled <<<
 
 - previous RB output (if any) are indistinguishable <<<
@@ -4859,7 +4877,6 @@ Check Gi_rb_bad_collisions.
   - plus adam's lemma with an additional list entry
 
 - other wrinkles: dealing with OracleComp stuff, PRF_Adversary *)
-Qed.
 
 (* Inductive step *)
 (* let i = 3. 
