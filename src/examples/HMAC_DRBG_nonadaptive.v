@@ -4837,6 +4837,9 @@ Lemma Gi_rb_bad_eq_3 :
     Pr [Gi_rb_bad_only_oracle] = Pr [Gi_rb_bad_no_oracle].
 Proof.
   intros.
+  unfold Gi_rb_bad_only_oracle.
+  unfold Gi_rb_bad_no_oracle.
+  
 Admitted.
 
 (* no k *)
@@ -4844,30 +4847,51 @@ Lemma Gi_rb_bad_eq_4 :
     Pr [Gi_rb_bad_no_oracle] = Pr [Gi_rb_bad_no_k].
 Proof.
   intros.
+  unfold Gi_rb_bad_no_oracle.
+  unfold Gi_rb_bad_no_k.
+
+
 Admitted.
 
 Lemma Gi_rb_bad_eq_5 : 
     Pr [Gi_rb_bad_no_k] = Pr [Gi_rb_bad_map].
 Proof.
   intros.
+  unfold Gi_rb_bad_no_k.
+  unfold Gi_rb_bad_map.
+  unfold GenUpdate_rb_no_k.
+  (* unfold Gen_loop_rb_no_k. *)
+  (* fcf_to_prhl. *)
+
 Admitted.
 
 Lemma Gi_rb_bad_eq_6 : 
     Pr [Gi_rb_bad_map] = Pr [Gi_rb_bad_map_inline].
 Proof.
   intros.
+  unfold Gi_rb_bad_map.
+  unfold Gi_rb_bad_map_inline.
+
+
 Admitted.
 
 Lemma Gi_rb_bad_eq_7 : 
     Pr [Gi_rb_bad_map_inline] = Pr [Gi_rb_bad_map_no_keyinput].
 Proof.
   intros.
+  unfold Gi_rb_bad_map_inline.
+  unfold Gi_rb_bad_map_no_keyinput.
+
 Admitted.
 
 Lemma Gi_rb_bad_eq_8 : 
     Pr [Gi_rb_bad_map_no_keyinput] = Pr [Gi_rb_bad_map_inline_v].
 Proof.
   intros.
+  unfold Gi_rb_bad_map_no_keyinput.
+  unfold Gi_rb_bad_map_inline_v.
+
+
 Admitted.
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)

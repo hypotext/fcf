@@ -708,17 +708,23 @@ what is the total number of *inputs*?
 what are the start and end games? 
 which intermediate step(s) are the hardest? 
 which intermediate steps are the easiest?
+the below comments should go inline!
+why doesn't fcf_to_prhl work in any of them? email adam
 
-1 to 2: easy (remove adversary)
-2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0)
-3 to 4: 
-4 to 5: 
-5 to 6: 
-6 to 7: 
-7 to 8: 
+1 to 2: remove adversary (easy?)
+2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard
+3 to 4: get rid of oracle computation, transform GenUpdate_oc to GenUpdate_rb_inputs with hasDups on key and Vs explicitly ** hard?
+4 to 5: get rid of k: never used as an input, and its output doesn't matter (easy?)
+5 to 6: go from GenUpdate* and Gen_loop* to compMap ** hard?
+6 to 7: inline v' sample into compMap (easy?)
+7 to 8: get rid of key input (length-extended = no collisions) (easy?)
+8 to 9: inline v-sampling into compMap (easy?)
 
 TODO: unfold all and finish comments above!
-=======
+
+- write up key idea from the proof before i forget it!
+  - i guess the key idea was to use tricky induction hyp to remove k-sampling only
+  - v-sampling is removed later w/ different postcondition
 - look thru last 3 commits
 - clean up code from last time 
   - look at line 392 in progress file
@@ -730,4 +736,3 @@ TODO: unfold all and finish comments above!
 - inspect the collisions proof (with new G2)
   - try to prove it / write out proof steps in prose
 
->>>>>>> 385ec1e81d35eed1cc75899ddaa797095c8448b9
