@@ -4786,6 +4786,7 @@ Definition Gi_rb_bad_map_inline_v : Comp bool :=
   bits <-$ compMap (Bvector_EqDec eta) (fun _ => {0,1}^eta) (forNats (S blocksPerCall)); 
   ret (hasDups (Bvector_EqDec eta) bits).
 
+Opaque hasDups.
 (* some of these inlinings can probably be done better in a different order or simultaneously *)
 
 (* todo: get it to a point where I can apply Adam's lemma with a different size *)
@@ -4803,21 +4804,28 @@ Definition Gi_rb_bad_map_inline_v : Comp bool :=
 - can i even instantiate his module's types? *)
 
 (* TODO: write that these games have the same probability, then rewrite below *)
-(* should be easy *)
+
+(* DONE *)
+(* remove adversary (easy) *)
 Lemma Gi_rb_bad_eq_1 : forall (i : nat),
-    Pr [x <-$ Gi_rb_bad i; ret snd x] = Pr [Gi_rb_bad_no_adv i].
+    Pr [x <-$ Gi_rb_bad i; ret snd x] == Pr [Gi_rb_bad_no_adv i].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad.
   unfold Gi_rb_bad_no_adv.
-Admitted.  
+  prog_equiv.
+  fcf_irr_l.
+  prog_equiv.
+  fcf_spec_ret.
+Qed.
 
+(* only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard *)
 Lemma Gi_rb_bad_eq_2 : forall (i : nat),
-    Pr [Gi_rb_bad_no_adv i] = Pr [Gi_rb_bad_only_oracle].
+    Pr [Gi_rb_bad_no_adv i] == Pr [Gi_rb_bad_only_oracle].
 Proof.
   intros.
-  (* fcf_to_prhl_eq. *)
-  (* ??? *)
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_adv.
   unfold Gi_rb_bad_only_oracle.
   unfold callMapWith.
@@ -4832,62 +4840,131 @@ Proof.
   
 Admitted.
 
+(* get rid of oracle computation, transform GenUpdate_oc to GenUpdate_rb_inputs with hasDups on key and Vs explicitly
+ ** hard? *)
 (* note: no nat *)
 Lemma Gi_rb_bad_eq_3 : 
-    Pr [Gi_rb_bad_only_oracle] = Pr [Gi_rb_bad_no_oracle].
+  Pr [Gi_rb_bad_only_oracle] == Pr [Gi_rb_bad_no_oracle].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_only_oracle.
   unfold Gi_rb_bad_no_oracle.
   
 Admitted.
 
-(* no k *)
+Lemma well_formed_RndK : well_formed_comp RndK.
+Proof. unfold RndK. fcf_well_formed. Qed.
+
+Lemma well_formed_RndV : well_formed_comp RndV.
+Proof. unfold RndV. fcf_well_formed. Qed.
+
+Ltac wfk := apply well_formed_RndK.
+Ltac wfv := apply well_formed_RndV.
+
+(* DONE *)
+(* get rid of k: never used as an input, and its output doesn't matter (easy?) *)
+(* just bash way thru--need to line up the skips right *)
 Lemma Gi_rb_bad_eq_4 : 
-    Pr [Gi_rb_bad_no_oracle] = Pr [Gi_rb_bad_no_k].
+  Pr [Gi_rb_bad_no_oracle] == Pr [Gi_rb_bad_no_k].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_oracle.
   unfold Gi_rb_bad_no_k.
+  unfold Instantiate.
+  simplify.
+  fcf_irr_l. wfk.
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  unfold GenUpdate_rb_no_k.
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  fcf_skip_eq.
+  {
+    clear H.
+    revert blocksPerCall a a1.
+    induction blocksPerCall as [ | blocks']; intros.
+    - simplify. fcf_spec_ret.
+    - simplify. fcf_skip_eq. fcf_skip_eq.
+  }
+  simplify.
+  fcf_irr_l.
+  simplify.
+  fcf_spec_ret.
+Qed.
 
-
-Admitted.
-
+(* go from GenUpdate* and Gen_loop* to compMap ** hard? *)
 Lemma Gi_rb_bad_eq_5 : 
-    Pr [Gi_rb_bad_no_k] = Pr [Gi_rb_bad_map].
+  Pr [Gi_rb_bad_no_k] == Pr [Gi_rb_bad_map].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_k.
   unfold Gi_rb_bad_map.
   unfold GenUpdate_rb_no_k.
-  (* unfold Gen_loop_rb_no_k. *)
-  (* fcf_to_prhl. *)
+(* unfold Gen_loop_rb_no_k. *)
+(* fcf_to_prhl. *)
 
 Admitted.
 
+(* inline v' sample into compMap (easy?) *)
 Lemma Gi_rb_bad_eq_6 : 
-    Pr [Gi_rb_bad_map] = Pr [Gi_rb_bad_map_inline].
+  Pr [Gi_rb_bad_map] == Pr [Gi_rb_bad_map_inline].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_map.
   unfold Gi_rb_bad_map_inline.
+  fcf_skip_eq.
 
+  (* did adam do this proof? could be annoying b/c v' appears in hasDups *)
+  
+  apply comp_spec_eq_symm.
+  rewrite_r.
+  (* get first two lines together *)
+  instantiate (1 :=
+                 (res <-$ (v' <-$ { 0 , 1 }^eta;
+                          bits <-$
+                               compMap eqdbv (fun _ : nat => { 0 , 1 }^eta)
+                               (forNats (blocksPerCall - 1));
+                          ret (v', bits));
+                  [v', bits] <-2 res;
+                  v'' <-$ { 0 , 1 }^eta;
+                  ret hasDups eqdbl
+                      ((to_list v'' ++ zeroes)
+                         :: to_list a
+                         :: to_list v'
+                         :: map (fun v : Vector.t bool eta => to_list v) bits))).
+  { prog_equiv. fcf_spec_ret. }
+
+  fcf_skip.
 
 Admitted.
 
+(* get rid of key input (length-extended = no collisions) (easy?) *)
 Lemma Gi_rb_bad_eq_7 : 
-    Pr [Gi_rb_bad_map_inline] = Pr [Gi_rb_bad_map_no_keyinput].
+  Pr [Gi_rb_bad_map_inline] == Pr [Gi_rb_bad_map_no_keyinput].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_map_inline.
   unfold Gi_rb_bad_map_no_keyinput.
+  fcf_skip_eq.
+  fcf_skip_eq.
 
+(* it changes from eqdbl to eqdbv? *)
+  
 Admitted.
 
+(* inline v-sampling into compMap (easy?) *)
 Lemma Gi_rb_bad_eq_8 : 
-    Pr [Gi_rb_bad_map_no_keyinput] = Pr [Gi_rb_bad_map_inline_v].
+  Pr [Gi_rb_bad_map_no_keyinput] == Pr [Gi_rb_bad_map_inline_v].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_map_no_keyinput.
   unfold Gi_rb_bad_map_inline_v.
 

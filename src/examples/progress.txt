@@ -668,7 +668,6 @@ TODO (goals for thursday's meeting) (goal time: 15 hours)
 
 ---
 
-<<<<<<< HEAD
 look thru last 3 commits
 - clean up code from last time 
 - look at line 392 in progress file
@@ -677,6 +676,9 @@ inspect PRF advantage proof
 - try to prove it / email matt
 - PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
 - line 1423, Gi_prf_rf_close
+
+see definition of max over a list here (maximum): 
+http://jmlcoq.info/formalization/ListFunctions.html
 
 inspect the collisions proof (with new G2)
 - try to prove it / write out proof steps in prose
@@ -709,30 +711,20 @@ what are the start and end games?
 which intermediate step(s) are the hardest? 
 which intermediate steps are the easiest?
 the below comments should go inline!
-why doesn't fcf_to_prhl work in any of them? email adam
 
-1 to 2: remove adversary (easy?)
+1 to 2: remove adversary (easy?) // DONE
 2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard
 3 to 4: get rid of oracle computation, transform GenUpdate_oc to GenUpdate_rb_inputs with hasDups on key and Vs explicitly ** hard?
-4 to 5: get rid of k: never used as an input, and its output doesn't matter (easy?)
+4 to 5: get rid of k: never used as an input, and its output doesn't matter // DONE
 5 to 6: go from GenUpdate* and Gen_loop* to compMap ** hard?
 6 to 7: inline v' sample into compMap (easy?)
 7 to 8: get rid of key input (length-extended = no collisions) (easy?)
 8 to 9: inline v-sampling into compMap (easy?)
 
-TODO: unfold all and finish comments above!
+----
 
 - write up key idea from the proof before i forget it!
-  - i guess the key idea was to use tricky induction hyp to remove k-sampling only
-  - v-sampling is removed later w/ different postcondition
-- look thru last 3 commits
-- clean up code from last time 
-  - look at line 392 in progress file
-
-- inspect PRF advantage proof
-  - try to prove it / email matt
-  - PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
-
-- inspect the collisions proof (with new G2)
-  - try to prove it / write out proof steps in prose
-
+  - the GenUpdate_rb_intermediate has v-sampling and using-the-last-v (to mirror GenUpdate_PRF) but *not* k-sampling
+  - i guess the key idea was to use tricky induction hyp (that includes k-sampling) to remove k-sampling only
+  - v-sampling is removed later w/ different (weaker) postcondition on G2
+  - still a minor problem since on the first call, v is not sampled, so if calls=0 then the last v (which is different) is output, but that doesn't matter
