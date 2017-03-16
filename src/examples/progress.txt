@@ -361,14 +361,373 @@ reverting any_v: dang guys, blame works https://github.com/hypotext/fcf/blame/ma
   - i have no idea what the prove is trying to prove
   - maybe i should admit all things that break and check them before chasing one thing that breaks, which may require many changes...
 
-TODO
-- fix G2_gi_n_equal
-- clone old proofs in a different file and check out how those proofs work
-- PUSH THE CODE and notes before i leave
-- try it and see what breaks! and fix it!
-- look into detailed proof breakdowns (Oi_oc' -> Oi_oc'' -> Oi_oc''', and for i < 0 etc.)
-- how much of the proof actually worked already? did it break down at any_v? and where else?
+--------
 
-- maybe i should eliminate the k? (modify gen_loop_rb_intermediate. does anyone else use that. yes, all the Gi_rb_normal_eq intermediate lemmas use it. why?)
-- fix oracleCompMap_rb_instantiate_outer_i_neq_0, which still doesn't compile for unknown reasons
-  (the blame is confusing too)
+things that break: (keyword @v)
+- compMap_oracleMap_rb (need to change G2 or prove it equivalent)
+  - nvm, was able to fix just by changing an internal proof a bit (meaning everything else shld check)
+- (2) a case of Gi_normal_prf_eq_compspec: return types of Gen_loop and Gen_loop_inter. are different
+  - do i need to change the intermediate postcondition??
+  - also, bitsVEq isn't true because of the way GenUdpate_rb_intermediate_oc is defined... RIP. do we need bitsVEq? also TODO: if we *also* change GU_rb_int_oc, what else will break??
+  - i added Gen_loop_rb_and_intermediate_eq though
+
+- ok, i just also changed GenUpdate_rb_intermediate_oc to use the last v, which fixed (2)
+
+- (3) a case in Gi_normal_rb_eq_calls_eq_i?
+  that case is wrong because the k is re-sampled, so the output k's aren't equal. i suspect it's an old lemma that i don't use (it goes straight from Oi_prg to Oi_oc')
+
+- a case now works in oracleCompMap_rb_instantiate_inner (Oi_oc' to Oi_oc''). TODO dig through the remaining cases
+
+- made some changes in oracleMap_oracleCompMap_equiv_modified_calls_gt_i: (*)
+now k's aren't equal in case. why?
+also TODO the calls > i induction (why can't we use subst?)u
+
+- the sequence of rewrites: WTP Oi_prg <-> Oi_oc'.
+  intermediate rewrites: Oi_oc' -> Oi_oc'' -> Oi_oc''', then Oi_prg <-> Oi_oc''' (what (*) does)
+
+----- now keeping track of the holes in the proof
+
+Gi_normal_rb_eq seems to be totally proven. relies on sublemmas: 
+
+1. oracleCompMap_rb_instantiate_inner: Oi_oc' to Oi_oc''
+- admitted: how to swap k-sampling under Gen_loop (make a small test case, or another int. game?)
+- admitted: same swapping k-sampling (but with a v)
+- admitted: same k-sampling case (noV)
+
+2. oracleCompMap_rb_instantiate_outer_i_eq_0: i = 0, Oi_oc'' to Oi_oc'''
+- fully proved
+
+3. oracleMap_oracleCompMap_equiv_modified: Oi_oc''' and Oi_prg 
+- fully proved
+- calls < i: ok
+- calls = i: ok, IHxs is being applied correctly
+- TODO: but there's no sampling in the IHxs?
+
+3a. oracleMap_oracleCompMap_equiv_modified_calls_gt_i (used inside (3)): 
+- commented out "rest of calls: induct on new list" (so, haven't proved the calls > i case yet)
+
+4. oracleCompMap_rb_instantiate_outer_i_neq_0: i != 0, Oi_oc'' to Oi_oc'''
+- not fully proved; bunch of stuff commented out. why is this harder than (2)?
+- looks like there's an extra instantiate on the outside now, and the goal is to repeatedly pull it out
+- need to fix the rewrites to use Gen_loop_rb_intermediate correctly
+
+(5. oracleMap_oracleCompMap_equiv_modified (again): Oi_oc''' and Oi_prg)
+
+---
+
+- why do i need 2 and 4? how do they differ?
+- where does the nasty k-swapping induction / applying IH / v-ignoring actually happen?
+- how do these lemmas map to my paper proof? the workhorse is oracleMap_oracleCompMap_equiv_modified
+
+---
+
+now keeping track of the holes in each individual lemma
+
+
+TODO
+- for good hygiene: NAME ALL OF YOUR HYPOTHESES!!!
+- get rid of the dual admits; it's making it hard for me to see what I actually admitted
+- fill in the holes
+  - k-swapping
+
+--------------------------
+
+saturday 2/25/17, 10 pm
+
+- reread above progress
+- figure out what the 4 proof holes *are*
+  - and figure out how to solve them
+- figure out either how to prove k,v line swapping, 
+  - or how to ask a coherent Q with a minimal example about it (by Sunday night!!)
+
+line 2990
+
+first, what was the problem with oracleCompMap_rb_instantiate_outer_i_neq_0?
+why is it harder than i_eq_0? what's the intuition behind the proof
+
+2/27/17, 8:30-11:30 pm
+
+what are Oi_oc'' and Oi_oc'''? see thm statement: the instantiate lines are now pulled out
+ah, look at the differences b/t the thm statements: i_eq_0 only has instantiate and k-sampling; i_neq_0 has both (why? because on the ith call we do NoV)
+
+wait, the two theorems' proofs should be substantially similar, then...
+proof of the first: no swapping needed (or even an induction), just a destruct, and skip the lined-up k-samplings (inner and outer)
+
+ok, i cleaned up oracleCompMap_rb_instantiate_outer_i_neq_0 and got it to compile
+the problem now lies with oracleCompMap_Oi_oc3_v_diff and where it's used
+basically, since we now use the last v in GenUpdate_rb_oc_v (?), we can no longer swap instantiate to after the bits are generated, because the state is updated with the new v instead of being ignored. 
+
+the subsidiary theorem (if we just roll with the v's being different) has a postcondition of eq, but that's not true b/c the KV states are not exactly the same; just the output bits are. it still upholds the *original* postcondition of fst--can I use that to rewrite somehow?
+
+proof holes:
+1. thm TODO: k-swapping 
+2. thm TODO: v-swapping 
+3. thm TODO: calls > i
+4. thm TODO: gt_i (?)
+
+- email adam about line swapping
+- clean up file for lennart
+- keep track of hours spent
+
+---------
+
+thursday 3/3/17 2:52 am
+
+ok, it occurs to me that my proof broke due to the "last v being used" for a totally valid reason--now the v is no longer being "passed straight through" to the ith call, but being re-sampled! so... the instantiate can no longer be pulled out. what if we did the same thing with the k's? what if on all calls < i, the ideal-world game calls also re-sampled k? (and re-sampled v?) that would change the structure of all the ideal-world calls to be pretty much exactly that of "calls = i, with oracle substituted for 
+
+v' <- oracle // i don't think this line matters if n <> 0, but what if we just put it in?
+bits, v'' <- gen_loop k v' n
+k' <- oracle
+return (oracle, (k', v''))
+
+soooo does this break gi_normal_prf_eq? i constantly forget what breaks there.
+(i think it would break the first induction, but i would just add more skip-lines.)
+does this break other ideal-world game stuff?
+try it and see!
+it feels natural to do this
+
+-------------
+
+friday 3/3/17 12:17 am
+
+- see what might break (looking at proof tree)
+  - could break gi_normal_prf_eq
+  - could break g2_gi_n_equal
+  - does this mess with the collision probabilities? since now the oracle is going to be queried 2n more times... or maybe i can remove the oracle, idk
+  - would it mess with "identical until bad"? maybe not, since 
+  - hm, NO, only care about collisions in the RF oracle used on the ith call
+  - What about Gi_rb_bad_collisions? seems fine
+
+1:07 am
+
+- make change to both GenUpdate_rbs in Oi_prg and Oi_oc' so they look like ith call
+- admit/record the things that break, and go back and fix each
+- delete old proof stuff 
+- prototype the new proof!?!?
+- fill in the new proof
+
+broke: 
+- compmap_oraclemap_rb 
+  - because G2_prg is defined in a particular way... but in the short term, we can just redefine it to be Gi_prg numCalls (with the extra k,v samplings and all)
+  - in the long term, i guess this is where the problem lies? extra samplings got pushed into the end
+  - TODO fix this later
+- Oi_numcalls_oracle_irrelevance X (fixed)
+- Gi_normal_prf_eq_compspec (calls <= i, as expected). two cases broke--why?
+  maybe the postcondition is too strong. do i need it? oh wait, the postconditions aren't true, but the resulting keys *are* equal
+  oh no some horrible thing has happened with the induction hypothesis and keys?
+  oh no. the keys cannot be updated because Oi_prg just has k1, whereas f_oracle has k1 (which is never updated) and another k2 (which is updated), and we need Oi_prg to continue having k1... unless we can push k2 elsewhere. ugh
+
+Gi_normal_rb_eq: lines 1915-3488
+
+- Gi_normal_rb_eq_calls_eq_i broke (is it even relevant?)
+  -> I commented out all of the Gi_normal_rb_eq stuff, need to prototype the proof again simlarly to Gi_normal_prf_eq...
+
+3:24 am
+
+possible fix:
+
+- still need to fix compmap_oraclemap_rb
+- add v-sampling back (fixing the problem in relating Oi_oc'' to Oi_oc''' in rb)
+- BUT remove k-sampling (fixing the problem in Gi_normal_prf_eq)
+  - still gotta do the k-swapping though, don't know if that works
+
+- broke: oraclecompmap_rb_instantiate_inner? Oi_oc' to Oi_oc''
+  -> not sure about these intermediate oracles anymore
+
+Will this work? need to check what exactly the problem in the former was.
+
+=====
+
+Oi_oc' -> Oi_oc'': on calls=i, put RB in box and move k-sampling to before loop. can i also just get rid of the k in the loop?
+Oi_oc'' -> Oi_oc''': on calls=i, Oi_oc''' has k-sampling outside of the bare GenUpdate_oc call. skip both
+  (*) here's where the problem was with v-sampling last time
+Oi_oc''' -> Oi_prg: selectively skip k,v, extra k-sampling in beginning and then just straightforward induction
+
+=============
+calls < i:
+
+---
+
+Oi_oc':
+
+v' <- 0,1^n
+bits,v <- loop k v' n
+return (bits, v'')
+
+---
+
+Oi_oc'':
+
+same
+
+---
+
+Oi_oc''':
+
+k,v <- Instantiate;
+k <- Instantiate;
+OCM Oi_oc'''
+
+v' <- {0,1}^n
+[bits,v''] <- loop k v' n
+NO K UPDATE?
+return (bits, (k,v''))
+
+---
+
+Oi_prg:
+
+GenUpdate_rb_intermediate
+v <- 0,1^n
+bits, v <- loop k v' n
+return (bits, v'')
+
+======================
+calls = i: 
+
+---
+
+Oi_oc': 
+
+GenUpdate_oc
+(like GenUpdate but using the rb oracle in place of f)
+can i actually move the k to the beginning here?
+
+v' <- {0,1}^n
+[bits,v''] <- loop k v' n
+k' <- {0,1}^n
+return (bits, (k',v''))
+
+---
+
+Oi_oc'': 
+
+v' <- {0,1}^n
+k' <- {0,1}^n
+[bits,v''] <- loop k v' n
+return (bits, (k',v''))
+
+---
+
+Oi_oc''': 
+
+k <- {0,1}^n; (external to call)
+
+(GenUpdate_rb_intermediate_oc_v but maybe it should be _oc)
+v' <- {0,1}^n
+[bits,v''] <- loop k v' n;
+ret (bits, (k,v''))
+
+---
+
+Oi_prg: (Pr[Gi_prg (S i)] == Pr[Gi_rb i])
+here, calls = S i
+
+GenUpdate_rb_intermediate
+v <- 0,1^n
+bits, v <- loop k v' n
+return (bits, v'')
+
+==========
+
+k-swapping on the right *should* work (line 2587)
+
+========
+
+i changed all the oracles
+fixed oraclecompmap_rb_instantiate_inner
+broke: oraclecompmap_rb_instantiate_outer_i_eq_0  ??
+
+------
+
+problem: if calls = 0, then Oi_prg is going to sample v (bc it sees calls = 1), and Oi_oc''' (since calls = 0) is NOT
+
+well, it doesn't matter if x <> 0, right?
+
+i should really delete the simplifies above line 3257; it makes checking the file really slow
+
+holes so far:
+- x <> 0 in oracleMap_oracleCompMap_equiv_modified_calls_gt_i
+
+---------------------
+
+3/14/17 7:18 pm-2:34 am (6 hrs)
+
+
+TODO (goals for thursday's meeting) (goal time: 15 hours)
+
+- figure out 4 remaining issues:
+
+  - eventually pull out external lemma about first elem of blocks not being 0
+
+  - Gi_rf_dups_return_bad_eq (1907)
+
+  - line 4174: well_formed_oc (entire oracleComp expression). TODO email Adam?
+
+  - segment termination proof (1017)
+
+---
+
+<<<<<<< HEAD
+look thru last 3 commits
+- clean up code from last time 
+- look at line 392 in progress file
+
+inspect PRF advantage proof
+- try to prove it / email matt
+- PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
+- line 1423, Gi_prf_rf_close
+
+inspect the collisions proof (with new G2)
+- try to prove it / write out proof steps in prose
+- Gi_rb_bad_collisions, line 4871
+- looking at thesis, what's the high-level idea of the proof?
+- is lemma 4.7 (page 18) even right?
+  the probability that there *is* a collision = pair 1 collides or ... or pair n(n-1)/2 collides <= (by union bound) pr pair 1 collides + ... + pr pair n collides = n(n-1)/2 * 1/2^c <= (for n >= 0) n^2 * 1/2^c
+
+- reading pages 29-30 in thesis... 
+
+Intuitively, we only care about the computation that queries the oracle, which is
+one iteration of GenUpdate oc. We can discard the other calls to GenUpdate oc. By
+the ordering of the hybrid argument, we know that the state coming into this call
+is ideally random. (This was an important reason we picked this hybrid ordering.)
+Thus, we inline GenUpdate oc and replace Gen loop with genRandForEach, since
+we replaced the PRF with ideal randomness. 
+
+G_hybrid_rb_oc_bad_1 is helpful (parametrized by i though)
+
+need to prove that (v||0x00) can never be a duplicate input for that PRF
+
+what is the total number of *inputs*?
+
+- should I look at how adam did a similar version of this proof?
+- what is that QUESTIONABLE on Gi_rb_bad_eq_5?
+- ok, looks like the bound is done, i just need to prove *8* intermediate games. what are they?
+- do we still need A? it should just be numCalls (length maxCallsAndBlocks)
+
+what are the start and end games? 
+which intermediate step(s) are the hardest? 
+which intermediate steps are the easiest?
+
+1 to 2: easy (remove adversary)
+2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0)
+3 to 4: 
+4 to 5: 
+5 to 6: 
+6 to 7: 
+7 to 8: 
+
+TODO: unfold all and finish comments above!
+=======
+- look thru last 3 commits
+- clean up code from last time 
+  - look at line 392 in progress file
+
+- inspect PRF advantage proof
+  - try to prove it / email matt
+  - PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
+
+- inspect the collisions proof (with new G2)
+  - try to prove it / write out proof steps in prose
+
+>>>>>>> 385ec1e81d35eed1cc75899ddaa797095c8448b9
