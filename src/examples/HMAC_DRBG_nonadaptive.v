@@ -4820,23 +4820,142 @@ Proof.
   fcf_spec_ret.
 Qed.
 
+(*---------- Gi_rb_bad_eq_2 (splitting out `i`th call) *)
+Open Scope nat.
+
+Lemma split_out_oracle_call : forall (nCalls : nat) (k v : Bvector eta) (calls i : nat) (init : list (Blist * Bvector eta)),
+   calls <= i ->
+   nCalls > 0 ->
+   comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (calls, (k, v)) (replicate nCalls blocksPerCall)) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle init;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle init;
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+  destruct nCalls as [ | nCalls']; intros; rename H into calls_leq_i.
+  (* nCalls > 0 *)
+  - omega.
+  (* first call *)
+  - Opaque Oi_oc'. Opaque GenUpdate_oc. simplify.
+    assert (Hcalls : calls < i \/ calls = i) by omega.
+    destruct Hcalls.
+    (* either calls < i or calls = i *)
+    (* if calls < i... then the one call doesn't matter, and at some point calls = i, which reduces to the second case *)
+    (* need some kind of induction here? maybe *another* calls < i \/ calls = i? or just induct as-is? *)
+
+    (* if calls = i: then Oi_oc' i simplifies to GenUpdate_oc, and the states should be the same after. 
+       then need to deal with rest of calls: now calls > i. induct, and show that given the same starting rb_oracle state (right side empty), then for a subsequent call, the state doesn't change, so hasInputDups doesn't change ?
+ *)
+    
+    admit.
+
+(* another induction? *)
+
+Admitted.
+
+Lemma test_same_goal : forall (k v : Bvector eta) (i : nat),
+   comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+Admitted.
+
+
+Close Scope nat.
+
 (* only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard *)
 Lemma Gi_rb_bad_eq_2 : forall (i : nat),
     Pr [Gi_rb_bad_no_adv i] == Pr [Gi_rb_bad_only_oracle].
 Proof.
+(* left hand side: RB' RB RB RO PRF PRF...
+   right hand side:          RO            *)
+  (* where RO denotes "random bits oracle" (it's only used in the `i`th call! *)
   intros.
   fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_adv.
   unfold Gi_rb_bad_only_oracle.
-  unfold callMapWith.
+  unfold callMapWith.           (* what is this? get rid of adversary *)
   unfold oracleCompMap_outer.
+  Opaque GenUpdate_oc.
+  Opaque oracleCompMap_inner.
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  rename b into k. rename b0 into v.
+  unfold maxCallsAndBlocks.
+
+  (* pose proof (split_out_oracle_call _ k _). *)
+  (* pose proof (split_out_oracle_call numCalls k v 0%nat i nil). *)
+  (* eapply split_out_oracle_call. *)
+
+  (* pose proof (test_same_goal k v i). *)
+  (* apply H.   *)
+
+  assert (test_same_goal' : 
+               comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state) 
+).
+  { admit. }
+  (* apply test_same_goal'. *)
+  (* TODO unification error?? I can't apply split_out_oracle_call either :-/ *)
+
+  (* Intuitively, what's happening here? *)
+  (* Want to prove: the probability of duplicates in the state is the same for both games. How should I prove that? *)
+  (* Do the k and v matter? They shouldn't, because the oracle has been replaced with RB. But could there be skipping problems?? *)
+  (* Should I do casework on `i`? What else can I do casework or induction on? Maybe induct on a list (the generalized maxCallsAndBlocks), with calls < i? (currently it is 0) and there would be casework on calls < i, calls = i, calls > i. ok, so i should generalize, then add IH and induct on list, then case on i...? the structure is actually quite similar to the proofs i did before about the ith calls. *)
+  (* how to prototype this strategy and check if it will work? first, think through it on "paper" *)
+  (*  *)
+  
   (* unfold oracleCompMap_inner. *)
-  (* simplify. *)
   Transparent Oi_oc'.
   unfold Oi_oc'.
 
-(* left hand side: RB' RB RB RF PRF PRF...
-   right hand side:          RF            *)
   
 Admitted.
 
@@ -4956,6 +5075,7 @@ Proof.
   fcf_skip_eq.
 
 (* it changes from eqdbl to eqdbv? *)
+(* anyway, should be able to reason that all other elements have the same len, so (v''||00) can't be a dup? might need vector info for that *)
   
 Admitted.
 
@@ -4976,14 +5096,14 @@ Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
   intros.
-  rewrite Gi_rb_bad_eq_1.
-  rewrite Gi_rb_bad_eq_2.
-  rewrite Gi_rb_bad_eq_3.
-  rewrite Gi_rb_bad_eq_4.
-  rewrite Gi_rb_bad_eq_5.       (* questionable *)
-  rewrite Gi_rb_bad_eq_6.
-  rewrite Gi_rb_bad_eq_7.
-  rewrite Gi_rb_bad_eq_8.
+  rewrite Gi_rb_bad_eq_1.       (* done *)
+  rewrite Gi_rb_bad_eq_2.       (* TODO hard *)
+  rewrite Gi_rb_bad_eq_3.       (* TODO hard *)
+  rewrite Gi_rb_bad_eq_4.       (* done *)
+  rewrite Gi_rb_bad_eq_5.       (* TODO hard / questionable *)
+  rewrite Gi_rb_bad_eq_6.       (* TODO easy *)
+  rewrite Gi_rb_bad_eq_7.       (* TODO easy *)
+  rewrite Gi_rb_bad_eq_8.       (* TODO easy *)
   unfold Gi_rb_bad_map_inline_v.
   
   Opaque hasDups.

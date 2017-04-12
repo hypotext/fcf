@@ -664,8 +664,6 @@ TODO (goals for thursday's meeting) (goal time: 15 hours)
 
   - line 4174: well_formed_oc (entire oracleComp expression). TODO email Adam?
 
-  - segment termination proof (1017)
-
 ---
 
 look thru last 3 commits
@@ -711,6 +709,15 @@ what are the start and end games?
 which intermediate step(s) are the hardest? 
 which intermediate steps are the easiest?
 the below comments should go inline!
+
+there's also the possibility that one or more of the games is wrong or too difficult, and i might have to change games or add more intermediate games, or even delete a game if it's easier to skip it.
+
+therefore, i should try to tackle them in order
+well, the end game is fixed, because i already applied dupProb. 
+i should tackle the most important one: only the ith call (and it's early)
+
+what did adam do? what can i reuse? TODO look at his proof
+there's a lot of stuff (main theorem PRF_DRBG_G3_G4_close) including reasoning about permutations...
 
 1 to 2: remove adversary (easy?) // DONE
 2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard
