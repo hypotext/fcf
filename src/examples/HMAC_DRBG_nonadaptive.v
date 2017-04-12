@@ -91,8 +91,10 @@ Section PRG.
 
   (* note: the domain of the f is now Blist, not an abstract D
 the key type is now also Bvector eta, since HMAC specifies that the key has the same size as the output (simplified) *)
-Variable eta : nat.
-(* Definition eta:=256%nat. *) (* coq gets stuck on an fcf_skip around line 256 *)
+(* Variable eta : nat. *)
+Definition eta:=1%nat.
+Opaque eta.
+(* coq gets stuck on an fcf_skip around line 256 *)
 
 (* Variable RndK : Comp (Bvector eta). *)
 (* Variable RndV : Comp (Bvector eta). *)
@@ -4824,8 +4826,9 @@ Qed.
 (*---------- Gi_rb_bad_eq_2 (splitting out `i`th call) *)
 Open Scope nat.
 
-Lemma split_out_oracle_call : forall (nCalls : nat) (k v : Bvector eta) (calls i : nat) (init : list (Blist * Bvector eta)),
-   calls <= i ->
+Lemma split_out_oracle_call : forall (nCalls : nat) (k v : Bvector eta) (callsSoFar i : nat)
+                                     (init : list (Blist * Bvector eta)),
+   callsSoFar <= i ->
    nCalls > 0 ->
    comp_spec eq
      (a <-$
@@ -4833,7 +4836,7 @@ Lemma split_out_oracle_call : forall (nCalls : nat) (k v : Bvector eta) (calls i
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (calls, (k, v)) (replicate nCalls blocksPerCall)) (list (Blist * Bvector eta))
+         (callsSoFar, (k, v)) (replicate nCalls blocksPerCall)) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle init;
       a0 <-$
       ([z, s']<-2 a;
@@ -4850,10 +4853,18 @@ Proof.
   (* nCalls > 0 *)
   - omega.
   (* first call *)
-  - Opaque Oi_oc'. Opaque GenUpdate_oc. simplify.
-    assert (Hcalls : calls < i \/ calls = i) by omega.
-    destruct Hcalls.
+  - Opaque Oi_oc'. Opaque GenUpdate_oc. 
     (* either calls < i or calls = i *)
+    remember (S nCalls') as totalCalls.
+    clear HeqtotalCalls.
+
+
+
+    assert (Hcalls : callsSoFar < i \/ callsSoFar = i) by omega.
+    destruct Hcalls.
+    +
+
+
     (* if calls < i... then the one call doesn't matter, and at some point calls = i, which reduces to the second case *)
     (* need some kind of induction here? maybe *another* calls < i \/ calls = i? or just induct as-is? *)
 
@@ -5051,7 +5062,8 @@ Proof.
   rename b into k. rename b0 into v.
   unfold maxCallsAndBlocks.
 
-  apply eqt3.
+Transparent eta.           (* *** TODO revert eta to a variable *)
+  (* apply eqt3. *)
 (* Print Implicit split_out_oracle_call. *)
 
   assert (0 <= i)%nat by omega.
@@ -5069,51 +5081,51 @@ Proof.
                comp_spec eq
      (a <-$
       (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbvn))
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbvn)) (Oi_oc' i) 
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
          (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector etn)) (list_EqDec (pair_EqDec eqdbl eqdbvn))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
         rb_oracle nil;
       a0 <-$
       ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector etn))
-         (list_EqDec (pair_EqDec eqdbl eqdbvn)) rb_oracle s');
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
       [_, state]<-2 z; ret hasInputDups state)
      (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector etn))
-        (list_EqDec (pair_EqDec eqdbl eqdbvn)) rb_oracle nil;
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
       [_, state]<-2 z; ret hasInputDups state) 
 ).
   { admit. }
   assert (test_same_goal2 : 
    @comp_spec bool bool bool_EqDec bool_EqDec (@eq bool)
      (a <-$
-      (@oracleCompMap_inner nat (list (Bvector etn)) Blist 
-         (Bvector etn)
-         (@pair_EqDec (list (list (Bvector etn))) (nat * KV)
-            (@list_EqDec (list (Bvector etn))
-               (@list_EqDec (Bvector etn) eqdbvn))
+      (@oracleCompMap_inner nat (list (Bvector eta)) Blist 
+         (Bvector eta)
+         (@pair_EqDec (list (list (Bvector eta))) (nat * KV)
+            (@list_EqDec (list (Bvector eta))
+               (@list_EqDec (Bvector eta) eqdbv))
             (@pair_EqDec nat KV nat_EqDec eqDecState))
-         (@list_EqDec (list (Bvector etn)) (@list_EqDec (Bvector etn) eqdbvn))
+         (@list_EqDec (list (Bvector eta)) (@list_EqDec (Bvector eta) eqdbv))
          (Oi_oc' i) (0%nat, (k, v)) (@replicate nat numCalls blocksPerCall))
-        (list (Blist * Bvector etn))
-        (@list_EqDec (Blist * Bvector etn)
-           (@pair_EqDec Blist (Bvector etn) eqdbl eqdbvn)) rb_oracle
-        (@nil (Blist * Bvector etn));
+        (list (Blist * Bvector eta))
+        (@list_EqDec (Blist * Bvector eta)
+           (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle
+        (@nil (Blist * Bvector eta));
       a0 <-$
       ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector etn))
-         (@list_EqDec (Blist * Bvector etn)
-            (@pair_EqDec Blist (Bvector etn) eqdbl eqdbvn)) rb_oracle s');
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (@list_EqDec (Blist * Bvector eta)
+            (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle s');
       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
       [_, state]<-2 z; ret hasInputDups state)
      (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector etn))
-        (@list_EqDec (Blist * Bvector etn)
-           (@pair_EqDec Blist (Bvector etn) eqdbl eqdbvn)) rb_oracle
-        (@nil (Blist * Bvector etn)); [_, state]<-2 z; ret hasInputDups state)).
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (@list_EqDec (Blist * Bvector eta)
+           (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle
+        (@nil (Blist * Bvector eta)); [_, state]<-2 z; ret hasInputDups state)).
   { admit. }
   Print Ltac fcf_to_prhl_eq.
   Check comp_spec_eq_impl_eq.
@@ -5124,21 +5136,21 @@ Proof.
 
   Print Implicit (a <-$
       (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbvn))
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbvn)) (Oi_oc' i) 
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
          (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector etn)) (list_EqDec (pair_EqDec eqdbl eqdbvn))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
         rb_oracle nil;
       a0 <-$
       ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector etn))
-         (list_EqDec (pair_EqDec eqdbl eqdbvn)) rb_oracle s');
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
       [_, state]<-2 z; ret hasInputDups state)
      (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector etn))
-        (list_EqDec (pair_EqDec eqdbl eqdbvn)) rb_oracle nil;
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
       [_, state]<-2 z; ret hasInputDups state).
 
   (* apply test_same_goal'. *)
@@ -5157,6 +5169,7 @@ Proof.
 
   
 Admitted.
+Opaque eta.
 
 (* get rid of oracle computation, transform GenUpdate_oc to GenUpdate_rb_inputs with hasDups on key and Vs explicitly
  ** hard? *)
