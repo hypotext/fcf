@@ -4826,7 +4826,7 @@ Qed.
 (*---------- Gi_rb_bad_eq_2 (splitting out `i`th call) *)
 Open Scope nat.
 
-Lemma split_out_oracle_call : forall (listLen : nat) (k v : Bvector eta) (callsSoFar i : nat)
+Lemma split_out_oracle_call : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i : nat)
                                      (init : list (Blist * Bvector eta)),
    callsSoFar <= i ->
    listLen > 0 ->
@@ -4845,7 +4845,7 @@ Lemma split_out_oracle_call : forall (listLen : nat) (k v : Bvector eta) (callsS
       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
       [_, state]<-2 z; ret hasInputDups state)
      (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+      (GenUpdate_oc (k1, v1) blocksPerCall) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle init;
       [_, state]<-2 z; ret hasInputDups state).
 Proof.
@@ -4898,51 +4898,101 @@ Proof.
 
       (* ugh, IH wants k and v to be the same, but they don't matter? should I generalize IH? *)
       (* still need to get rid of list nonempty somehow? *)
-      eapply IHlistLen'.
-
-      (* ---- *)
-
-      Ltac spec_swap := eapply comp_spec_symm.
-      rewrite_l.
-      spec_swap.
-      SearchAbout (fun x y => _ = _).
-      eapply IHlistLen'.
-      apply calls_leq_i.
-      admit.                    (* uh oh. can't have that in IH *)
-
-      prog_equiv.
-    (* difference between S callsSoFar and callsSoFar, v and b .... ??? *)
+      eapply IHlistLen'. omega.
       admit.
 
-      fcf_spec_ret.
 
     (* callsSoFar = i: then after the first call, S callsSoFar > i *)
     (* apply separate lemma for calls = i, which inducts and applies another lemma for calls > i *)
     + rewrite HeqlistLen.
       simplify.
-      fcf_skip.
+      (* fcf_skip. *)
       (* postcondition: (k,v) and init same afterward *)
       (*  "(list (Bvector eta) * KV * list (Blist * Bvector eta))%type" with
  "(list (Bvector eta) * (nat * KV) * list (Blist * Bvector eta))%type". *)
-      instantiate (1 := (fun x y => snd x = snd y (* oracle state eq *)
-                                    /\ snd x = init (* and don't change *)
-                                    /\ fst (fst x) = fst (fst y) (* sampled bits eq--doesn't matter though *)
-                                    /\ snd (snd (fst x)) = snd (fst y) (* KV eq *)
-                                    /\ fst (snd (fst x)) = S callsSoFar (* calls increases by 1 *)
-                  )).
-      { admit. }
+    (*   instantiate (1 := (fun x y => snd x = snd y (* oracle state eq *) *)
+    (*                                 /\ snd x = init (* and don't change *) *)
+    (*                                 /\ fst (fst x) = fst (fst y) (* sampled bits eq--doesn't matter though *) *)
+    (*                                 /\ snd (snd (fst x)) = snd (fst y) (* KV eq *) *)
+    (*                                 /\ fst (snd (fst x)) = S callsSoFar (* calls increases by 1 *) *)
+    (*               )). *)
+    (*   { admit. } *)
 
-      simpl in *. breakdown H2.
-      simplify.
-      simpl in *. subst.
-    (* how can the IH work? there's no call on the right. I need a different induction--same as in calls > i, possibly *)
-      destruct p as [bits [k' v']].
-      simplify.
+    (*   simpl in *. breakdown H2. *)
+    (*   simplify. *)
+    (*   simpl in *. subst. *)
+    (* (* how can the IH work? there's no call on the right. I need a different induction--same as in calls > i, possibly *) *)
+    (*   destruct p as [bits [k' v']]. *)
+    (*   simplify. *)
 
       (* generalized induction: calls (here = S i) > i -> init rb_oracle states same -> they remain the same *)
       
       admit.
 Qed.
+
+Open Scope nat.
+Lemma split_out_oracle_call' : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i : nat)
+                                     (init : list (Blist * Bvector eta)),
+  comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+
+Admitted.
+Close Scope nat.
+
+SearchAbout hasDups.
+Print GenUpdate_noV_oc.
+Print GenUpdate_oc.
+
+    (* the problem is that: if i > 0, then the first call on the left doesn't use the RB. and the list subsequently may be empty, so nobody uses the RB, and the hasDups isn't the same across left and right.
+
+solution: well, the list subsequently CANNOT be empty because i > 0 -> len (subsequent list) > 0 -> destruct it and inversion the (len = 0) case
+
+- what then? induction? where and how?
+
+- where do we get the assumption 'i > 0 -> len (subsequent list) > 0'? 
+we know that 0 <= i <= numCalls
+(i = numCalls -> the oracle is never used -> no collision)
+(i = 0 -> the oracle is used in noV)
+(all other values of i -> the oracle is used on one call normally)
+
+solution: I need to change genUpdate_oc to case on i and do noV if i=0
+thus, all subsequent games need to deal with noV, either by casing or by bounding probability of dups. how? 
+i don't want to do all the game equivalence proofs twice! is there some way i can reuse my work?
+need to figure out how i would do (Pr[hasDups noV] <= Pr[hasDups normal])
+is there a lemma about (hasDups l <= hasDups (x :: l)), or hasDups l <= hasDups l' when l < l' and both are unif rand samp?
+even so, I would still have to get noV down to the hasDups point, which would require duplicating so many equivalence proofs
+maybe I can prove it about GenUpdate_noV and add on GenUpdate's one update later?? to hasDups
+proving about GenUpdate_noV would be a common lemma--but how would I apply it to the structure of GenUpdate_oc?
+>> TODO i guess i'll punt it for now...
+
+or, I can just do the proofs for the "happy path," and figure out how I'd reuse them later...
+
+solution: (WRT the `i` assumption problem)
+how do I get that information here? do I need it?
+if I have that information here, how do I use it, and would it work? 
+   >> TODO need to test that
+solution: do casework in collision bound *first* before starting game equivalence proofs. then all subsequent game eq proofs remain the same, but they can use the additional assumption on i-being-bounded if they need to. TODO do that
+  in collision bound, i can just do casework locally, since i >= numCalls means a collision probability of 0
+
+TODO: what order should I do things in?   *)
 
 Lemma test_same_goal : forall (k v : Bvector eta) (i : nat),
    comp_spec eq
@@ -5061,8 +5111,12 @@ Qed.
 (* Definition etn := 1%nat. *)
 (* Variable eqdbvn : EqDec (Bvector etn). *)
 
+Open Scope nat.
+
 (* same goal as Gi_rb_bad_eq_2 *)
 Lemma eqt3 : forall k v i,
+    i >= 0 ->
+    i < numCalls ->
    comp_spec eq
      (a <-$
       (oracleCompMap_inner
@@ -5083,8 +5137,58 @@ Lemma eqt3 : forall k v i,
         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
       [_, state]<-2 z; ret hasInputDups state).
 Proof.
-  intros.
-  apply split_out_oracle_call; omega.
+  intros k v i i_gt_0 i_lte_numcalls.
+  (* HAVE TO destruct first, so it's nonempty *)
+
+  destruct numCalls as [ | numCalls'].
+  (* contradiction, since numCalls > 0 *)
+  - omega.
+  - Opaque Oi_oc'. Opaque GenUpdate_oc.
+    simplify.
+    (* ok, now induct on next list? *)
+    (* base case: next list empty (impossible because ...) *)
+    (* but would `i < numCalls` cause trouble in the induction hypothesis? then i would have to prove `i < numcalls'` *)
+    (* unless I can separate the variables?? *)
+
+    assert (Hcalls : i > 0 \/ i = 0) by omega.
+    destruct Hcalls as [ calls_lt_i | calls_eq_i ].
+    (* i > 0 *)
+    + (* the first call doesn't add anything to the state *)
+      (* and the rest of the list must be nonempty, because i > 0 -> length list > 1 *)
+      (* induction? rest of list nonempty -> split out first call -> apply IH? when do i induct? now? earlier? *)
+      (* the question is, how many hybrids are there? here, there are `numCalls` hybrids. is the number of hybrids off by one? G1 -> i = 0, G2 -> i = n? why isn't it (n-1)? *)
+      destruct numCalls' as [ | numCalls''].
+      (* succeeding list is empty -> contradiction *)
+      { omega. } 
+      (* now the succeeding list is nonempty *)
+      {
+        (* induction? *)
+        Transparent Oi_oc'.
+        simplify.
+        destruct (lt_dec 0 i).
+        Focus 2. omega.
+        simplify.
+        fcf_irr_l. simplify. fcf_irr_l. admit.
+        Opaque Oi_oc'.
+        simplify. 
+
+        (* TODO could I have inducted (with generalization) earlier? do i *need* that calls = 0? if not, split it out *)
+
+        (* destruct (lt_dec 1 i). *)
+        (* (* 1 < i -> i > 1 *) *)
+        (* Focus 2. omega. *)
+        admit.
+      }
+
+    (* i = 0 *)
+    + (* first call uses oracle -> split off -> induction on rest of list (doesn't matter if empty) *)
+      admit.
+Qed.
+
+(* ------- *)
+(* from eqt3 *)
+  (* apply split_out_oracle_call; omega. *)
+
   (* the lemma that I want to apply works here, but not in the context at Gi_rb_bad_eq_2 *)
   (* I can also apply the goal to itself here as a lemma and it works, but again not in the context of Gi_rb_bad_eq_2 *)
 (* assert (H :    comp_spec eq *)
@@ -5108,7 +5212,6 @@ Proof.
 (*       [_, state]<-2 z; ret hasInputDups state)). *)
 (* { admit. } *)
 (* apply H. *)
-Qed.
 
 (* only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard *)
 Lemma Gi_rb_bad_eq_2 : forall (i : nat),
