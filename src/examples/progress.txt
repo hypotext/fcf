@@ -664,11 +664,8 @@ TODO (goals for thursday's meeting) (goal time: 15 hours)
 
   - line 4174: well_formed_oc (entire oracleComp expression). TODO email Adam?
 
-  - segment termination proof (1017)
-
 ---
 
-<<<<<<< HEAD
 look thru last 3 commits
 - clean up code from last time 
 - look at line 392 in progress file
@@ -677,6 +674,9 @@ inspect PRF advantage proof
 - try to prove it / email matt
 - PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
 - line 1423, Gi_prf_rf_close
+
+see definition of max over a list here (maximum): 
+http://jmlcoq.info/formalization/ListFunctions.html
 
 inspect the collisions proof (with new G2)
 - try to prove it / write out proof steps in prose
@@ -708,26 +708,30 @@ what is the total number of *inputs*?
 what are the start and end games? 
 which intermediate step(s) are the hardest? 
 which intermediate steps are the easiest?
+the below comments should go inline!
 
-1 to 2: easy (remove adversary)
-2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0)
-3 to 4: 
-4 to 5: 
-5 to 6: 
-6 to 7: 
-7 to 8: 
+there's also the possibility that one or more of the games is wrong or too difficult, and i might have to change games or add more intermediate games, or even delete a game if it's easier to skip it.
 
-TODO: unfold all and finish comments above!
-=======
-- look thru last 3 commits
-- clean up code from last time 
-  - look at line 392 in progress file
+therefore, i should try to tackle them in order
+well, the end game is fixed, because i already applied dupProb. 
+i should tackle the most important one: only the ith call (and it's early)
 
-- inspect PRF advantage proof
-  - try to prove it / email matt
-  - PRF_Advantage_i := PRF_Advantage 0 but should really be (exists i, PRF_Advantage i) (how do I define that?) or `max [PRF_Advantage 0, ..., PRF_Advantage n]
+what did adam do? what can i reuse? TODO look at his proof
+there's a lot of stuff (main theorem PRF_DRBG_G3_G4_close) including reasoning about permutations...
 
-- inspect the collisions proof (with new G2)
-  - try to prove it / write out proof steps in prose
+1 to 2: remove adversary (easy?) // DONE
+2 to 3: only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard
+3 to 4: get rid of oracle computation, transform GenUpdate_oc to GenUpdate_rb_inputs with hasDups on key and Vs explicitly ** hard?
+4 to 5: get rid of k: never used as an input, and its output doesn't matter // DONE
+5 to 6: go from GenUpdate* and Gen_loop* to compMap ** hard?
+6 to 7: inline v' sample into compMap (easy?)
+7 to 8: get rid of key input (length-extended = no collisions) (easy?)
+8 to 9: inline v-sampling into compMap (easy?)
 
->>>>>>> 385ec1e81d35eed1cc75899ddaa797095c8448b9
+----
+
+- write up key idea from the proof before i forget it!
+  - the GenUpdate_rb_intermediate has v-sampling and using-the-last-v (to mirror GenUpdate_PRF) but *not* k-sampling
+  - i guess the key idea was to use tricky induction hyp (that includes k-sampling) to remove k-sampling only
+  - v-sampling is removed later w/ different (weaker) postcondition on G2
+  - still a minor problem since on the first call, v is not sampled, so if calls=0 then the last v (which is different) is output, but that doesn't matter

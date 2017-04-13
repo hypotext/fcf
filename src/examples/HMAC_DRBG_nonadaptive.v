@@ -91,7 +91,10 @@ Section PRG.
 
   (* note: the domain of the f is now Blist, not an abstract D
 the key type is now also Bvector eta, since HMAC specifies that the key has the same size as the output (simplified) *)
-Variable eta : nat.
+(* Variable eta : nat. *)
+Definition eta:=1%nat.
+Opaque eta.
+(* coq gets stuck on an fcf_skip around line 256 *)
 
 (* Variable RndK : Comp (Bvector eta). *)
 (* Variable RndV : Comp (Bvector eta). *)
@@ -4786,6 +4789,7 @@ Definition Gi_rb_bad_map_inline_v : Comp bool :=
   bits <-$ compMap (Bvector_EqDec eta) (fun _ => {0,1}^eta) (forNats (S blocksPerCall)); 
   ret (hasDups (Bvector_EqDec eta) bits).
 
+Opaque hasDups.
 (* some of these inlinings can probably be done better in a different order or simultaneously *)
 
 (* todo: get it to a point where I can apply Adam's lemma with a different size *)
@@ -4803,71 +4807,500 @@ Definition Gi_rb_bad_map_inline_v : Comp bool :=
 - can i even instantiate his module's types? *)
 
 (* TODO: write that these games have the same probability, then rewrite below *)
-(* should be easy *)
+
+(* DONE *)
+(* remove adversary (easy) *)
 Lemma Gi_rb_bad_eq_1 : forall (i : nat),
-    Pr [x <-$ Gi_rb_bad i; ret snd x] = Pr [Gi_rb_bad_no_adv i].
+    Pr [x <-$ Gi_rb_bad i; ret snd x] == Pr [Gi_rb_bad_no_adv i].
 Proof.
   intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad.
   unfold Gi_rb_bad_no_adv.
-Admitted.  
+  prog_equiv.
+  fcf_irr_l.
+  prog_equiv.
+  fcf_spec_ret.
+Qed.
 
-Lemma Gi_rb_bad_eq_2 : forall (i : nat),
-    Pr [Gi_rb_bad_no_adv i] = Pr [Gi_rb_bad_only_oracle].
+(*---------- Gi_rb_bad_eq_2 (splitting out `i`th call) *)
+Open Scope nat.
+
+Lemma split_out_oracle_call : forall (nCalls : nat) (k v : Bvector eta) (callsSoFar i : nat)
+                                     (init : list (Blist * Bvector eta)),
+   callsSoFar <= i ->
+   nCalls > 0 ->
+   comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (callsSoFar, (k, v)) (replicate nCalls blocksPerCall)) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle init;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle init;
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+  destruct nCalls as [ | nCalls']; intros; rename H into calls_leq_i.
+  (* nCalls > 0 *)
+  - omega.
+  (* first call *)
+  - Opaque Oi_oc'. Opaque GenUpdate_oc. 
+    (* either calls < i or calls = i *)
+    remember (S nCalls') as totalCalls.
+    clear HeqtotalCalls.
+
+
+
+    assert (Hcalls : callsSoFar < i \/ callsSoFar = i) by omega.
+    destruct Hcalls.
+    +
+
+
+    (* if calls < i... then the one call doesn't matter, and at some point calls = i, which reduces to the second case *)
+    (* need some kind of induction here? maybe *another* calls < i \/ calls = i? or just induct as-is? *)
+
+    (* if calls = i: then Oi_oc' i simplifies to GenUpdate_oc, and the states should be the same after. 
+       then need to deal with rest of calls: now calls > i. induct, and show that given the same starting rb_oracle state (right side empty), then for a subsequent call, the state doesn't change, so hasInputDups doesn't change ?
+ *)
+    
+    admit.
+
+(* another induction? *)
+
+Admitted.
+
+Lemma test_same_goal : forall (k v : Bvector eta) (i : nat),
+   comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle (@nil (Blist * Bvector eta));
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+Admitted.
+
+Close Scope nat.
+
+Lemma eqt1 : forall k v,
+    comp_spec eq
+              (z <-$
+                 (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+                 (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+               [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state).
 Proof.
   intros.
-  (* fcf_to_prhl_eq. *)
-  (* ??? *)
+  assert (H :    comp_spec eq
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state)). { admit. }
+  apply H.                                                 
+Qed.
+
+Lemma eqt2 : forall k v i,
+   comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+  intros.
+  assert (H :    comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)). { admit. }
+  apply H.
+Qed.                                                 
+
+(* Check eqdbv. *)
+(* Definition etn := 1%nat. *)
+(* Variable eqdbvn : EqDec (Bvector etn). *)
+
+Lemma eqt3 : forall k v i,
+   comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state).
+Proof.
+intros.
+assert (H :    comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state)).
+{ admit. }
+apply H.
+Qed.
+
+(* only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard *)
+Lemma Gi_rb_bad_eq_2 : forall (i : nat),
+    Pr [Gi_rb_bad_no_adv i] == Pr [Gi_rb_bad_only_oracle].
+Proof.
+(* left hand side: RB' RB RB RO PRF PRF...
+   right hand side:          RO            *)
+  (* where RO denotes "random bits oracle" (it's only used in the `i`th call! *)
+  (* Set Printing Implicit. *)
+  intros.
+  fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_adv.
   unfold Gi_rb_bad_only_oracle.
-  unfold callMapWith.
+  unfold callMapWith.           (* what is this? get rid of adversary *)
   unfold oracleCompMap_outer.
+  (* Opaque GenUpdate_oc. *)
+  (* Opaque oracleCompMap_inner. *)
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  rename b into k. rename b0 into v.
+  unfold maxCallsAndBlocks.
+
+Transparent eta.           (* *** TODO revert eta to a variable *)
+  (* apply eqt3. *)
+(* Print Implicit split_out_oracle_call. *)
+
+  assert (0 <= i)%nat by omega.
+  pose proof (@split_out_oracle_call numCalls k v 0%nat i nil H H_numCalls).
+
+  (* Set Printing Implicit. *)
+  (* eapply H0. *)
+
+  (* eapply split_out_oracle_call. *)
+
+  (* pose proof (test_same_goal k v i). *)
+  (* apply H.   *)
+
+  assert (test_same_goal' : 
+               comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state) 
+).
+  { admit. }
+  assert (test_same_goal2 : 
+   @comp_spec bool bool bool_EqDec bool_EqDec (@eq bool)
+     (a <-$
+      (@oracleCompMap_inner nat (list (Bvector eta)) Blist 
+         (Bvector eta)
+         (@pair_EqDec (list (list (Bvector eta))) (nat * KV)
+            (@list_EqDec (list (Bvector eta))
+               (@list_EqDec (Bvector eta) eqdbv))
+            (@pair_EqDec nat KV nat_EqDec eqDecState))
+         (@list_EqDec (list (Bvector eta)) (@list_EqDec (Bvector eta) eqdbv))
+         (Oi_oc' i) (0%nat, (k, v)) (@replicate nat numCalls blocksPerCall))
+        (list (Blist * Bvector eta))
+        (@list_EqDec (Blist * Bvector eta)
+           (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle
+        (@nil (Blist * Bvector eta));
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (@list_EqDec (Blist * Bvector eta)
+            (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (@list_EqDec (Blist * Bvector eta)
+           (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle
+        (@nil (Blist * Bvector eta)); [_, state]<-2 z; ret hasInputDups state)).
+  { admit. }
+  Print Ltac fcf_to_prhl_eq.
+  Check comp_spec_eq_impl_eq.
+  eapply test_same_goal2.
+
+  (* Print Implicit test_same_goal. *)
+  eapply test_same_goal'.
+
+  Print Implicit (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle nil;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
+      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
+      [_, state]<-2 z; ret hasInputDups state)
+     (z <-$
+      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
+      [_, state]<-2 z; ret hasInputDups state).
+
+  (* apply test_same_goal'. *)
+  (* TODO unification error?? I can't apply split_out_oracle_call either :-/ *)
+
+  (* Intuitively, what's happening here? *)
+  (* Want to prove: the probability of duplicates in the state is the same for both games. How should I prove that? *)
+  (* Do the k and v matter? They shouldn't, because the oracle has been replaced with RB. But could there be skipping problems?? *)
+  (* Should I do casework on `i`? What else can I do casework or induction on? Maybe induct on a list (the generalized maxCallsAndBlocks), with calls < i? (currently it is 0) and there would be casework on calls < i, calls = i, calls > i. ok, so i should generalize, then add IH and induct on list, then case on i...? the structure is actually quite similar to the proofs i did before about the ith calls. *)
+  (* how to prototype this strategy and check if it will work? first, think through it on "paper" *)
+  (*  *)
+  
   (* unfold oracleCompMap_inner. *)
-  (* simplify. *)
   Transparent Oi_oc'.
   unfold Oi_oc'.
 
-(* left hand side: RB' RB RB RF PRF PRF...
-   right hand side:          RF            *)
+  
+Admitted.
+Opaque eta.
+
+(* get rid of oracle computation, transform GenUpdate_oc to GenUpdate_rb_inputs with hasDups on key and Vs explicitly
+ ** hard? *)
+(* note: no nat *)
+Lemma Gi_rb_bad_eq_3 : 
+  Pr [Gi_rb_bad_only_oracle] == Pr [Gi_rb_bad_no_oracle].
+Proof.
+  intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_only_oracle.
+  unfold Gi_rb_bad_no_oracle.
   
 Admitted.
 
-(* note: no nat *)
-Lemma Gi_rb_bad_eq_3 : 
-    Pr [Gi_rb_bad_only_oracle] = Pr [Gi_rb_bad_no_oracle].
-Proof.
-  intros.
-Admitted.
+Lemma well_formed_RndK : well_formed_comp RndK.
+Proof. unfold RndK. fcf_well_formed. Qed.
 
-(* no k *)
+Lemma well_formed_RndV : well_formed_comp RndV.
+Proof. unfold RndV. fcf_well_formed. Qed.
+
+Ltac wfk := apply well_formed_RndK.
+Ltac wfv := apply well_formed_RndV.
+
+(* DONE *)
+(* get rid of k: never used as an input, and its output doesn't matter (easy?) *)
+(* just bash way thru--need to line up the skips right *)
 Lemma Gi_rb_bad_eq_4 : 
-    Pr [Gi_rb_bad_no_oracle] = Pr [Gi_rb_bad_no_k].
+  Pr [Gi_rb_bad_no_oracle] == Pr [Gi_rb_bad_no_k].
 Proof.
   intros.
-Admitted.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_no_oracle.
+  unfold Gi_rb_bad_no_k.
+  unfold Instantiate.
+  simplify.
+  fcf_irr_l. wfk.
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  unfold GenUpdate_rb_no_k.
+  simplify.
+  fcf_skip_eq.
+  simplify.
+  fcf_skip_eq.
+  {
+    clear H.
+    revert blocksPerCall a a1.
+    induction blocksPerCall as [ | blocks']; intros.
+    - simplify. fcf_spec_ret.
+    - simplify. fcf_skip_eq. fcf_skip_eq.
+  }
+  simplify.
+  fcf_irr_l.
+  simplify.
+  fcf_spec_ret.
+Qed.
 
+(* go from GenUpdate* and Gen_loop* to compMap ** hard? *)
 Lemma Gi_rb_bad_eq_5 : 
-    Pr [Gi_rb_bad_no_k] = Pr [Gi_rb_bad_map].
+  Pr [Gi_rb_bad_no_k] == Pr [Gi_rb_bad_map].
 Proof.
   intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_no_k.
+  unfold Gi_rb_bad_map.
+  unfold GenUpdate_rb_no_k.
+(* unfold Gen_loop_rb_no_k. *)
+(* fcf_to_prhl. *)
+
 Admitted.
 
+(* inline v' sample into compMap (easy?) *)
 Lemma Gi_rb_bad_eq_6 : 
-    Pr [Gi_rb_bad_map] = Pr [Gi_rb_bad_map_inline].
+  Pr [Gi_rb_bad_map] == Pr [Gi_rb_bad_map_inline].
 Proof.
   intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_map.
+  unfold Gi_rb_bad_map_inline.
+  fcf_skip_eq.
+
+  (* did adam do this proof? could be annoying b/c v' appears in hasDups *)
+  
+  apply comp_spec_eq_symm.
+  rewrite_r.
+  (* get first two lines together *)
+  instantiate (1 :=
+                 (res <-$ (v' <-$ { 0 , 1 }^eta;
+                          bits <-$
+                               compMap eqdbv (fun _ : nat => { 0 , 1 }^eta)
+                               (forNats (blocksPerCall - 1));
+                          ret (v', bits));
+                  [v', bits] <-2 res;
+                  v'' <-$ { 0 , 1 }^eta;
+                  ret hasDups eqdbl
+                      ((to_list v'' ++ zeroes)
+                         :: to_list a
+                         :: to_list v'
+                         :: map (fun v : Vector.t bool eta => to_list v) bits))).
+  { prog_equiv. fcf_spec_ret. }
+
+  fcf_skip.
+
 Admitted.
 
+(* get rid of key input (length-extended = no collisions) (easy?) *)
 Lemma Gi_rb_bad_eq_7 : 
-    Pr [Gi_rb_bad_map_inline] = Pr [Gi_rb_bad_map_no_keyinput].
+  Pr [Gi_rb_bad_map_inline] == Pr [Gi_rb_bad_map_no_keyinput].
 Proof.
   intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_map_inline.
+  unfold Gi_rb_bad_map_no_keyinput.
+  fcf_skip_eq.
+  fcf_skip_eq.
+
+(* it changes from eqdbl to eqdbv? *)
+(* anyway, should be able to reason that all other elements have the same len, so (v''||00) can't be a dup? might need vector info for that *)
+  
 Admitted.
 
+(* inline v-sampling into compMap (easy?) *)
 Lemma Gi_rb_bad_eq_8 : 
-    Pr [Gi_rb_bad_map_no_keyinput] = Pr [Gi_rb_bad_map_inline_v].
+  Pr [Gi_rb_bad_map_no_keyinput] == Pr [Gi_rb_bad_map_inline_v].
 Proof.
   intros.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_map_no_keyinput.
+  unfold Gi_rb_bad_map_inline_v.
+
+
 Admitted.
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
@@ -4875,14 +5308,14 @@ Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
   intros.
-  rewrite Gi_rb_bad_eq_1.
-  rewrite Gi_rb_bad_eq_2.
-  rewrite Gi_rb_bad_eq_3.
-  rewrite Gi_rb_bad_eq_4.
-  rewrite Gi_rb_bad_eq_5.       (* questionable *)
-  rewrite Gi_rb_bad_eq_6.
-  rewrite Gi_rb_bad_eq_7.
-  rewrite Gi_rb_bad_eq_8.
+  rewrite Gi_rb_bad_eq_1.       (* done *)
+  rewrite Gi_rb_bad_eq_2.       (* TODO hard *)
+  rewrite Gi_rb_bad_eq_3.       (* TODO hard *)
+  rewrite Gi_rb_bad_eq_4.       (* done *)
+  rewrite Gi_rb_bad_eq_5.       (* TODO hard / questionable *)
+  rewrite Gi_rb_bad_eq_6.       (* TODO easy *)
+  rewrite Gi_rb_bad_eq_7.       (* TODO easy *)
+  rewrite Gi_rb_bad_eq_8.       (* TODO easy *)
   unfold Gi_rb_bad_map_inline_v.
   
   Opaque hasDups.
