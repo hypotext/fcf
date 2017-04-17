@@ -4994,123 +4994,6 @@ solution: do casework in collision bound *first* before starting game equivalenc
 
 TODO: what order should I do things in?   *)
 
-Lemma test_same_goal : forall (k v : Bvector eta) (i : nat),
-   comp_spec eq
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle (@nil (Blist * Bvector eta));
-      [_, state]<-2 z; ret hasInputDups state).
-Proof.
-Admitted.
-
-Close Scope nat.
-
-Lemma eqt1 : forall k v,
-    comp_spec eq
-              (z <-$
-                 (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-                 (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-               [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state).
-Proof.
-  intros.
-  assert (H :    comp_spec eq
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state)). { admit. }
-  apply H.                                                 
-Qed.
-
-Lemma eqt2 : forall k v i,
-   comp_spec eq
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state).
-Proof.
-  intros.
-  assert (H :    comp_spec eq
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)). { admit. }
-  apply H.
-Qed.                                                 
-
-(* Check eqdbv. *)
-(* Definition etn := 1%nat. *)
-(* Variable eqdbvn : EqDec (Bvector etn). *)
-
 Open Scope nat.
 
 (* same goal as Gi_rb_bad_eq_2 *)
@@ -5189,30 +5072,6 @@ Qed.
 (* from eqt3 *)
   (* apply split_out_oracle_call; omega. *)
 
-  (* the lemma that I want to apply works here, but not in the context at Gi_rb_bad_eq_2 *)
-  (* I can also apply the goal to itself here as a lemma and it works, but again not in the context of Gi_rb_bad_eq_2 *)
-(* assert (H :    comp_spec eq *)
-(*      (a <-$ *)
-(*       (oracleCompMap_inner *)
-(*          (pair_EqDec (list_EqDec (list_EqDec eqdbv)) *)
-(*             (pair_EqDec nat_EqDec eqDecState)) *)
-(*          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i)  *)
-(*          (0%nat, (k, v)) (replicate numCalls blocksPerCall)) *)
-(*         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv)) *)
-(*         rb_oracle nil; *)
-(*       a0 <-$ *)
-(*       ([z, s']<-2 a; *)
-(*        ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta)) *)
-(*          (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s'); *)
-(*       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s')); *)
-(*       [_, state]<-2 z; ret hasInputDups state) *)
-(*      (z <-$ *)
-(*       (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta)) *)
-(*         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil; *)
-(*       [_, state]<-2 z; ret hasInputDups state)). *)
-(* { admit. } *)
-(* apply H. *)
-
 (* only the ith call with GenUpdate_oc (does it depend on what i is? casework on whether 0) ** hard *)
 Lemma Gi_rb_bad_eq_2 : forall (i : nat),
     Pr [Gi_rb_bad_no_adv i] == Pr [Gi_rb_bad_only_oracle].
@@ -5252,82 +5111,6 @@ Transparent eta.           (* *** TODO revert eta to a variable *)
   (* pose proof (test_same_goal k v i). *)
   (* apply H.   *)
 
-  assert (test_same_goal' : 
-               comp_spec eq
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state) 
-).
-  { admit. }
-  assert (test_same_goal2 : 
-   @comp_spec bool bool bool_EqDec bool_EqDec (@eq bool)
-     (a <-$
-      (@oracleCompMap_inner nat (list (Bvector eta)) Blist 
-         (Bvector eta)
-         (@pair_EqDec (list (list (Bvector eta))) (nat * KV)
-            (@list_EqDec (list (Bvector eta))
-               (@list_EqDec (Bvector eta) eqdbv))
-            (@pair_EqDec nat KV nat_EqDec eqDecState))
-         (@list_EqDec (list (Bvector eta)) (@list_EqDec (Bvector eta) eqdbv))
-         (Oi_oc' i) (0%nat, (k, v)) (@replicate nat numCalls blocksPerCall))
-        (list (Blist * Bvector eta))
-        (@list_EqDec (Blist * Bvector eta)
-           (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle
-        (@nil (Blist * Bvector eta));
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (@list_EqDec (Blist * Bvector eta)
-            (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (@list_EqDec (Blist * Bvector eta)
-           (@pair_EqDec Blist (Bvector eta) eqdbl eqdbv)) rb_oracle
-        (@nil (Blist * Bvector eta)); [_, state]<-2 z; ret hasInputDups state)).
-  { admit. }
-  Print Ltac fcf_to_prhl_eq.
-  Check comp_spec_eq_impl_eq.
-  eapply test_same_goal2.
-
-  (* Print Implicit test_same_goal. *)
-  eapply test_same_goal'.
-
-  Print Implicit (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state).
-
   (* apply test_same_goal'. *)
   (* TODO unification error?? I can't apply split_out_oracle_call either :-/ *)
 
@@ -5335,13 +5118,10 @@ Transparent eta.           (* *** TODO revert eta to a variable *)
   (* Want to prove: the probability of duplicates in the state is the same for both games. How should I prove that? *)
   (* Do the k and v matter? They shouldn't, because the oracle has been replaced with RB. But could there be skipping problems?? *)
   (* Should I do casework on `i`? What else can I do casework or induction on? Maybe induct on a list (the generalized maxCallsAndBlocks), with calls < i? (currently it is 0) and there would be casework on calls < i, calls = i, calls > i. ok, so i should generalize, then add IH and induct on list, then case on i...? the structure is actually quite similar to the proofs i did before about the ith calls. *)
-  (* how to prototype this strategy and check if it will work? first, think through it on "paper" *)
-  (*  *)
   
   (* unfold oracleCompMap_inner. *)
   Transparent Oi_oc'.
   unfold Oi_oc'.
-
   
 Admitted.
 Opaque eta.
