@@ -4931,82 +4931,118 @@ Proof.
 Qed.
 
 Open Scope nat.
-Lemma split_out_oracle_call' : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i : nat)
+Lemma split_out_oracle_call' : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i blocks : nat)
                                      (init : list (Blist * Bvector eta)),
+    listLen > 0 ->
+    callsSoFar <= i ->
   comp_spec eq
      (a <-$
       (oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0, (k, v)) (replicate numCalls blocksPerCall))
+         (callsSoFar, (k, v)) (replicate listLen blocks))
         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle nil;
+        rb_oracle init;
       a0 <-$
       ([z, s']<-2 a;
        ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
          (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
       [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state).
+     (if ge_dec i listLen then   (* if i >= numCalls, then only RB -> the oracle is never used -> no dups *)
+        (ret false)
+      else if zerop i then      (* if the oracle is used and i = 0, then it's used in noV *)
+       (z <-$ (GenUpdate_noV_oc (k1, v1) blocks)
+              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+              rb_oracle init;
+        [_, state]<-2 z;
+        ret hasInputDups state)
+      else                      (* if the oracle is used and i < numCalls, then it's used normally *)
+       (z <-$ (GenUpdate_oc (k1, v1) blocks)
+              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+              rb_oracle init;
+        [_, state]<-2 z;
+        ret hasInputDups state)
+     ).
 Proof.
+  clear H_numCalls numCalls blocksPerCall.
+  intros. rename H into nonempty. rename H0 into callsSoFar_lte_i.
+  Opaque Oi_oc'. Opaque GenUpdate_oc. Opaque GenUpdate_noV_oc.
+  induction listLen as [ | listLen'].
+  (* base case: by nonempty, case is true bc list cannot be empty *)
+  - omega.
+  (* inductive case: either the smaller list is empty, or it's nonempty. *)
+  - assert (smaller_len : listLen' = 0 \/ listLen' > 0) by omega.
+    destruct smaller_len as [ smaller_empty | smaller_nonempty ].
+    (* smaller list is empty *)
+    + (* numCalls must = 1. this is the new base case *)
+      subst. simplify.
+      (* either i = 0 or i >= 1 *)
+      assert (i_size : i = 0 \/ i > 0) by omega.
+      destruct i_size as [ i_eq_0 | i_gt_0 ].
+      clear IHlistLen'.
+      fcf_ident_expand_r.
+      Transparent Oi_oc'.
+      (* i = 0 *)
+      {
+        (* both calls use the oracle *)
+        simplify. subst.
+        (* clean up right side *)
+        destruct (ge_dec 0 1). omega.
+        destruct (zerop 0). Focus 2. omega.
+        simplify.
 
-Admitted.
-Close Scope nat.
+        (* clean up left side *)
+        assert (calls_eq_0 : callsSoFar = 0) by omega.
+        subst. simplify.
 
-SearchAbout hasDups.
-Print GenUpdate_noV_oc.
-Print GenUpdate_oc.
+        fcf_skip_eq.
+        (* GenUpdate_noV_oc eq even when (k,v) differ. do I actually need that? *)
+        { Transparent GenUpdate_noV_oc.
+          simplify.
+          fcf_skip_eq.
+          (* need blocks <> 0 again? *)
+          admit.
+        } 
+        simplify. fcf_spec_ret.
+      }
 
-    (* the problem is that: if i > 0, then the first call on the left doesn't use the RB. and the list subsequently may be empty, so nobody uses the RB, and the hasDups isn't the same across left and right.
+      (* i > 0 *)
+      {
+        clear IHlistLen'.
+        (* neither call uses the oracle *)
 
-solution: well, the list subsequently CANNOT be empty because i > 0 -> len (subsequent list) > 0 -> destruct it and inversion the (len = 0) case
+        (* either callsSoFar < i or callsSoFar = i *)
+        (* TODO----- *)
 
-- what then? induction? where and how?
+        (* clean up right side *)
+        assert (i_ge_1 : i >= 1) by omega. clear i_gt_0.
+        destruct (ge_dec i 1). Focus 2. omega. clear g.
+        
+        simplify.
+        (* clean up left side *)
+        clear nonempty.
 
-- where do we get the assumption 'i > 0 -> len (subsequent list) > 0'? 
-we know that 0 <= i <= numCalls
-(i = numCalls -> the oracle is never used -> no collision)
-(i = 0 -> the oracle is used in noV)
-(all other values of i -> the oracle is used on one call normally)
+        
+      }
+    
+    (* smaller list is nonempty *)
+    + 
+      admit.
 
-solution: I need to change genUpdate_oc to case on i and do noV if i=0
-thus, all subsequent games need to deal with noV, either by casing or by bounding probability of dups. how? 
-i don't want to do all the game equivalence proofs twice! is there some way i can reuse my work?
-need to figure out how i would do (Pr[hasDups noV] <= Pr[hasDups normal])
-is there a lemma about (hasDups l <= hasDups (x :: l)), or hasDups l <= hasDups l' when l < l' and both are unif rand samp?
-even so, I would still have to get noV down to the hasDups point, which would require duplicating so many equivalence proofs
-maybe I can prove it about GenUpdate_noV and add on GenUpdate's one update later?? to hasDups
-proving about GenUpdate_noV would be a common lemma--but how would I apply it to the structure of GenUpdate_oc?
->> TODO i guess i'll punt it for now...
-
-or, I can just do the proofs for the "happy path," and figure out how I'd reuse them later...
-
-solution: (WRT the `i` assumption problem)
-how do I get that information here? do I need it?
-if I have that information here, how do I use it, and would it work? 
-   >> TODO need to test that
-solution: do casework in collision bound *first* before starting game equivalence proofs. then all subsequent game eq proofs remain the same, but they can use the additional assumption on i-being-bounded if they need to. TODO do that
-  in collision bound, i can just do casework locally, since i >= numCalls means a collision probability of 0
-
-TODO: what order should I do things in?   *)
-
-Open Scope nat.
+Qed.
 
 (* same goal as Gi_rb_bad_eq_2 *)
-Lemma eqt3 : forall k v i,
-    i >= 0 ->
-    i < numCalls ->
+Lemma eqt3 : forall k v i nCalls,
+    nCalls > 0 ->
    comp_spec eq
      (a <-$
       (oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
          (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (0%nat, (k, v)) (replicate numCalls blocksPerCall))
+         (0%nat, (k, v)) (replicate nCalls blocksPerCall))
         (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
         rb_oracle nil;
       a0 <-$
@@ -5015,57 +5051,24 @@ Lemma eqt3 : forall k v i,
          (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
       z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
       [_, state]<-2 z; ret hasInputDups state)
-     (z <-$
-      (GenUpdate_oc (k, v) blocksPerCall) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle nil;
-      [_, state]<-2 z; ret hasInputDups state).
+     (if ge_dec i nCalls then   (* if i >= numCalls, then the oracle is never used -> no dups *)
+        (ret false)
+      else if zerop i then      (* if the oracle is used and i = 0, then it's used in noV *)
+       (z <-$ (GenUpdate_noV_oc (k, v) blocksPerCall)
+              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+              rb_oracle nil;
+        [_, state]<-2 z;
+        ret hasInputDups state)
+      else                      (* if the oracle is used and i < numCalls, then it's used normally *)
+       (z <-$ (GenUpdate_oc (k, v) blocksPerCall)
+              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+              rb_oracle nil;
+        [_, state]<-2 z;
+        ret hasInputDups state)
+     ).
 Proof.
-  intros k v i i_gt_0 i_lte_numcalls.
-  (* HAVE TO destruct first, so it's nonempty *)
-
-  destruct numCalls as [ | numCalls'].
-  (* contradiction, since numCalls > 0 *)
-  - omega.
-  - Opaque Oi_oc'. Opaque GenUpdate_oc.
-    simplify.
-    (* ok, now induct on next list? *)
-    (* base case: next list empty (impossible because ...) *)
-    (* but would `i < numCalls` cause trouble in the induction hypothesis? then i would have to prove `i < numcalls'` *)
-    (* unless I can separate the variables?? *)
-
-    assert (Hcalls : i > 0 \/ i = 0) by omega.
-    destruct Hcalls as [ calls_lt_i | calls_eq_i ].
-    (* i > 0 *)
-    + (* the first call doesn't add anything to the state *)
-      (* and the rest of the list must be nonempty, because i > 0 -> length list > 1 *)
-      (* induction? rest of list nonempty -> split out first call -> apply IH? when do i induct? now? earlier? *)
-      (* the question is, how many hybrids are there? here, there are `numCalls` hybrids. is the number of hybrids off by one? G1 -> i = 0, G2 -> i = n? why isn't it (n-1)? *)
-      destruct numCalls' as [ | numCalls''].
-      (* succeeding list is empty -> contradiction *)
-      { omega. } 
-      (* now the succeeding list is nonempty *)
-      {
-        (* induction? *)
-        Transparent Oi_oc'.
-        simplify.
-        destruct (lt_dec 0 i).
-        Focus 2. omega.
-        simplify.
-        fcf_irr_l. simplify. fcf_irr_l. admit.
-        Opaque Oi_oc'.
-        simplify. 
-
-        (* TODO could I have inducted (with generalization) earlier? do i *need* that calls = 0? if not, split it out *)
-
-        (* destruct (lt_dec 1 i). *)
-        (* (* 1 < i -> i > 1 *) *)
-        (* Focus 2. omega. *)
-        admit.
-      }
-
-    (* i = 0 *)
-    + (* first call uses oracle -> split off -> induction on rest of list (doesn't matter if empty) *)
-      admit.
+  intros k v i nCalls nonempty.
+  apply split_out_oracle_call'; omega.
 Qed.
 
 (* ------- *)
