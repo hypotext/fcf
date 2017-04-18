@@ -4932,7 +4932,7 @@ Qed.
 
 Open Scope nat.
 (* try split_out_oracle_call' without the nonempty hyp *)
-Lemma split_out_oracle_call'' : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i blocks : nat)
+Lemma split_out_oracle_call_ind : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i blocks : nat)
                                      (init : list (Blist * Bvector eta)),
     (* listLen > 0 -> *) (* attempt w/o this hypothesis *)
     callsSoFar <= i ->
@@ -4954,6 +4954,8 @@ Lemma split_out_oracle_call'' : forall (listLen : nat) (k v k1 v1 : Bvector eta)
      (if ge_dec i (listLen + callsSoFar) then (* the oracle is never used: i is past the end of the list *)
         ret hasInputDups init
       else if zerop i then      (* if the oracle is used and i = 0, then it's used in noV *)
+             (* I guess the v1 should really be whatever `v` the previous call changed it to, unless i=0, in which case, it should be the same v, but that's not inductive, ??????????? *)
+             (* or i can prove a hasDups-off-by-one result but that theorem needs a different form *)
        (z <-$ (GenUpdate_noV_oc (k1, v1) blocks)
               (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
               rb_oracle init;
@@ -4967,6 +4969,22 @@ Lemma split_out_oracle_call'' : forall (listLen : nat) (k v k1 v1 : Bvector eta)
         ret hasInputDups state)
      ).
 Proof.
+  intros.
+  eapply comp_spec_eq_trans_r.
+  (* first, simplify two lines after ocm *)
+  instantiate (1 := (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (callsSoFar, (k, v)) (replicate listLen blocks))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle init;
+      [_, s] <-2 a;
+      ret hasInputDups s)).
+  { prog_equiv. fcf_spec_ret. }
+  revert listLen k v k1 v1 callsSoFar i blocks init H.
+
   induction listLen as [ | listLen']; intros.
   (* base case: empty *)
   - simplify.
@@ -4984,25 +5002,122 @@ Proof.
     + (* is there some way to prove a postcondition on the left line only? want to show that rb_oracle's state doesn't change. *)
       (* maybe equiv on left with a <-$ init? *)
       (* also probably need to destruct stuff analogously to split_out_oracle_call'' *)
+      clear calls_leq_i.
+      Transparent Oi_oc'.
+      simplify.
+      (* clean up left side *)
+      destruct (lt_dec callsSoFar i). Focus 2. omega.
+      clear l.
+      (* fcf_irr_l. admit. simplify. destruct k0. *)
+      (* fcf_irr_l. admit. fcf_simp. simpl. fcf_simp. fcf_inline_first. *)
+      (* simplify. *)
+      (* strip off first call on left side, since it doesn't use the oracle *)
+      unfold GenUpdate_rb_intermediate_oc.
+      simplify.
+      fcf_irr_l. simplify.
       fcf_irr_l. admit.
       simplify.
-      destruct p. destruct k0. rename b into k'. rename b0 into v'. rename l into init'.
+      rename b into v'.
 
-      eapply comp_spec_eq_trans_l.
-      Focus 2.
-      (* why doesn't this work? oh, it involves listLen vs. listLen', which is mentioned non-inductively. *)
-      SearchAbout (S (_ + _)).
+      eapply comp_spec_eq_trans_r.
+      instantiate (1 := (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (S callsSoFar, (k, v')) (replicate listLen' blocks))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle init;
+      [_, s] <-2 a;
+      ret hasInputDups s)).
+      { prog_equiv. fcf_spec_ret. }
       rewrite plus_n_Sm.
       eapply IHlistLen'.
       omega.
-(* OMG *)
-      prog_equiv.
-      instantiate (2 := k'). instantiate (1 := v').
-(* what is n? ok, i'll instantiate OCM properly *)
 
-(* oh yeah, i'm not actually done--i need to do the calls > i case *)
-      
-Admitted.
+    (* calls = i *)
+    + (* what's the form of the lemma i should apply here? *)
+      clear calls_leq_i.
+      (* here, the calls should both be skipped (since calls = i, the oracle is used) *)
+      (* then induct on the rest *)
+      Transparent Oi_oc'.
+      simplify.
+      subst.
+      (* clean up left side *)
+      destruct (lt_dec i i). omega.
+      (* clean up right side *)
+      destruct (ge_dec i (S (listLen' + i))). omega.
+
+      (* depends on whether i = 0, so destruct on that *)
+      destruct (zerop i) as [ i_eq_0 | i_gt_0 ].
+      (* i = 0 *)
+      { subst. simplify.
+        fcf_skip.
+        Transparent GenUpdate_noV_oc. 
+        instantiate (1 := (fun x y => snd x = snd y)).
+        { simplify. fcf_skip.
+          instantiate (1 := (fun x y => snd x = snd y)).
+          (* now we have a problem with Gen_loop_oc, where the first internal query may be different *)
+          Print Gen_loop_oc.
+          (* do we *have* to reason about every input? what about just the outputs? well, the next outputs depend on previous inputs but they're also independent of the input so that might work? *)
+          admit.
+
+          simplify. simpl in *. subst.
+          (* but now the oracle is queried with an output that differs... *)
+          fcf_skip_eq. admit.
+          simplify.
+          fcf_spec_ret. 
+        }
+        simplify.
+        (* prove the oracle is never used after this *)
+        (* what should the inductive condition be for "this"? *)
+        (* TODO apply lemma *)
+        (* i = 0, calls = 1 *)
+        destruct b0.
+        (* fcf_irr_l. simplify. *)
+        admit.
+      }
+      (* i <> 0 *)
+      { assert (i_neq_0 : i <> 0) by omega.
+        apply beq_nat_false_iff in i_neq_0.
+        rewrite i_neq_0.
+        pose proof (beq_nat_refl i) as i_refl.
+        rewrite <- i_refl.
+        clear i_neq_0 i_refl.
+        fcf_skip.
+        instantiate (1 := (fun x y => snd x = snd y)).
+        (* oh NO v and v1 are different, but we need to retain the fact that v and v1 are sampled from the same distribution... should (k,v) be same here? but they aren't same elsewhere for IH? oh NO, this feels like the other lemma all over again :( *)
+        (* wait what? the v are both sampled in beginning of GenUpdate_oc. it's GenUpdate_noV_oc that I have to worry about, because they were sampled from instantiate, whose information isn't retained here..... *)
+        (* wait, but the input v each time... is from the last call... i still need to worry about that :( *)
+        { Transparent GenUpdate_oc.
+          simplify.
+          fcf_skip_eq. unfold rb_oracle. fcf_skip_eq. fcf_spec_ret. repeat f_equal. admit.
+          fcf_skip_eq.
+          simplify.
+          fcf_skip_eq.
+          simplify.
+          fcf_spec_ret.
+        }
+        (* can they just start out with the same (k,v)...? would that break the IH? *)
+        simplify. destruct b0.
+        (* TODO apply lemma *)
+        eapply comp_spec_eq_trans_r.
+        (* simplify two lines after ocm *)
+        instantiate (1 :=  (a0 <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+         (S i, (b0, b1)) (replicate listLen' blocks))
+        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
+        rb_oracle b;
+        [_, b'] <-2 a0;
+        ret hasInputDups b')).
+        { prog_equiv. fcf_spec_ret. }
+        (* i = 0, calls = S i *)
+        admit.
+      }
+Qed.
 
 Lemma split_out_oracle_call' : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i blocks : nat)
                                      (init : list (Blist * Bvector eta)),
