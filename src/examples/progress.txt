@@ -728,6 +728,8 @@ there's a lot of stuff (main theorem PRF_DRBG_G3_G4_close) including reasoning a
 7 to 8: get rid of key input (length-extended = no collisions) (easy?)
 8 to 9: inline v-sampling into compMap (easy?)
 
+split_out_oracle_call: started 7:30 am, end 2:45 pm (stuck on induction)
+
 ----
 
 - write up key idea from the proof before i forget it!
