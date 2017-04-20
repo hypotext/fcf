@@ -5376,6 +5376,122 @@ Definition case_on_i (i ncalls nblocks : nat) (v : Bvector eta) :=
   else (compMap_v (forNats nblocks) v).
 
 Open Scope nat.
+
+(* try adam's suggestion to replace existential with a forall *)
+Theorem compMap_anyv : forall (ls : list nat) (v w : Bvector eta),
+    comp_spec eq (compMap_v ls v) (compMap_v ls w).
+Proof.
+  intros.
+  fcf_to_probability. admit. admit.
+  Show Existentials.
+  instantiate (1 := true).
+  instantiate (1 := true).
+  - unfold compMap_v.
+    Transparent hasDups.
+    simpl.
+    
+(* SearchAbout In. *)
+
+Check arrayLookup.
+
+assert (pr_v_w_in_same :    
+          Pr [x <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) ls;
+               ret (in_dec (EqDec_dec (Bvector_EqDec eta)) v x) ] ==
+          Pr [x <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) ls;
+               ret (in_dec (EqDec_dec (Bvector_EqDec eta)) v x) ]).
+
+               (* ret true ]). *)
+
+    (* fcf_skip. *)
+    (* unprovable *)
+    (* destruct (in_dec (EqDec_dec (Bvector_EqDec eta))); destruct (in_dec (EqDec_dec (Bvector_EqDec eta))); try reflexivity. *)
+    
+    (* ----- *)
+
+    revert v w.
+    induction ls as [ | x xs]; intros v w.
+    Transparent hasDups.
+    simplify. reflexivity.
+    Opaque hasDups.
+
+    (* try using RndNat_eq_any? *)
+    (* look at proof of dupProb_const *)
+    simplify.
+    fcf_to_prhl.
+    fcf_skip_eq.
+    simplify.
+
+    assert (inline_2 :    forall v' a',
+               comp_spec (fun a0 b : bool => a0 = true <-> b = true)
+                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
+                          x0 <-$ ret a' :: a0;
+                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' x0
+                               then true
+                               else hasDups (Bvector_EqDec eta) x0))
+                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
+                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' (a' :: a0)
+                               then true
+                               else hasDups (Bvector_EqDec eta) (a' :: a0)))
+           ).
+    { Opaque in_dec. intros. prog_equiv. fcf_spec_ret. }
+
+    eapply comp_spec_eq_trans_r.
+    eapply inline_2.
+    eapply comp_spec_symm.
+    eapply comp_spec_eq_trans_r.
+
+    assert (inline_3 :    forall v' a',
+               comp_spec (fun a0 b : bool => b = a0)
+                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
+                          x0 <-$ ret a' :: a0;
+                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' x0
+                               then true
+                               else hasDups (Bvector_EqDec eta) x0))
+                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
+                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' (a' :: a0)
+                               then true
+                               else hasDups (Bvector_EqDec eta) (a' :: a0)))
+           ).
+    { Opaque in_dec. intros. prog_equiv. fcf_spec_ret. }
+    eapply inline_3.
+    (* ^ fix different precondition *)
+
+    clear inline_2.
+    
+    fcf_to_probability. admit. admit.
+    instantiate (1 := true).     instantiate (1 := true).
+    specialize (IHxs v w).
+    Transparent hasDups. simpl.
+    (* destruct (in_dec _ _ _). *)
+    (* i don't think the IH is going to help me here *)
+    (* i don't think this is true? *)
+
+    (* ------ *)
+
+    assert (pr_eq_trans1 : forall A B C, Pr [A] == Pr[C] ->Pr [B] == Pr[C] -> Pr [A] == Pr[B]).
+    { intros. rewrite H. rewrite H0. reflexivity. }
+    assert (pr_eq_trans2 : forall A B C, Pr [A] == C ->Pr [B] == C -> Pr [A] == Pr[B]).
+    { intros. rewrite H. rewrite H0. reflexivity. }
+    eapply pr_eq_trans2.
+    SearchAbout FixedInRndList_prob.
+    SearchAbout evalDist.
+    Print evalDist.
+    (* Unset Printing Notations. *)
+    simpl.
+    
+    Print Distribution.
+    eapply dupProb_const. (* not equality *)
+  - apply eq_true_iff_eq.
+Qed.
+(* TODO link to rest of proof and convert rest of proof *)
+
+Lemma test_exist : forall (n : nat), exists (v : Bvector eta),
+      comp_spec eq (ret n) (ret n).
+Proof.
+  intros.
+  (* fcf_spec_ret. *)
+Admitted.
+
 Lemma split_out_oracle_call_exists : 
     forall (listLen : nat) (k v : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
       callsSoFar <= i ->
@@ -5397,7 +5513,8 @@ Proof.
   (* unfold compMap_v. *)
   induction listLen as [ | listLen']; intros.
 
-    (* base case: empty *)
+
+   (* base case: empty *)
   - eexists. simplify.
     destruct (ge_dec i callsSoFar). fcf_spec_ret.
     omega.
@@ -5423,11 +5540,40 @@ Proof.
       (* fcf_irr_l. admit. fcf_simp. simpl. fcf_simp. fcf_inline_first. *)
       (* simplify. *)
       (* discharge existential *)
-      (* specialize (IHlistLen' . *)
+
+      Ltac test :=
+        match goal with
+          | [ |- ?X ] => idtac
+        end.
+      test.
+      (* Unset Printing Notations. *)
+
+      Ltac test1 :=
+        match goal with
+          | [ |- ex ?X ] => auto
+        end.
+      simpl.
+      test1.
+
+      Ltac test2 :=
+        match goal with
+          | [ |- ex (fun x => ?Y) ] => eexists
+        end.
+
+      (* is there some way to do eexists, then simplify the goal, then get the existential quantifier back? *)
+      (* test2. *)
+
+      Print Ltac fcf_inline_first.
+      Print Ltac inline_first.
+      Print Ltac dist_inline_first.
+      Print Ltac dist_simp_weak_1.
+      Print Ltac dist_ret_l.
+      admit.
+      (* eexists. *)
 
       (* strip off first call on left side, since it doesn't use the oracle *)
-      unfold GenUpdate_rb_intermediate_oc.
-      (* eexists. *)
+(*      unfold GenUpdate_rb_intermediate_oc.
+      (* why won't the tactic work under the existential :( *)
       simplify. 
       fcf_irr_l. simplify.
       fcf_irr_l. admit.
@@ -5447,8 +5593,12 @@ Proof.
       ret hasInputDups s)).
       { prog_equiv. fcf_spec_ret. }
       rewrite plus_n_Sm.
-      eapply IHlistLen'.
-      omega.
+      assert (H_iS : S callsSoFar <= i) by omega.
+      specialize (IHlistLen' k v' (S callsSoFar) i blocks init H_iS).
+      destruct IHlistLen' as [v_prev IHlistLen''].
+      Show Existentials.
+      eapply IHlistLen''.
+      omega. *)
 
     (* calls = i *)
     + (* what's the form of the lemma i should apply here? *)
@@ -5535,14 +5685,19 @@ Proof.
 Qed.
 Admitted.
 
-Lemma Gi_rb_bad_eq_2' : exists v, forall (i : nat),
+Lemma Gi_rb_bad_eq_2' : forall (i : nat), exists v,
     Pr [Gi_rb_bad_no_adv i] == Pr[case_on_i i numCalls blocksPerCall v].
 Proof.
+  intros i.
+
   (* instantiate v *)
   pose proof split_out_oracle_call_exists as split_out.
-  destruct split_out as [ v_prev split_out ].
-  exists v_prev.
-  intros i.
+  (* eexists. *)
+  (* destruct split_out as [ v_prev split_out ]. *)
+  (* exists v_prev. *)
+
+(* Unset Printing Notations. *)
+(* simpl. *)
 
   fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_adv.
