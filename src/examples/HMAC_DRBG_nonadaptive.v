@@ -5119,165 +5119,6 @@ Proof.
       }
 Qed.
 
-Lemma split_out_oracle_call' : forall (listLen : nat) (k v k1 v1 : Bvector eta) (callsSoFar i blocks : nat)
-                                     (init : list (Blist * Bvector eta)),
-    listLen > 0 ->
-    callsSoFar <= i ->
-  comp_spec eq
-     (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (callsSoFar, (k, v)) (replicate listLen blocks))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle init;
-      a0 <-$
-      ([z, s']<-2 a;
-       ([bits, _]<-2 z; $ ret bits) (list (Blist * Bvector eta))
-         (list_EqDec (pair_EqDec eqdbl eqdbv)) rb_oracle s');
-      z <-$ ([z, s']<-2 a0; x <-$ ret z; ret (x, s'));
-      [_, state]<-2 z; ret hasInputDups state)
-     (if ge_dec i (listLen + callsSoFar) then (* the oracle is never used: i is past the end of the list *)
-        ret hasInputDups init
-       else if zerop i then      (* if the oracle is used and i = 0, then it's used in noV *)
-       (z <-$ (GenUpdate_noV_oc (k1, v1) blocks)
-              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-              rb_oracle init;
-        [_, state]<-2 z;
-        ret hasInputDups state)
-      else  (* if the oracle is used and i < numCalls, then it's used normally *)
-       (z <-$ (GenUpdate_oc (k1, v1) blocks)
-              (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-              rb_oracle init;
-        [_, state]<-2 z;
-        ret hasInputDups state)
-     ).
-Proof.
-  clear H_numCalls numCalls blocksPerCall.
-  Opaque Oi_oc'. Opaque GenUpdate_oc. Opaque GenUpdate_noV_oc.
-  induction listLen as [ | listLen']; intros k v k1 v1 callsSoFar i blocks init nonempty callsSoFar_lte_i.
-  (* base case: by nonempty, case is true bc list cannot be empty *)
-  - omega.
-  (* inductive case: either the smaller list is empty, or it's nonempty. *)
-  - assert (smaller_len : listLen' = 0 \/ listLen' > 0) by omega.
-    destruct smaller_len as [ smaller_empty | smaller_nonempty ].
-    (* smaller list is empty *)
-    + (* numCalls must = 1. this is the new base case *)
-      subst. simplify.
-      (* either i = 0 or i >= 1 *)
-      assert (i_size : i = 0 \/ i > 0) by omega.
-      destruct i_size as [ i_eq_0 | i_gt_0 ].
-      clear IHlistLen'.
-      fcf_ident_expand_r.
-      Transparent Oi_oc'.
-      (* i = 0 *)
-      {
-        (* both calls use the oracle *)
-        simplify. subst.
-        (* clean up right side *)
-        destruct (ge_dec 0 (callsSoFar + 1)). omega.
-        destruct (zerop 0). Focus 2. omega.
-        simplify.
-
-        (* clean up left side *)
-        assert (calls_eq_0 : callsSoFar = 0) by omega.
-        subst. simplify.
-
-        fcf_skip_eq.
-        (* GenUpdate_noV_oc eq even when (k,v) differ. do I actually need that? *)
-        { Transparent GenUpdate_noV_oc.
-          simplify.
-          fcf_skip_eq.
-          (* need blocks <> 0 again? *)
-          admit.
-        } 
-        simplify. fcf_spec_ret.
-      }
-
-      (* i > 0 *)
-      {
-        clear IHlistLen'.
-        (* neither call uses the oracle *)
-
-        (* either callsSoFar < i or callsSoFar = i *)
-        assert (calls_size : callsSoFar < i \/ callsSoFar = i) by omega.
-        destruct calls_size as [ calls_lt_i | calls_eq_i ].
-        (* calls < i *)
-        {
-          simplify.
-          destruct (lt_dec callsSoFar i). Focus 2. omega.
-          clear l.
-          destruct (zerop i). omega.
-          clear callsSoFar_lte_i. clear nonempty. clear l.
-          destruct (ge_dec i (S callsSoFar)). Focus 2. omega.
-          fcf_irr_l. admit.
-          simplify.
-          (* just need to prove that the l leaving is the same as init! *)
-          admit.
-          
-          (* oracle is NOT used *)
-          (* wait, what?? oh no part 2. on the right, we deleted the case for i, so there's no base case *)
-          (* wait, it looks like i just NEVER thought about what happens when calls < i? *)
-          (* maybe *this* calls for an induction? well you need to prove the base case first, and this is the base case *)
-          (* this case is not supposed to be possible: listLen = 1 and i > 0 means on the right, `i` should have already passed, so we should just do `hasDups init` *)
-          (* sigh, that's why i had `i >= listLen -> hasDups init` *)
-          (* but i can't get that to work with the `i = callsSoFar` case.... *)
-          (* this makes me think the right expression should be some kind of recursive call... *)
-          (* listLen = 1, i > 0, calls < i -> `i` could be 5, calls could be 4 ?? *)
-          (* what case are we even in? *)
-          (* maybe we need a different inductive invariant: use the `calls + listLen = nCalls` one? *)
-          (* but for what? *)
-          (* maybe if `i > calls + listlen` (whatever that is...) that should result in hasDups init? *)
-        }
-        (* calls = i *)
-        {
-          simplify.
-          subst.
-          (* clean up left side *)
-          destruct (lt_dec i i). omega.
-          assert (i_neq_0 : i <> 0) by omega.
-          apply beq_nat_false_iff in i_neq_0.
-          rewrite i_neq_0. clear i_neq_0.
-          rewrite <- beq_nat_refl.
-
-          (* clean up right side *)
-          destruct (ge_dec i (S i)). omega.
-          destruct (zerop i). omega.
-          fcf_skip_eq.
-          { admit. }
-          simplify.
-          fcf_spec_ret.
-
-          (* here, listLen = 1, i > 0, and calls = i *)
-          (* i'm confused because both i and calls are greater than listLen (length of the entire list) *)
-          (* that's okay though? think of it as reaching i in the list, where i > original listlen/2 *)
-          (* i think i just got schooled by coq? *)
-          (* use oracle on last element of list.
-             calls = 0, listlen = 3, i = 2 ->
-             calls = 1, listLen = 2, i = 2 -> 
-             calls = 2, listLen = 1, i = 2 ->
-             calls = 3, listLen = 0, i = 1
-             the invariant is that calls + listLen = (top level list length)
-             how to change the second statement? *)
-        }
-      }
-    
-    (* smaller list is nonempty *)
-    +
-      (* problem: does the inductive invariant still hold???? *)
-      (* or, what the heck do i do with `ge_dec i (listLen' + callsSoFar) *)
-      (* well, callsSoFar = S callsSoFar'! so it should still hold............ *)
-      (* oh god i have to redo all of the above again? i should factor it out as a theorem *)
-      Opaque Oi_oc'. Opaque GenUpdate_noV_oc. Opaque GenUpdate_oc.
-      simplify.
-      (* the exact same thing as above should hold. this is happening because now my base case is (1) -> (1 + xs)... *)
-      (* now i'm questioning whether I need this? *)
-      
-      admit.
-
-Qed.
-
 (* same goal as Gi_rb_bad_eq_2 *)
 Lemma eqt3 : forall k v i nCalls,
     nCalls > 0 ->
@@ -5313,7 +5154,11 @@ Lemma eqt3 : forall k v i nCalls,
      ).
 Proof.
   intros k v i nCalls nonempty.
-  apply split_out_oracle_call'; omega.
+  Check compMap.
+  Print compMap.
+  (* apply split_out_oracle_call'; omega. *)
+(* TODO unify *)
+  admit.
 Qed.
 
 (* ------- *)
@@ -5349,7 +5194,7 @@ Transparent eta.           (* *** TODO revert eta to a variable *)
 (* Print Implicit split_out_oracle_call. *)
 
   assert (0 <= i)%nat by omega.
-  pose proof (@split_out_oracle_call numCalls k v 0%nat i nil H H_numCalls).
+  (* pose proof (@split_out_oracle_call numCalls k v 0%nat i nil H H_numCalls). *)
 
   (* Set Printing Implicit. *)
   (* eapply H0. *)
@@ -5506,12 +5351,65 @@ Proof.
 
 Admitted.
 
+(* ------- redo *)
+
+(* match the form in dupProb_const *)
+Definition compMap_v (ls : list nat) (v : Bvector eta) :=
+  bits <-$ compMap _ (fun _ => {0,1}^eta) ls;
+  ret hasDups _ (v :: bits).
+
+(* can it unify correctly if i do this? *)
+Definition case_on_i (i nblocks ncalls : nat) (v : Bvector eta) := 
+  if ge_dec i ncalls then (ret false)
+  (* i = 0, so the last v is not an input. this case is exactly equivalent to adam’s gen_loop *)
+  else if zerop i then (compMap_v (replicate (pred ncalls) nblocks) v)
+  else (compMap_v (replicate ncalls nblocks) v).
+
+Lemma Gi_rb_bad_eq_2' : exists v, forall (i : nat),
+    Pr [Gi_rb_bad_no_adv i] == Pr[case_on_i i blocksPerCall numCalls v].
+Proof.
+  eexists.
+  intros i.
+  fcf_to_prhl_eq.
+  unfold Gi_rb_bad_no_adv.
+  simplify.
+  fcf_irr_l. wfi.
+  simplify.
+  
+(* TODO simplify left *)
+
+Admitted.
+
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
+Close Scope nat.
 Lemma Gi_rb_bad_collisions : forall (i : nat),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
   intros.
   rewrite Gi_rb_bad_eq_1.       (* done *)
+  pose proof Gi_rb_bad_eq_2' as select_call.
+  destruct select_call as [ v' select_call'].
+  rewrite select_call'.
+  clear select_call'.
+  unfold case_on_i.
+  destruct (ge_dec i) as [ i_ge_nc | i_nge_nc ].
+  (* i out of bounds *)
+  - assert (H_0 : Pr [ret false] == 0).
+    { admit. }
+    rewrite H_0. unfold Pr_collisions.
+    admit.
+  (* i in bounds *)
+  - destruct (zerop i).
+    (* i = 0 *)
+    + admit.
+    + pose proof dupProb as dupProb'.
+      unfold Pr_collisions. unfold compMap_v.
+     (* ooh, dupProbs uses a different decidability thing and different eta... *)
+      eapply dupProb'.
+
+  (* TODO intermediate games *)
+  (* TODO apply dupProb *)
+
   rewrite Gi_rb_bad_eq_2.       (* TODO hard *)
   rewrite Gi_rb_bad_eq_3.       (* TODO hard *)
   rewrite Gi_rb_bad_eq_4.       (* done *)
