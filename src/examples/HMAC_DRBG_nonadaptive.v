@@ -5385,6 +5385,104 @@ Theorem compMap_anyv : forall (ls : list nat) (v w : Bvector eta),
 Proof.
 Admitted.
 
+Lemma simplify_hasDups : forall (listLen i callsSoFar blocks : nat) (k v : Bvector eta) (l : list (Bvector eta))
+                                rb_state1,
+  comp_spec eq
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+         (Oi_oc' i) (callsSoFar, (k, v))
+         (replicate listLen blocks)) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle rb_state1;
+      a0 <-$
+      ([z, s']<-2 a;
+       ([resList, state'']<-2 z; $ ret (l :: resList, state''))
+         (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle s');
+      [_, rb_state2]<-2 a0; ret hasInputDups rb_state2)
+     (a <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+         (Oi_oc' i) (callsSoFar, (k, v))
+         (replicate listLen blocks)) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle rb_state1;
+      [_, rb_state2] <-2 a;
+      ret hasInputDups rb_state2).
+Proof. intros. prog_equiv. fcf_spec_ret. Qed.
+
+Lemma rb_oracle_state_same_after_i : forall (listLen i callsSoFar blocks : nat) (k v : Bvector eta) left_state,
+   callsSoFar > i ->
+   comp_spec eq
+     (a0 <-$
+      (oracleCompMap_inner
+         (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+            (pair_EqDec nat_EqDec eqDecState))
+         (list_EqDec (list_EqDec (Bvector_EqDec eta))) 
+         (Oi_oc' i) (callsSoFar, (k, v)) (replicate listLen blocks))
+        (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle
+        left_state;
+      [_, left_state']<-2 a0; ret hasInputDups left_state')
+     (ret hasInputDups left_state).
+Proof.
+  induction listLen as [ | listLen']; intros; rename H into calls_gt_i.
+  - simplify. fcf_spec_ret.
+  - simplify.
+    destruct (lt_dec callsSoFar i). omega.
+    assert (nonzero : callsSoFar <> 0) by omega.
+    apply beq_nat_false_iff in nonzero.
+    rewrite nonzero.
+    assert (neq_i : callsSoFar <> i) by omega.
+    apply beq_nat_false_iff in neq_i.
+    rewrite neq_i.
+    simplify.
+    
+    eapply comp_spec_eq_trans_r.
+    apply simplify_hasDups.
+    eapply comp_spec_eq_trans_r.
+    eapply IHlistLen'.
+    omega. fcf_spec_ret.
+Qed.
+
+Lemma Gi_rb_collisions_inner_eq : forall k v blocks init,
+  comp_spec eq
+     (a <-$
+      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+      [_, init']<-2 a; ret hasInputDups init') (compMap_v (forNats blocks) v).
+Proof.
+  intros k v blocks init.
+  unfold GenUpdate_oc.
+  simplify.
+  unfold compMap_v.
+  Transparent compMap.
+  unfold rb_oracle. simplify.
+  fcf_irr_l.
+  (* maybe I don't want to simplify it all the way *)
+  (* fcf_simp. *)
+  simplify.
+  fcf_skip.
+(* or, rewrite left side with gen_loop first *)
+  (* I can essentially use Adam's proof here *)
+(* Check (fun x y => split (snd x) = map (fun c => to_list c) y). *)
+  instantiate (1 := (fun x y => map (fun c => fst c) (snd x) = map (fun c => to_list c) y)).
+  { admit. }
+(* again, this might not be very useful as a postcondition *)
+  simplify.
+  simpl in H3.
+  fcf_irr_l. simplify.
+  fcf_spec_ret.
+  unfold hasInputDups.
+  (* and it's annoying to compare lists to bvectors *)
+  simpl.
+(* where's b? *)
+
+Admitted.
+
 Lemma split_out_oracle_call_forall : 
     forall (listLen : nat) (k v v_prev : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
       callsSoFar <= i ->
@@ -5432,17 +5530,7 @@ Proof.
       rename b into v'.
 
       eapply comp_spec_eq_trans_r.
-      instantiate (1 := (a <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (S callsSoFar, (k, v')) (replicate listLen' blocks))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle init;
-      [_, s] <-2 a;
-      ret hasInputDups s)).
-      { prog_equiv. fcf_spec_ret. }
+      apply simplify_hasDups.
       rewrite plus_n_Sm.
       eapply IHlistLen'.
       omega.
@@ -5486,6 +5574,16 @@ Proof.
         (* i = 0, calls = 1 *)
         simpl in *.
         simplify.
+
+        (* why doesn't it unify? *)
+        (* eapply comp_spec_eq_trans_r. *)
+        (* eapply simplify_hasDups. *)
+        (* eapply comp_spec_eq_trans_r. *)
+        (* apply rb_oracle_state_same_after_i; omega. *)
+        (* fcf_irr_l. admit. *)
+        (* simplify. *)
+        (* unfold hasInputDups. *)
+
         (* this is annoying (or impossible) to subst... *)
         (* how did adam deal with the bvector / blist problem? *)
         (* is this new goal a good place to induct from? (apply more general lemma with calls > i, inductive invariant H1) *)
@@ -5499,36 +5597,35 @@ Proof.
         pose proof (beq_nat_refl i) as i_refl.
         rewrite <- i_refl.
         clear i_neq_0 i_refl.
-        unfold compMap_v.
-        fcf_skip.
 
-        (* note how hasInputDups is defined... why didn't I use map fst instead of split??! *)
-        Print hasInputDups. 
-        Print split.
-        instantiate (1 := (fun x y => map (fun c => fst c) (snd x) = map (fun c => to_list c) y)).
-        { admit. }
-
-        (* induction: calls > i (here calls = S i) *)
-        simpl in *. rename b into left_state. rename b1 into right_inputs.
-        simplify. destruct b0 as [k' v'].
-
-        (* simplify two lines after ocm *)
+        (* replace v_prev with v, since the const vector in front doesn't matter *)
         eapply comp_spec_eq_trans_r.
-        instantiate (1 := ((a0 <-$
-                               (oracleCompMap_inner
-                                  (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
-                                              (pair_EqDec nat_EqDec eqDecState))
-                                  (list_EqDec (list_EqDec (Bvector_EqDec eta))) 
-                                  (Oi_oc' i) (S i, (k', v')) (replicate listLen' blocks))
-                               (list (Blist * Bvector eta))
-                               (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle
-                               left_state;
-                            [_, left_state'] <-2 a0;
-                            ret hasInputDups left_state'))).
-        { prog_equiv. fcf_spec_ret. }
-        unfold hasInputDups.
-        admit.
-      }
+        Focus 2.
+        eapply (compMap_anyv (forNats blocks) v v_prev).
+        
+        (* should I replace GenUpdate_oc with something else that doesn't use to_list?? *)
+        (* maybe i should replace oracleCompMap inner with hasInputDups (state from Genupdate_oc) first *)
+
+        eapply comp_spec_eq_trans_r.
+        instantiate (1 :=
+                       (a <-$
+      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+                        [_, init'] <-2 a;
+                        ret hasInputDups init')).
+        { fcf_skip_eq.
+          eapply comp_spec_eq_trans_r.
+          destruct b0.
+          simplify.
+          eapply simplify_hasDups.
+          destruct b0.
+          eapply rb_oracle_state_same_after_i.
+          omega.
+        }
+        clear n n0 IHlistLen'.
+        (* TODO apply this same trick to the i=0 case *)
+        apply Gi_rb_collisions_inner_eq.
+      } 
 Qed.
 
 Lemma Gi_rb_bad_eq_2' : forall (i : nat) (v : Bvector eta),
@@ -5543,6 +5640,7 @@ Proof.
   simplify.
   (* clean up left *)
   eapply comp_spec_eq_trans_r.
+  (* apply simplify_hasDups. *)
   instantiate (1 :=
                       (a <-$
       (oracleCompMap_inner
@@ -5613,14 +5711,15 @@ Proof.
         
         rewrite <- lenl at 2.
         assert (test : (10 > 0)%nat) by omega.
-        generalize (@dupProb_const eta 10 test nat (forNats (pred blocksPerCall)) v'). intros dupProbc.
+        (* why does it need 10? *)
+        generalize (@dupProb_const eta 10 test nat (forNats (pred blocksPerCall)) v). intros dupProbc.
         (* apply dupProbc. *)
         (* unification error but should be true *)
         admit.
       }
       unfold Pr_collisions.
       (* Unset Printing Notations. *)
-      (* should be true *)
+      (* should be true, but need to reason about rationals *)
       { admit. }
 
     +
@@ -5631,14 +5730,15 @@ Proof.
       rewrite <- lenl at 2.
       assert (test : (10 > 0)%nat) by omega.
       Check dupProb_const.
-      generalize (@dupProb_const eta 10 test nat (forNats blocksPerCall) v'). intros dupProbc.
+      generalize (@dupProb_const eta 10 test nat (forNats blocksPerCall) v). intros dupProbc.
       (* Set Printing Implicit. *)
-      (* these are the same *)
-      (* Unset Printing Notations. *)
-      (* these are not the same because of nat addition... maybe due to parenthesization? *)
+      (* these are not the same because of nat addition or rat intro... maybe due to parenthesization? *)
       (* simpl. *)
-      Open Scope nat.
-      (* apply dupProbc. *)
+      Unset Printing Notations.
+      (* replace (RatIntro (pow (S (length (forNats blocksPerCall))) (S (S O))) *)
+      (*  (natToPosnat (nz_nat (plus (S O) O)))) with  (RatIntro (pow (S (length (forNats blocksPerCall))) (S (S O))) *)
+      (*  (natToPosnat (expnat_nz eta (nz_nat (S O))))). *)
+      (* eapply dupProbc. *)
       (* TODO it should unify though! *)
       admit.
 Qed.
