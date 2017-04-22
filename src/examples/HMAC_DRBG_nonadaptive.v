@@ -5378,124 +5378,16 @@ Definition case_on_i (i ncalls nblocks : nat) (v : Bvector eta) :=
 Open Scope nat.
 
 (* try adam's suggestion to replace existential with a forall *)
+(* TODO include adam's proof of this lemma *)
+(* TODO link to rest of proof and convert rest of proof *)
 Theorem compMap_anyv : forall (ls : list nat) (v w : Bvector eta),
     comp_spec eq (compMap_v ls v) (compMap_v ls w).
 Proof.
-  intros.
-  fcf_to_probability. admit. admit.
-  Show Existentials.
-  instantiate (1 := true).
-  instantiate (1 := true).
-  - unfold compMap_v.
-    Transparent hasDups.
-    simpl.
-    
-(* SearchAbout In. *)
-
-Check arrayLookup.
-
-assert (pr_v_w_in_same :    
-          Pr [x <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) ls;
-               ret (in_dec (EqDec_dec (Bvector_EqDec eta)) v x) ] ==
-          Pr [x <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) ls;
-               ret (in_dec (EqDec_dec (Bvector_EqDec eta)) v x) ]).
-
-               (* ret true ]). *)
-
-    (* fcf_skip. *)
-    (* unprovable *)
-    (* destruct (in_dec (EqDec_dec (Bvector_EqDec eta))); destruct (in_dec (EqDec_dec (Bvector_EqDec eta))); try reflexivity. *)
-    
-    (* ----- *)
-
-    revert v w.
-    induction ls as [ | x xs]; intros v w.
-    Transparent hasDups.
-    simplify. reflexivity.
-    Opaque hasDups.
-
-    (* try using RndNat_eq_any? *)
-    (* look at proof of dupProb_const *)
-    simplify.
-    fcf_to_prhl.
-    fcf_skip_eq.
-    simplify.
-
-    assert (inline_2 :    forall v' a',
-               comp_spec (fun a0 b : bool => a0 = true <-> b = true)
-                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
-                          x0 <-$ ret a' :: a0;
-                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' x0
-                               then true
-                               else hasDups (Bvector_EqDec eta) x0))
-                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
-                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' (a' :: a0)
-                               then true
-                               else hasDups (Bvector_EqDec eta) (a' :: a0)))
-           ).
-    { Opaque in_dec. intros. prog_equiv. fcf_spec_ret. }
-
-    eapply comp_spec_eq_trans_r.
-    eapply inline_2.
-    eapply comp_spec_symm.
-    eapply comp_spec_eq_trans_r.
-
-    assert (inline_3 :    forall v' a',
-               comp_spec (fun a0 b : bool => b = a0)
-                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
-                          x0 <-$ ret a' :: a0;
-                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' x0
-                               then true
-                               else hasDups (Bvector_EqDec eta) x0))
-                         (a0 <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) xs;
-                          ret (if in_dec (EqDec_dec (Bvector_EqDec eta)) v' (a' :: a0)
-                               then true
-                               else hasDups (Bvector_EqDec eta) (a' :: a0)))
-           ).
-    { Opaque in_dec. intros. prog_equiv. fcf_spec_ret. }
-    eapply inline_3.
-    (* ^ fix different precondition *)
-
-    clear inline_2.
-    
-    fcf_to_probability. admit. admit.
-    instantiate (1 := true).     instantiate (1 := true).
-    specialize (IHxs v w).
-    Transparent hasDups. simpl.
-    (* destruct (in_dec _ _ _). *)
-    (* i don't think the IH is going to help me here *)
-    (* i don't think this is true? *)
-
-    (* ------ *)
-
-    assert (pr_eq_trans1 : forall A B C, Pr [A] == Pr[C] ->Pr [B] == Pr[C] -> Pr [A] == Pr[B]).
-    { intros. rewrite H. rewrite H0. reflexivity. }
-    assert (pr_eq_trans2 : forall A B C, Pr [A] == C ->Pr [B] == C -> Pr [A] == Pr[B]).
-    { intros. rewrite H. rewrite H0. reflexivity. }
-    eapply pr_eq_trans2.
-    SearchAbout FixedInRndList_prob.
-    SearchAbout evalDist.
-    Print evalDist.
-    (* Unset Printing Notations. *)
-    simpl.
-    
-    Print Distribution.
-    eapply dupProb_const. (* not equality *)
-  - apply eq_true_iff_eq.
-Qed.
-(* TODO link to rest of proof and convert rest of proof *)
-
-Lemma test_exist : forall (n : nat), exists (v : Bvector eta),
-      comp_spec eq (ret n) (ret n).
-Proof.
-  intros.
-  (* fcf_spec_ret. *)
 Admitted.
 
-Lemma split_out_oracle_call_exists : 
-    forall (listLen : nat) (k v : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
+Lemma split_out_oracle_call_forall : 
+    forall (listLen : nat) (k v v_prev : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
       callsSoFar <= i ->
-    exists (v_prev : Bvector eta),
    comp_spec eq
      (a <-$
       (oracleCompMap_inner
@@ -5508,16 +5400,12 @@ Lemma split_out_oracle_call_exists :
       [_, state]<-2 a; ret hasInputDups state)
      (case_on_i_gen i listLen callsSoFar blocks init v_prev).
 Proof.
-  (* eexists. *)
   unfold case_on_i_gen.
-  (* unfold compMap_v. *)
   induction listLen as [ | listLen']; intros.
 
-
    (* base case: empty *)
-  - eexists. simplify.
-    destruct (ge_dec i callsSoFar). fcf_spec_ret.
-    omega.
+  - simplify.
+    destruct (ge_dec i callsSoFar). { fcf_spec_ret. } { omega. }
 
   (* inductive case *)
   - Opaque Oi_oc'. Opaque GenUpdate_noV_oc. Opaque GenUpdate_oc.
@@ -5527,56 +5415,19 @@ Proof.
     assert (calls_size : callsSoFar < i \/ callsSoFar = i) by omega.
     destruct calls_size as [ calls_lt_i | calls_eq_i ].
     (* callsSoFar < i -> after this call, S callsSoFar <= i *)
-    + (* is there some way to prove a postcondition on the left line only? want to show that rb_oracle's state doesn't change. *)
-      (* maybe equiv on left with a <-$ init? *)
-      (* also probably need to destruct stuff analogously to split_out_oracle_call'' *)
-      clear calls_leq_i.
+    + clear calls_leq_i.
       Transparent Oi_oc'.
       simplify.
+
       (* clean up left side *)
       destruct (lt_dec callsSoFar i). Focus 2. omega.
       clear l.
-      (* fcf_irr_l. admit. simplify. destruct k0. *)
-      (* fcf_irr_l. admit. fcf_simp. simpl. fcf_simp. fcf_inline_first. *)
-      (* simplify. *)
-      (* discharge existential *)
-
-      Ltac test :=
-        match goal with
-          | [ |- ?X ] => idtac
-        end.
-      test.
-      (* Unset Printing Notations. *)
-
-      Ltac test1 :=
-        match goal with
-          | [ |- ex ?X ] => auto
-        end.
-      simpl.
-      test1.
-
-      Ltac test2 :=
-        match goal with
-          | [ |- ex (fun x => ?Y) ] => eexists
-        end.
-
-      (* is there some way to do eexists, then simplify the goal, then get the existential quantifier back? *)
-      (* test2. *)
-
-      Print Ltac fcf_inline_first.
-      Print Ltac inline_first.
-      Print Ltac dist_inline_first.
-      Print Ltac dist_simp_weak_1.
-      Print Ltac dist_ret_l.
-      admit.
-      (* eexists. *)
 
       (* strip off first call on left side, since it doesn't use the oracle *)
-(*      unfold GenUpdate_rb_intermediate_oc.
-      (* why won't the tactic work under the existential :( *)
-      simplify. 
+      unfold GenUpdate_rb_intermediate_oc.
+      simplify.
       fcf_irr_l. simplify.
-      fcf_irr_l. admit.
+      fcf_irr_l. admit. (* note the k doesn't change *)
       simplify.
       rename b into v'.
 
@@ -5593,12 +5444,8 @@ Proof.
       ret hasInputDups s)).
       { prog_equiv. fcf_spec_ret. }
       rewrite plus_n_Sm.
-      assert (H_iS : S callsSoFar <= i) by omega.
-      specialize (IHlistLen' k v' (S callsSoFar) i blocks init H_iS).
-      destruct IHlistLen' as [v_prev IHlistLen''].
-      Show Existentials.
-      eapply IHlistLen''.
-      omega. *)
+      eapply IHlistLen'.
+      omega.
 
     (* calls = i *)
     + (* what's the form of the lemma i should apply here? *)
@@ -5616,30 +5463,33 @@ Proof.
       (* depends on whether i = 0, so destruct on that *)
       destruct (zerop i) as [ i_eq_0 | i_gt_0 ].
       (* i = 0 *)
-      { subst. simplify.
-        fcf_skip.
-        Transparent GenUpdate_noV_oc. 
-        instantiate (1 := (fun x y => snd x = snd y)).
-        { simplify. fcf_skip.
-          instantiate (1 := (fun x y => snd x = snd y)).
-          (* now we have a problem with Gen_loop_oc, where the first internal query may be different *)
-          Print Gen_loop_oc.
-          (* do we *have* to reason about every input? what about just the outputs? well, the next outputs depend on previous inputs but they're also independent of the input so that might work? *)
-          admit.
+      {
+        subst. simplify.
 
-          simplify. simpl in *. subst.
-          (* but now the oracle is queried with an output that differs... *)
-          fcf_skip_eq. admit.
-          simplify.
-          fcf_spec_ret. 
-        }
-        simplify.
-        (* prove the oracle is never used after this *)
-        (* what should the inductive condition be for "this"? *)
+        (* replace v_prev with v, since the const vector in front doesn't matter *)
+        eapply comp_spec_eq_trans_r.
+        Focus 2.
+        eapply (compMap_anyv (forNats (pred blocks)) v v_prev).
+        unfold compMap_v.
+
+        fcf_skip.
+        (* the types even differ here: Blist vs Bvector eta. is it easier to do to_list or from_list? *)
+        Print GenUpdate_noV_oc.
+        instantiate (1 := (fun x y => map (fun c => fst c) (snd x) = map (fun c => to_list c) y)).
+        { admit. }
+        (* is this postcondition (eq on blocks gen) too strong? or is it actually right? *)
+        (* where should the hasDups go? *)
+        (* should i prove hasDups on GenUpdate_noV_oc? rewrite *)
+
+        (* induction: prove the oracle is never used in subsequent calls *)
         (* TODO apply lemma *)
         (* i = 0, calls = 1 *)
-        destruct b0.
-        (* fcf_irr_l. simplify. *)
+        simpl in *.
+        simplify.
+        (* this is annoying (or impossible) to subst... *)
+        (* how did adam deal with the bvector / blist problem? *)
+        (* is this new goal a good place to induct from? (apply more general lemma with calls > i, inductive invariant H1) *)
+        (* whatever postcondition i prove above will become the inductive invariant for calls > i *)
         admit.
       }
       (* i <> 0 *)
@@ -5649,55 +5499,42 @@ Proof.
         pose proof (beq_nat_refl i) as i_refl.
         rewrite <- i_refl.
         clear i_neq_0 i_refl.
+        unfold compMap_v.
         fcf_skip.
-        instantiate (1 := (fun x y => snd x = snd y)).
-        (* oh NO v and v1 are different, but we need to retain the fact that v and v1 are sampled from the same distribution... should (k,v) be same here? but they aren't same elsewhere for IH? oh NO, this feels like the other lemma all over again :( *)
-        (* wait what? the v are both sampled in beginning of GenUpdate_oc. it's GenUpdate_noV_oc that I have to worry about, because they were sampled from instantiate, whose information isn't retained here..... *)
-        (* wait, but the input v each time... is from the last call... i still need to worry about that :( *)
-        { Transparent GenUpdate_oc.
-          simplify.
-          fcf_skip_eq. unfold rb_oracle. fcf_skip_eq. fcf_spec_ret. repeat f_equal. admit.
-          fcf_skip_eq.
-          simplify.
-          fcf_skip_eq.
-          simplify.
-          fcf_spec_ret.
-        }
-        (* can they just start out with the same (k,v)...? would that break the IH? *)
-        simplify. destruct b0.
-        (* TODO apply lemma *)
-        eapply comp_spec_eq_trans_r.
+
+        (* note how hasInputDups is defined... why didn't I use map fst instead of split??! *)
+        Print hasInputDups. 
+        Print split.
+        instantiate (1 := (fun x y => map (fun c => fst c) (snd x) = map (fun c => to_list c) y)).
+        { admit. }
+
+        (* induction: calls > i (here calls = S i) *)
+        simpl in *. rename b into left_state. rename b1 into right_inputs.
+        simplify. destruct b0 as [k' v'].
+
         (* simplify two lines after ocm *)
-        instantiate (1 :=  (a0 <-$
-      (oracleCompMap_inner
-         (pair_EqDec (list_EqDec (list_EqDec eqdbv))
-            (pair_EqDec nat_EqDec eqDecState))
-         (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
-         (S i, (b0, b1)) (replicate listLen' blocks))
-        (list (Blist * Bvector eta)) (list_EqDec (pair_EqDec eqdbl eqdbv))
-        rb_oracle b;
-        [_, b'] <-2 a0;
-        ret hasInputDups b')).
+        eapply comp_spec_eq_trans_r.
+        instantiate (1 := ((a0 <-$
+                               (oracleCompMap_inner
+                                  (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+                                              (pair_EqDec nat_EqDec eqDecState))
+                                  (list_EqDec (list_EqDec (Bvector_EqDec eta))) 
+                                  (Oi_oc' i) (S i, (k', v')) (replicate listLen' blocks))
+                               (list (Blist * Bvector eta))
+                               (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle
+                               left_state;
+                            [_, left_state'] <-2 a0;
+                            ret hasInputDups left_state'))).
         { prog_equiv. fcf_spec_ret. }
-        (* i = 0, calls = S i *)
+        unfold hasInputDups.
         admit.
       }
 Qed.
-Admitted.
 
-Lemma Gi_rb_bad_eq_2' : forall (i : nat), exists v,
+Lemma Gi_rb_bad_eq_2' : forall (i : nat) (v : Bvector eta),
     Pr [Gi_rb_bad_no_adv i] == Pr[case_on_i i numCalls blocksPerCall v].
 Proof.
-  intros i.
-
-  (* instantiate v *)
-  pose proof split_out_oracle_call_exists as split_out.
-  (* eexists. *)
-  (* destruct split_out as [ v_prev split_out ]. *)
-  (* exists v_prev. *)
-
-(* Unset Printing Notations. *)
-(* simpl. *)
+  intros i v.
 
   fcf_to_prhl_eq.
   unfold Gi_rb_bad_no_adv.
@@ -5720,7 +5557,8 @@ Proof.
   { prog_equiv. fcf_spec_ret. }
 
   eapply comp_spec_eq_trans_r.
-  eapply split_out. omega.
+  eapply split_out_oracle_call_forall. omega.
+  instantiate (1 := v).
 
   unfold case_on_i_gen.
   unfold case_on_i.
@@ -5733,22 +5571,33 @@ Qed.
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 
-Lemma Gi_rb_bad_collisions : forall (i : nat),
+Close Scope nat.
+Lemma Gi_rb_bad_collisions : forall (i : nat) (v : Bvector eta),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
 Proof.
   intros.
   rewrite Gi_rb_bad_eq_1.       (* done *)
   pose proof Gi_rb_bad_eq_2' as select_call.
-  destruct select_call as [ v' select_call'].
-  rewrite select_call'.
-  clear select_call'.
+  specialize (select_call i v).
+  (* sort of weird to have that v quantified but not mentioned in the theorem statement... *)
+  rewrite select_call. clear select_call.
   unfold case_on_i.
   destruct (ge_dec i) as [ i_ge_nc | i_nge_nc ].
   (* i out of bounds *)
   - assert (H_0 : Pr [ret false] == 0).
-    { admit. }
+    { Transparent evalDist. unfold evalDist. simpl.
+      destruct (EqDec_dec bool_EqDec false true). inversion e. reflexivity. }
     rewrite H_0. unfold Pr_collisions.
-    admit.
+    assert (lowerbound : forall n m : nat, 0 <= ((S n)^2)/2^m).
+    { intros n m. 
+      (* Unset Printing Notations. *)
+      simpl.
+      (* SearchAbout leRat. *)
+      (* need to reason about rationals *)
+      admit.
+    }
+    eapply lowerbound.
+
   (* i in bounds *)
   - destruct (zerop i).
     (* i = 0 *)
