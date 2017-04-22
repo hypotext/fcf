@@ -5734,13 +5734,15 @@ Proof.
       (* Set Printing Implicit. *)
       (* these are not the same because of nat addition or rat intro... maybe due to parenthesization? *)
       (* simpl. *)
-      Unset Printing Notations.
+      (* Unset Printing Notations. *)
       (* replace (RatIntro (pow (S (length (forNats blocksPerCall))) (S (S O))) *)
       (*  (natToPosnat (nz_nat (plus (S O) O)))) with  (RatIntro (pow (S (length (forNats blocksPerCall))) (S (S O))) *)
       (*  (natToPosnat (expnat_nz eta (nz_nat (S O))))). *)
       (* eapply dupProbc. *)
       (* TODO it should unify though! *)
       admit.
+      (* where are these from? TODO remove *)
+      Grab Existential Variables. apply 0. apply 0.
 Qed.
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
@@ -5771,12 +5773,8 @@ Proof.
 
   (* NOTE still parametrized by i, so the hybrid matters *)
   rewrite Gi_rb_rf_identical_until_bad.
-  (* unfold Gi_rb_bad. unfold PRF_Adversary. simplify. *)
-  (* ??? shouldn't Pr_collisions depend on the hybrid. or just an upper bound? *)
-  (* unfold Pr_collisions. *)
-  (* rb oracle is queried when? i'm confused. only on ith call? yeah only on ith call (when RF is replaced with RB) *)
-  (* so we "zoom in" here and it doesn't really matter if RB before it use new v... or if on the ith call we use new v... only the `bvector eta` getting generated matters? *)
   apply Gi_rb_bad_collisions.
+  bv_exist.
 Qed.
 
 (* for above, want lemmas saying
