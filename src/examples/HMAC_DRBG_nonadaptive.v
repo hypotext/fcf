@@ -1354,6 +1354,63 @@ PRF_Advantage_Game i = PRF_Advantage (the normal one with just the PRF/RF differ
     admit.
 Qed.
 
+
+(* Below can be used to establish a maximum advantage over all constructed adversaries *)
+Theorem gtRat_impl_leRat:
+  forall a b,
+    (a <= b -> False) ->
+    b <= a.
+
+    intuition.
+    rattac.
+    destruct (le_dec (n * x) (n0 * x0))%nat.
+    trivial.
+    exfalso.
+    eapply H.
+    rattac.
+Qed.
+
+Fixpoint argMax(f : nat -> Rat) (n : nat) :=
+  match n with
+    | O => O
+    | S n' => let p := (argMax f n') in
+              if (le_Rat_dec (f (S n')) (f p)) then p else (S n')
+                                                             end.
+
+Theorem argMax_correct :
+  forall (f : nat -> Rat)(n : nat),
+    (forall n', (n' <= n)%nat -> (f n') <= f (argMax f n)).
+
+  induction n; intuition; simpl in *.
+  assert (n' = O) by omega; subst.
+  intuition.
+  destruct (eq_nat_dec n' (S n)).
+  subst.
+  destruct (le_Rat_dec (f0 (S n)) (f0 (argMax f0 n)));
+  intuition.
+
+  assert (n' <= n)%nat by omega.
+  destruct (le_Rat_dec (f0 (S n)) (f0 (argMax f0 n))).
+  eapply IHn; eauto.
+  eapply leRat_trans.
+  eapply IHn.
+  trivial.
+  eapply gtRat_impl_leRat; eauto.
+Qed.
+
+Theorem PRF_Advantage_max_exists :
+  forall i,
+      (i <= numCalls)%nat ->
+      PRF_Advantage_Game i <= PRF_Advantage_Game (argMax PRF_Advantage_Game numCalls).
+
+  intuition.
+  apply argMax_correct; trivial.
+
+Qed.
+
+(* The theorem above can be used in some of the arguments below, replacing 0 with (argMax PRF_Advantage_Game numCalls *)
+
+
 (* Lemma PRF_Advantages_lte : forall (i : nat), exists (j : nat), *)
 (*     PRF_Advantage_Game i <= PRF_Advantage_Game j. *)
 (* Proof. *)
@@ -1961,8 +2018,80 @@ Definition Gi_rf_dups_bad (i : nat) : Comp (bool * bool) :=
   [b, state] <-$2 PRF_Adversary i _ _ randomFunc_withDups nil;
   ret (b, hasInputDups state). 
 
+Theorem oracleCompMap_inner_oracle_equiv : 
+    forall (A B C D S : Set) (eqdc : EqDec C)(eqdd : EqDec D)(eqds : EqDec S) blocks (inv : S -> S -> Prop) (oc : nat * KV -> A -> OracleComp B C (D * (nat * KV))) s (o1 o2 : S -> B -> Comp (C * S)) s1 s2,
+    (forall s1 s2, inv s1 s2 -> (forall a, comp_spec (fun x1 x2 => (fst x1 = fst x2) /\ inv (snd x1) (snd x2)) (o1 s1 a) (o2 s2 a))) ->
+    inv s1 s2 ->
+    comp_spec (fun x1 x2 => fst x1 = fst x2 /\ inv (snd x1) (snd x2))
+   ((oracleCompMap_inner _ _ oc
+         s blocks) _ _
+        o1 s1)
+  ((oracleCompMap_inner _ _ oc
+         s blocks) _ _
+        o2 s2).
+  
+  induction blocks; intuition; simpl; fcf_simp.
+  apply comp_spec_ret; intuition.
+
+  fcf_simp.
+  fcf_skip.
+  eapply oc_comp_spec_eq.
+  apply H0.
+  intuition.
+  
+  fcf_simp.
+  simpl in *.
+  intuition.
+  pairInv.
+  fcf_skip.
+  simpl in *.
+  destruct b3.
+  simpl in *. subst.
+  fcf_simp.
+  apply comp_spec_ret.
+  simpl.
+  intuition.
+
+Qed.
+
+
+Theorem randomFunc_withDups_spec : 
+  forall s1 s2 a,
+  (forall a, arrayLookup _ s1 a = arrayLookup _ s2 a) ->
+  comp_spec
+     (fun x1 x2 : Bvector eta * list (Blist * Bvector eta) =>
+      fst x1 = fst x2 /\
+      (forall a0, 
+       arrayLookup _ (snd x1) a0 = arrayLookup _ (snd x2) a0))
+     (randomFunc ({ 0 , 1 }^eta) _ s1 a) (randomFunc_withDups s2 a).
+
+  intuition.
+  unfold randomFunc_withDups, randomFunc.
+  case_eq (arrayLookup eqdbl s1 a); intuition.
+  rewrite <- H.  
+  rewrite H0.
+  fcf_simp.
+  apply comp_spec_ret.
+  intuition.
+  simpl.
+  case_eq (a0 ?= a); intuition.
+  rewrite eqb_leibniz in H1.
+  subst. trivial.
+
+  rewrite <- H.
+  rewrite H0.
+  fcf_skip.
+  apply oneVector.
+  apply oneVector.
+  eapply comp_spec_ret.
+  intuition.
+  simpl.
+  rewrite H. 
+  trivial.
+Qed.
+
 Lemma oracleCompMap_rf_oracle_irrelevance : forall blocks calls i k v state,
-   comp_spec eq
+   comp_spec (fun x1 x2 => fst x1 = fst x2 /\ forall a, arrayLookup _ (snd x1) a = arrayLookup _ (snd x2) a)
      ((oracleCompMap_inner
          (pair_EqDec (list_EqDec (list_EqDec eqdbv))
             (pair_EqDec nat_EqDec eqDecState))
@@ -1977,32 +2106,13 @@ Lemma oracleCompMap_rf_oracle_irrelevance : forall blocks calls i k v state,
          (calls, (k, v)) blocks) (list (Blist * Bvector eta))
         (list_EqDec (pair_EqDec eqdbl eqdbv)) randomFunc_withDups state).
 Proof.
-  induction blocks as [ | block blocks']; intros.
-  - simplify. fcf_spec_ret.
-  - simplify. fcf_skip_eq; kv_exist.
-    {
-      destruct (beq_nat calls 0).
-      + destruct (lt_dec calls i); repeat (simplify; fcf_skip_eq; kv_exist; simplify). fcf_spec_ret.
-        admit.
-        SearchAbout randomFunc_withDups.
-        (* TODO import that fn from PRF_DRBG instead and weaken precondition for randomFunc_withDups_spec *)
-        admit. (* didn't adam prove this? *)
-      + destruct (lt_dec calls i); repeat (simplify; fcf_skip_eq; kv_exist; simplify). fcf_spec_ret.
-        destruct (beq_nat calls i); repeat (simplify; fcf_skip_eq; kv_exist; simplify).
-        admit.
-        admit.
-        admit.
-
-        unfold GenUpdate_PRF_oc.
-        fcf_inline_first.
-        simplify.
-        fcf_spec_ret.
-    }
-    simplify. destruct b0.
-    fcf_skip_eq; kv_exist.
-    simplify. fcf_spec_ret.
+  intros.
+  eapply comp_spec_consequence.
+  eapply (oracleCompMap_inner_oracle_equiv _ _ (fun s1 s2 => forall a, arrayLookup _ s1 a = arrayLookup _ s2 a)); intuition.
+  apply randomFunc_withDups_spec; intuition.
+  intuition.
 Qed.
-
+ 
 Lemma Gi_rf_dups_return_bad_eq : forall (i : nat),
     Pr[x <-$ Gi_rf_bad i; ret fst x] == Pr[x <-$ Gi_rf_dups_bad i; ret fst x].
 Proof.
@@ -2010,8 +2120,15 @@ Proof.
   fcf_to_prhl_eq.
   unfold Gi_rf_bad.
   unfold Gi_rf_dups_bad.
-  repeat (simplify; fcf_skip_eq).
+
+  repeat (simplify; fcf_skip).
   apply oracleCompMap_rf_oracle_irrelevance.
+  simpl in *.
+  intuition; pairInv.
+  eapply comp_spec_eq_refl.
+  fcf_simp.
+  subst.
+  reflexivity.
 Qed.
 
 (* expose the bad event (dups) *)
@@ -4222,6 +4339,90 @@ note i only have to relate them on calls=i   *)
 
 (* ----------------------- *Identical until bad section *)
 
+Theorem Gen_loop_rb_intermediate_wf:
+  forall a b c,
+     well_formed_comp (Gen_loop_rb_intermediate b c a).
+
+  induction a; intuition; simpl; fcf_well_formed.
+
+Qed.
+
+Theorem GenUpdate_rb_intermediate_oc_wf :
+  forall b a,
+    well_formed_oc (GenUpdate_rb_intermediate_oc b a).
+
+    intros.
+    unfold GenUpdate_rb_intermediate_oc.
+    fcf_simp.
+    fcf_well_formed.
+    apply Gen_loop_rb_intermediate_wf.
+Qed.
+
+Theorem Gen_loop_oc_wf : 
+  forall a b0,
+     well_formed_oc (Gen_loop_oc b0 a).
+
+  induction a; intuition; simpl; fcf_well_formed.
+Qed.
+
+Theorem GenUpdate_noV_oc_wf : 
+  forall b a,
+    well_formed_oc (GenUpdate_noV_oc b a).
+
+  intros.
+  unfold GenUpdate_noV_oc.
+  fcf_simp.
+  fcf_well_formed.
+  apply Gen_loop_oc_wf.
+
+Qed.
+
+Theorem GenUpdate_oc_wf : 
+  forall b a,
+     well_formed_oc (GenUpdate_oc b a).
+
+  intros.
+  unfold GenUpdate_oc.
+  fcf_simp.
+  fcf_well_formed.
+  apply Gen_loop_oc_wf.
+Qed.
+
+Theorem GenUpdate_PRF_oc_wf : 
+  forall b a,
+     well_formed_oc (GenUpdate_PRF_oc b a).
+
+  intros.
+  unfold GenUpdate_PRF_oc.
+  fcf_simp.
+  fcf_well_formed.
+
+Qed.
+
+Theorem oracleCompMap_inner_wf : 
+  forall inputs s i,
+  well_formed_oc
+     (oracleCompMap_inner
+        (pair_EqDec (list_EqDec (list_EqDec eqdbv))
+           (pair_EqDec nat_EqDec eqDecState))
+        (list_EqDec (list_EqDec eqdbv)) (Oi_oc' i) 
+        s inputs).
+
+  induction inputs; intuition; simpl;
+  fcf_well_formed.
+  destruct (lt_dec a0 i).
+  apply GenUpdate_rb_intermediate_oc_wf.
+  
+  destruct (beq_nat a0 0).
+  apply GenUpdate_noV_oc_wf.
+  destruct (beq_nat a0 i).
+  apply GenUpdate_oc_wf.
+  eapply GenUpdate_PRF_oc_wf.
+
+Qed.
+
+
+
 (* SAME PROOF AS PRF_A_randomFunc_eq_until_bad (with the computation order switched) *)
 Theorem oracleCompMap__oracle_eq_until_bad_dups : forall (i : nat) b b0,
     comp_spec
@@ -4258,10 +4459,9 @@ Proof.
             (fun x => hasDups _ (fst (split x)))
             (fun x => hasDups _ (fst (split x))) eq); intuition.
 
-  - fcf_well_formed. (* TODO hole: prove entire oraclecompmap is well_formed (how?) *)
-    SearchAbout well_formed_oc.
-    (* unfold well_formed_oc. *)
-    admit.
+  - fcf_well_formed. 
+  apply oracleCompMap_inner_wf.
+
   - intros. unfold rb_oracle. fcf_well_formed.
   - intros. unfold randomFunc_withDups. destruct (arrayLookup eqdbl a b1); fcf_well_formed.
   - 
@@ -5669,6 +5869,48 @@ Qed.
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
 
+Require Import RndInList.
+
+Theorem hasDups_cons_orb : 
+  forall (A  : Set)(eqd : EqDec A)(ls : list A)(a : A),
+    hasDups _ (a :: ls) = (if (in_dec (EqDec_dec _) a ls) then true else false) || hasDups _ ls. 
+ 
+   intuition.
+   Transparent hasDups.
+   simpl.
+   destruct (in_dec (EqDec_dec eqd) a ls); intuition.
+Qed.
+ 
+Theorem compMap_hasDups_cons_orb : 
+  forall (A : Set)(ls : list A) x,
+    Pr[lb <-$ compMap _ (fun _ => {0,1}^eta) ls; ret hasDups _ (x :: lb)] ==
+    Pr[lb <-$ compMap _ (fun _ => {0,1}^eta) ls; ret (if (in_dec (EqDec_dec _) x lb) then true else false) || hasDups _ lb].
+
+  intuition.
+  fcf_skip.
+  rewrite hasDups_cons_orb.
+  intuition.
+
+Qed.
+
+Theorem compMap_hasDups_cons_prob :
+  forall (A : Set)(ls : list A) x, 
+    (Pr[lb <-$ compMap _ (fun _ => {0,1}^eta) ls; ret hasDups _ (x :: lb)] <= S (length ls) ^ 2 / 2 ^ eta)%rat.
+
+  intuition.
+  rewrite compMap_hasDups_cons_orb.
+  rewrite evalDist_orb_le.
+  rewrite FixedInRndList_prob.
+  rewrite dupProb.
+  remember (length ls) as a.
+  rewrite <- ratAdd_den_same.
+  eapply leRat_terms; trivial.
+  simpl.
+  apply le_S.
+  apply plus_le_compat; try omega.
+  apply mult_le_compat; omega.
+Qed.
+
 Close Scope nat.
 Lemma Gi_rb_bad_collisions : forall (i : nat) (v : Bvector eta),
    Pr  [x <-$ Gi_rb_bad i; ret snd x ] <= Pr_collisions.
@@ -5682,67 +5924,26 @@ Proof.
   unfold case_on_i.
   destruct (ge_dec i) as [ i_ge_nc | i_nge_nc ].
   (* i out of bounds *)
-  - assert (H_0 : Pr [ret false] == 0).
-    { Transparent evalDist. unfold evalDist. simpl.
-      destruct (EqDec_dec bool_EqDec false true). inversion e. reflexivity. }
-    rewrite H_0. unfold Pr_collisions.
-    assert (lowerbound : forall n m : nat, 0 <= ((S n)^2)/2^m).
-    { intros n m. 
-      (* Unset Printing Notations. *)
-      simpl.
-      (* SearchAbout leRat. *)
-      (* need to reason about rationals *)
-      admit.
-    }
-    eapply lowerbound.
+  - Transparent evalDist. 
+  fcf_compute.
+  apply rat0_le_all.
 
   (* i in bounds *)
   - destruct (zerop i).
     (* i = 0 *)
-    +
-      assert (Hle : forall (x y z : Rat), x = y -> y <= z -> x <= z).
-      { intros. subst. auto. }
-      eapply Hle.
-      instantiate (1 := ((S (pred blocksPerCall)) ^ 2 / 2 ^ eta)).
-      {
-        unfold Pr_collisions. unfold compMap_v.
-        assert (lenl : length (forNats (pred blocksPerCall)) = pred blocksPerCall).
-        { apply forNats_length. }
-        
-        rewrite <- lenl at 2.
-        assert (test : (10 > 0)%nat) by omega.
-        (* why does it need 10? *)
-        generalize (@dupProb_const eta 10 test nat (forNats (pred blocksPerCall)) v). intros dupProbc.
-        (* apply dupProbc. *)
-        (* unification error but should be true *)
-        admit.
-      }
-      unfold Pr_collisions.
-      (* Unset Printing Notations. *)
-      (* should be true, but need to reason about rationals *)
-      { admit. }
+    + 
+     unfold compMap_v.
+     rewrite compMap_hasDups_cons_prob.
+     rewrite forNats_length.
+     unfold Pr_collisions.
+     eapply leRat_terms; intuition.
+     eapply Nat.pow_le_mono; omega.
+    + 
+    unfold compMap_v.
+    rewrite compMap_hasDups_cons_prob.
+     rewrite forNats_length.
+     reflexivity.
 
-    +
-      (* pose proof dupProb_const as dupProbc. *)
-      unfold Pr_collisions. unfold compMap_v.
-      assert (lenl : length (forNats blocksPerCall) = blocksPerCall).
-      { apply forNats_length. }
-      rewrite <- lenl at 2.
-      assert (test : (10 > 0)%nat) by omega.
-      Check dupProb_const.
-      generalize (@dupProb_const eta 10 test nat (forNats blocksPerCall) v). intros dupProbc.
-      (* Set Printing Implicit. *)
-      (* these are not the same because of nat addition or rat intro... maybe due to parenthesization? *)
-      (* simpl. *)
-      (* Unset Printing Notations. *)
-      (* replace (RatIntro (pow (S (length (forNats blocksPerCall))) (S (S O))) *)
-      (*  (natToPosnat (nz_nat (plus (S O) O)))) with  (RatIntro (pow (S (length (forNats blocksPerCall))) (S (S O))) *)
-      (*  (natToPosnat (expnat_nz eta (nz_nat (S O))))). *)
-      (* eapply dupProbc. *)
-      (* TODO it should unify though! *)
-      admit.
-      (* where are these from? TODO remove *)
-      Grab Existential Variables. apply 0. apply 0.
 Qed.
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
