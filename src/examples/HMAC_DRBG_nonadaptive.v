@@ -5577,13 +5577,10 @@ Definition case_on_i (i ncalls nblocks : nat) (v : Bvector eta) :=
 
 Open Scope nat.
 
-(* try adam's suggestion to replace existential with a forall *)
-(* TODO include adam's proof of this lemma *)
-(* TODO link to rest of proof and convert rest of proof *)
-Theorem compMap_anyv : forall (ls : list nat) (v w : Bvector eta),
-    comp_spec eq (compMap_v ls v) (compMap_v ls w).
-Proof.
-Admitted.
+(* TODO split this out into a separate module (CompMap_v_equiv.v) *)
+(* Transparent hasDups. *)
+
+Require Import CompMap_v_equiv.
 
 Lemma simplify_hasDups : forall (listLen i callsSoFar blocks : nat) (k v : Bvector eta) (l : list (Bvector eta))
                                 rb_state1,
@@ -5888,6 +5885,102 @@ Proof.
 
 Admitted.
 
+(* ------------ Adam's version of Gi_rb_collisions_inner_eq *)
+
+(* TODO see if I can prove a more general version of compmap_v_eq using compMap_v_eq_h *)
+
+(* adding init on the right *)
+Opaque hasDups.
+Lemma Gi_rb_collisions_inner_eq_general : forall blocks k v init,
+  comp_spec eq
+     (a <-$
+      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+      [_, init']<-2 a; ret hasInputDups init') 
+      (x <-$
+      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats (S blocks)); 
+        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
+Proof.
+  intuition; simpl.
+  unfold rb_oracle.
+  fcf_inline_first.
+  fcf_skip.
+  fcf_inline_first.
+  fcf_skip.
+  
+  Theorem Gen_loop_oc_compMap_eq : forall blocks b (v : Bvector eta) init,
+    comp_spec (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init))
+     ((Gen_loop_oc b blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+        (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+         output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+        ((to_list v, b) :: init))
+     (compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats blocks)).
+  Proof.
+    induction blocks; intuition; simpl in *.
+    fcf_simp.
+    eapply comp_spec_ret.
+    trivial.
+
+    fcf_inline_first.
+    fcf_skip.
+    fcf_skip.
+    apply comp_spec_ret.
+    simpl in *.
+    rewrite H4.
+    f_equal.
+
+    (* maybe running into that "different first list item" problem *)
+  Admitted.
+
+  apply Gen_loop_oc_compMap_eq.
+
+  fcf_simp.
+  simpl in *.
+
+  fcf_inline_first.
+  fcf_irr_l.
+  repeat (fcf_inline_first; fcf_simp).
+  eapply comp_spec_ret.
+  unfold hasInputDups.
+  simpl.
+  remember (split b0) as z.
+  destruct z.
+  simpl.
+
+  (* From H2, we know that b is correctly related to b0. This can be proved in a separate theorm by induction on blocks *)
+  admit.
+(* ?? *)
+Qed.
+
+(* what is this other proof? *)
+(*  intros k v blocks init.
+  unfold GenUpdate_oc.
+  unfold compMap_v.
+
+  Print rb_oracle.
+
+  induction blocks; intuition; simpl in *.
+  fcf_inline_first.
+  fcf_irr_l.
+  admit.
+  repeat (fcf_inline_first; fcf_simp).
+  simpl.
+  fcf_inline_first.
+  fcf_irr_l.
+  admit.
+  repeat (fcf_inline_first; fcf_simp).
+  unfold rb_oracle in *.
+  repeat simp_in_support.
+  unfold hasInputDups.
+  simpl.
+  unfold compMap_v. simpl.
+Qed. *)
+
+(* ------------ end Adam's version of Gi_rb_collisions_inner_eq *)
+
 Lemma split_out_oracle_call_forall : 
     forall (listLen : nat) (k v v_prev : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
       callsSoFar <= i ->
@@ -5962,7 +6055,8 @@ Proof.
         (* replace v_prev with v, since the const vector in front doesn't matter *)
         eapply comp_spec_eq_trans_r.
         Focus 2.
-        eapply (compMap_anyv (forNats (pred blocks)) v v_prev).
+        eapply (compMap_v_eq (forNats (pred blocks)) v v_prev).
+        Check compMap_v_eq.
         unfold compMap_v.
 
         fcf_skip.
@@ -6006,7 +6100,7 @@ Proof.
         (* replace v_prev with v, since the const vector in front doesn't matter *)
         eapply comp_spec_eq_trans_r.
         Focus 2.
-        eapply (compMap_anyv (forNats blocks) v v_prev).
+        eapply (compMap_v_eq (forNats blocks) v v_prev).
         
         (* should I replace GenUpdate_oc with something else that doesn't use to_list?? *)
         (* maybe i should replace oracleCompMap inner with hasInputDups (state from Genupdate_oc) first *)
@@ -6137,14 +6231,14 @@ Proof.
   - destruct (zerop i).
     (* i = 0 *)
     + 
-     unfold compMap_v.
+     unfold PRG.compMap_v.
      rewrite compMap_hasDups_cons_prob.
      rewrite forNats_length.
      unfold Pr_collisions.
      eapply leRat_terms; intuition.
      eapply Nat.pow_le_mono; omega.
     + 
-    unfold compMap_v.
+    unfold PRG.compMap_v.
     rewrite compMap_hasDups_cons_prob.
      rewrite forNats_length.
      reflexivity.
