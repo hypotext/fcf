@@ -5888,10 +5888,11 @@ Admitted.
 (* ------------ Adam's version of Gi_rb_collisions_inner_eq *)
 
 (* TODO see if I can prove a more general version of compmap_v_eq using compMap_v_eq_h *)
+(* From email: "See compMap_v_eq_h in the file I attached on Apr 22. I think this is what you want. Note that this fact only holds if v and w are both not in init (you can also prove it when both are in init by removing the compMap statements with fcc_irr). *)
 
 (* adding init on the right *)
 Opaque hasDups.
-Lemma Gi_rb_collisions_inner_eq_general : forall blocks k v init,
+Lemma Gi_rb_collisions_inner_eq_general : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
   comp_spec eq
      (a <-$
       (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
@@ -5908,31 +5909,62 @@ Proof.
   fcf_skip.
   fcf_inline_first.
   fcf_skip.
-  
-  Theorem Gen_loop_oc_compMap_eq : forall blocks b (v : Bvector eta) init,
-    comp_spec (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init))
-     ((Gen_loop_oc b blocks) (list (Blist * Bvector eta))
+  (* is (S blocks) really correct? it does make the proof more convenient *)
+
+  (* should `to_list v` be in the oracle state here? maybe if we generalized it to any init? *)
+  Theorem Gen_loop_oc_compMap_eq : forall blocks (v_init v_init_input : Bvector eta) init,
+    comp_spec
+      (* (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init)) *)
+
+      (* bits, last element of bits, and oracle state vs. just bits *)
+     (fun (loop_out : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta))
+          (map_out : list (Bvector eta)) =>
+          map (fst (B:=Bvector eta)) (snd loop_out) =         (* inputs to oracle *)
+          to_list v_init_input :: map (to_list (n:=eta)) map_out ++ map (fst (B:=Bvector eta)) init)
+     (* existing first input + generated bits (as blist) + initial inputs *)
+
+     ((Gen_loop_oc v_init blocks) (list (Blist * Bvector eta)) (* NOTE: b is the initial input to Gen_loop_oc *)
         (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
         (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
          output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-        ((to_list v, b) :: init))
-     (compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
-        (forNats blocks)).
+        ((to_list v_init_input, v_init) :: init))
+
+     (compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) (forNats blocks)).
   Proof.
-    induction blocks; intuition; simpl in *.
-    fcf_simp.
-    eapply comp_spec_ret.
-    trivial.
+    induction blocks as [ | blocks']; intuition; simpl in *.
+    - fcf_simp.
+      (* fcf_spec_ret. *)
+      eapply comp_spec_ret.
+      simpl.                    (* simplifies to `to_list v :: map fst init`. should it? it would work w/o to_list v? *)
+      reflexivity.
 
-    fcf_inline_first.
-    fcf_skip.
-    fcf_skip.
-    apply comp_spec_ret.
-    simpl in *.
-    rewrite H4.
-    f_equal.
+    - fcf_inline_first.
+      fcf_skip.
+      rename b into sampled_v.
+      specialize (IHblocks' sampled_v v_init ((to_list v_init_input, v_init) :: init)).
+      (* IH works? what does the IH say? is the postcondition accounting for the new rb_state?*)
+      fcf_skip. apply IHblocks'.
+      simpl in *.
+      rename b1 into compMap_gen_bits.
+      rename a into loop_bits.
+      rename b0 into last_loop_v.
+      rename b into end_loop_state.
+      apply comp_spec_ret.
+      simpl.
+      rewrite H4.
+      (* it's mixing up  *)
+      f_equal. admit.
+      (* oh there's more *)
+      admit.
+      (* the left and right don't look equal at all? removing the last list, *)
+      (* to_list v_init :: map to_list compmap_gen_bits ++ [to_list v_init_input] =
+         to_list v_init_input :: to_list sampled_v :: map to_list compmap_gen_bits *)
+      (* the order is wrong, and v_init != sampled_v. why is this problem arising? *)
+      (* maybe we need Permutation again *)
+      (* what would cause them to be in a different order? *)
+  (* what's causing this problem? is it the same as the problem I ran into earlier, due to how Gen_loop_oc is defined (which doesn't match the cons definition of Gen_loop)? *)
 
-    (* maybe running into that "different first list item" problem *)
+  (* maybe running into that "different first list item" problem *)
   Admitted.
 
   apply Gen_loop_oc_compMap_eq.
@@ -5940,17 +5972,36 @@ Proof.
   fcf_simp.
   simpl in *.
 
+  (* what is b? *)
+  rename b into v_init. rename v into v_init_input.
+
   fcf_inline_first.
   fcf_irr_l.
-  repeat (fcf_inline_first; fcf_simp).
+  fcf_inline_first. 
   eapply comp_spec_ret.
   unfold hasInputDups.
+  rename b0 into rest_of_oracle_state.
+  rename a0 into key_output.
   simpl.
-  remember (split b0) as z.
+  remember (split rest_of_oracle_state) as z.
   destruct z.
-  simpl.
 
-  (* From H2, we know that b is correctly related to b0. This can be proved in a separate theorm by induction on blocks *)
+  (* added *)
+  simpl.
+  rename b1 into key_input.
+  rename b2 into bits_list.
+  rename l into oracle_inputs.
+
+  (* ok, we now have to_list b1 ++ zeroes, should prove that is removable *)
+  (* using H4, why is there the extra `to_list b` on the right? otherwise, everything else matches *)
+  (* how to ue H4? *)
+
+  (* what/where is b0? *)
+  (* how to prove that "separate theorem" and what should the theorem statement be? *)
+  (* did we already use H4? it relates b0 to b2 and init, and Heqz (which we didn't actually use?) relates (l,l0) to b0 (which doesn't appear in the theorem statement)... *)
+  (* does adam mean H2 or H4? *)
+
+  (* From H2, we know that b is correctly related to b0. This can be proved in a separate theorem by induction on blocks *)
   admit.
 (* ?? *)
 Qed.
