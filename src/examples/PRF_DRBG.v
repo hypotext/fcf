@@ -709,12 +709,13 @@ Check PRF_DRBG_f_bad.
    (* not sure why ls is needed, why not []? needed for induction? *)
    (* don't we have to reason about injD in the latter? *)
    Theorem PRF_DRBG_f_bad_spec : 
-     forall n v (ls : list (D * Bvector eta)), (* ls is the initial oracle state *)
+     forall n v (ls : list (D * Bvector eta)), (* ls is the initial oracle state (just the inputs) *)
 
        (* x1 : outputs * state, where state = inputs * outputs *)
      comp_spec (fun (x1 : list (Bvector eta) * list (D * Bvector eta)) (x2 : list D) =>
                   (* Perm (inputs_x1 (implicitly using init state)) (inputs in init oracle state ++ inputs_x2) whatever those are *)
                   Permutation (fst (split (snd x1))) ((fst (split ls)) ++ x2))
+
      ((PRF_DRBG_f_G2 v n) _ _
                           (* don't understand this -- PRF_DRBG_f_G2 returns oraclecomp?
                            what is this function doing? is it an oracle? *)
@@ -722,26 +723,14 @@ Check PRF_DRBG_f_bad.
         (fun (ls : list (D * Bvector eta)) (a : D) =>
          x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls))
         ls)
+
      (PRF_DRBG_f_bad v n).
 
-       Proof.
-Print PRF_DRBG_f_G2.            (* OracleComp D (Bvector eta) (list (Bvector eta)) *)
-Check (PRF_DRBG_f_G2 v_init O) _ _.
-(*  : (D -> D -> Comp (Bvector eta * D)) ->
-       D -> Comp (list (Bvector eta) * D) 
-*)
-Check         (fun (ls : list (D * Bvector eta)) (a : D) =>
-         x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls)).
-(*  : list (D * Bvector eta) ->
-       D -> Comp (Bvector eta * list (D * Bvector eta)) *)
-Variable lsx : list (D * Bvector eta).
-Check      ((PRF_DRBG_f_G2 v_init O) _ _
-                          (* don't understand this -- PRF_DRBG_f_G2 returns oraclecomp?
-                           what is this function doing? is it an oracle? *)
-        (fun (ls : list (D * Bvector eta)) (a : D) =>
-         x <-$ { 0 , 1 }^eta; ret (x, (a, x) :: ls))
-        nil).
-(*  : Comp (list (Bvector eta) * list (D * Bvector eta)) *)
+   Proof.
+     (* delete these *)
+     (* unfold PRF_DRBG_f_G2. *)
+     (* unfold PRF_DRBG_f_bad. *)
+     (* end *)
 
      induction n; intuition; simpl in *.
      fcf_simp.
@@ -752,7 +741,7 @@ Check      ((PRF_DRBG_f_G2 v_init O) _ _
 
      fcf_inline_first.
      fcf_skip.
-     fcf_skip.                  (* gets rid of the InjD part *)
+     fcf_skip.
      fcf_spec_ret.
      simpl in H3.
      simpl.
@@ -802,13 +791,13 @@ Check PRF_DRBG_f_bad.
 
      * simpl in H1.
        fcf_inline_first.
-       fcf_irr_l.               (* irrelevant, move to hypothesis *)
+       fcf_irr_l.
        fcf_simp.
        simpl.
        fcf_spec_ret.
 
        apply Permutation_hasDups. (* note permutation *)
-       assumption.                (* where did this come from *)
+       assumption.
    Qed.
 
    (* In the next simplification, we remove the v input from the recursive function, and simply put the random values in the list. *)
