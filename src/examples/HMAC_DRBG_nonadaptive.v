@@ -5993,6 +5993,7 @@ Admitted.
 
 (* use the strategy below of two irr_l *)
 Lemma Gi_rb_collisions_inner_eq_general_induct_irr_l : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
+    Forall (fun x => length (fst x) = eta) init ->
   comp_spec eq
      (a <-$
       (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
@@ -6004,19 +6005,62 @@ Lemma Gi_rb_collisions_inner_eq_general_induct_irr_l : forall (blocks : nat) (k 
         ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
 Proof.
   intuition; simpl.
+  rename H0 into inputs_len.
   unfold rb_oracle.
   fcf_inline_first.
-  revert k v init. clear H.
+  revert k v init inputs_len. clear H.
   (* what do I do with k ~> Bvector eta *)
 
-  induction blocks as [ | blocks']; intros k v init.
+  induction blocks as [ | blocks']; intros k v init inputs_len.
   - simplify.
     fcf_irr_l. rename a into key_input. simplify.
     fcf_irr_l. rename a into key_output. simplify.
     fcf_spec_ret. unfold hasInputDups. simpl.
     remember (split init) as z. destruct z. simpl.
     pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
-    admit.
+    (* ah, here's where the key_input stuff went--still need to prove that *)
+    
+    Transparent hasDups.
+    unfold Blist. (* type synonym was interfering with rewrite *)
+    remember (to_list v :: l) as rest.
+    unfold hasDups at 1. fold hasDups. subst.
+    Opaque hasDups.
+    Check to_list_length.
+    destruct (in_dec (EqDec_dec eqdbl) (to_list key_input ++ zeroes)) as [ is_in | not_in ].
+    + assert (not_in : ~ In (to_list key_input ++ zeroes) (to_list v :: l)).
+      {
+        simpl. unfold not. intros not_in.
+        destruct not_in as [ is_first_elem | in_fixed_len_list ].
+        {
+          SearchAbout (_ = _ ++ _).
+          (* app_cons_not_nil? *)
+          unfold zeroes in *.
+          assert (eq_or_not : to_list v = to_list key_input \/ ~ (to_list v = to_list key_input)).
+          { (* blist eqdec?? *) admit. }
+          destruct eq_or_not as [ neq_in | eq_in ].
+          { rewrite neq_in in is_first_elem. admit. }
+          { (* l1 <> l2 -> l1 <> l2 ++ c (where c != nil) *) admit.  }
+        }
+
+        (* every element of l has length eta, and zeroes is nonempty *)
+        {
+          assert (l_eq : l = fst (split init)).
+          { rewrite <- Heqz. reflexivity. }
+          rewrite l_eq in in_fixed_len_list.
+          (* different predicate on init? Forall (fun x => len x = eta) (map fst init) *)
+          SearchAbout Forall.
+          (* also try using Forall_forall *)
+                                        
+          admit.
+        }
+        (* SearchAbout (~ (_ \/ _)). *)
+        (* apply Decidable.not_or. *)
+        (* SearchAbout In. *)
+        (* SearchAbout Forall. *)
+      }
+      contradiction.
+    + reflexivity.
+
   - simplify.
     (* need to gather the lines to apply IH? is the IH postcondition strong enough?? maybe i should have gathered the lines first *)
     fcf_skip. rename b into skip_v. simplify.
@@ -6047,12 +6091,18 @@ Proof.
 (* right side of H *)
     eapply comp_spec_eq_trans_l.
     apply H.
+    (* prove ind hyp on init *)
+    {
+      apply Forall_cons.
+      simpl. apply to_list_length. auto.
+    }
+
     simplify. prog_equiv. fcf_spec_ret.
     
 (* wait what?? there's no way it can be this easy. what's the catch? where's the key input? etc. *)
-    SearchAbout hasDups.
+    (* SearchAbout hasDups. *)
     apply Permutation_hasDups.
-    SearchAbout (_ :: _ :: _).
+    (* SearchAbout (_ :: _ :: _). *)
 
     eapply perm_trans. Focus 2.
     instantiate (1 :=      (to_list skip_v
@@ -6064,9 +6114,8 @@ Proof.
     eapply perm_trans.
     instantiate (1 :=      ((map (to_list (n:=eta)) a ++
          (to_list v :: nil)) ++ map (fst (B:=Bvector eta)) init) ).
-    { SearchAbout (_ ++ _ ++ _). rewrite <- app_assoc. apply Permutation_app_head. simpl. reflexivity. }
+    { rewrite <- app_assoc. apply Permutation_app_head. simpl. reflexivity. }
 
-    SearchAbout (_ :: _ ++ _).
     rewrite app_comm_cons.
     apply Permutation_app.
     apply Permutation_sym.
@@ -6132,280 +6181,8 @@ Proof.
         admit.
       * admit.
 Qed.
-      
-  (* the problem has already happened--v_update_output now appears on the right hand side as an input when it's still only an output on the left hand side. is there any way i can "shift over" the left loop by one, or use outputs as inputs...?? *)
-  (* i need to "stutter" on the right, or only skip for every two conses...? is that right? or is there a skip for every cons? *)
-  (* note v_update_output is cons'ed onto the output on the right--maybe that should be in the loop theorem statement? *)
 
-  (* in fact, maybe i should fold this first update into the gen_loop, and THEN do the larger induction? will it have the same problem? ok but that's why adam put S blocks there; that's equiv to doing this? but that adds an extra block to the end? *)
-
-  (* fcf_skip. (* b here: maybe we just forgot to account for it in some postcondition? *) *)
-  (* fcf_irr_l. *)
-  (* rename a into v_update_output. *)
-  (* fcf_inline_first. *)
-  (* fcf_skip. *)
-  (* is (S blocks) really correct? it does make the proof more convenient *)
-  (* TODO figure out if doing S blocks here and not skipping in loop lemma helps *)
-
-  (* note that here, it's `(Gen_loop_oc v_update_output blocks) ... ((to_list v, v_update_output) :: init)` *)
-
-Print Gen_loop_oc.
-
-(* gen_loop_oc v 2 = ([bits, v''] <-2 gen_loop_oc (f k v) 1; ret (f k v :: bits, v'')
-   = ret (f k v :: f k (f k v) :: nil, f k (f k v)) *)
-
-  Theorem Gen_loop_oc_compMap_eq_no_v_init : forall blocks (v_update_output v : Bvector eta) init,
-    comp_spec
-      (* (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init)) *)
-
-      (* bits, last element of bits, and oracle state vs. just bits *)
-     (fun (loop_out : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta))
-          (map_out : list (Bvector eta)) =>
-          map (fst (B:=Bvector eta)) (snd loop_out) =         (* inputs to oracle *)
-          to_list v :: map (to_list (n:=eta)) map_out ++ map (fst (B:=Bvector eta)) init)
-     (* existing first input + generated bits (as blist) + initial inputs *)
-
-     ((Gen_loop_oc v_update_output blocks) (list (Blist * Bvector eta)) (* NOTE: b is the initial input to Gen_loop_oc *)
-        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
-        (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
-         output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-        ((to_list v, v_update_output) :: init))
-
-     (compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) (forNats blocks)).
-
-  Proof.
-    induction blocks as [ | blocks']; intuition; simpl in *.
-
-    - fcf_simp.
-      eapply comp_spec_ret. simpl. reflexivity.
-      (* fcf_spec_ret.  *)
-    - fcf_inline_first.
-      (* the next input that should appear on the right list should actually be v_update_output, NOT skipped_gen *)
-      (* but how do i get that? it's not actually sampled on the left? unless i don't do fcf_irr_l before this lemma? *)
-
-      (* fcf_irr_l. simplify. *)
-
-      fcf_skip. rename b into skipped_gen.
-
-      (* note the states at this point *)
-      (* maybe i should swap the two conses? *)
-      (* maybe i should start with two conses or "one deeper" in the list? *)
-
-      (* fcf_irr_l. *)
-      (* simplify. *)
-      (* fcf_irr_r. *)
-      (* rename b into skipped_r. *)
-      (* maybe you shouldn't be skipping? maybe it's the same problem as the earlier skip? *)
-      (* problem is that the right should map to the oracle's inputs, not outputs, things are off by one *)
-      (* maybe this is the problem adam was trying to solve with the (S blocks)?? *)
-      (* what worked in PRF_DRBG? do we need another intermediate game? *)
-      (* maybe this should be the induction hypothesis? *)
-      fcf_skip. 
-      (* rename b into sampled_v. *)
-      (* fcf_skip. *)
-      simpl in *.
-      fcf_spec_ret.
-      simpl.
-      rewrite H4.
-      (* hmm, yeah, v_init won't align with the skipped_r on the right but they're at least close *)
-      (* how can we create an IH with v_init correctly? *)
-      rename a into loop_bits. rename b0 into last_loop_bits. rename b into end_loop_state.
-      rename b1 into map_bits.
-  (* the order is different *and* there's a difference between v_init and sampled_v *)
-  (* also can i even apply this in the larger theorem? *)
-  Admitted.
-
-  simpl.
-(*
-  apply Gen_loop_oc_compMap_eq_no_v_init. bv_exist.
-  simplify.
-  fcf_irr_l. rename a0 into key_output.
-  simpl in *.
-  simplify.
-  fcf_spec_ret.
-  unfold hasInputDups.
-  simpl.
-  remember (split b) as z. destruct z.
-  simpl.
-  rename b0 into key_input. rename l into oracle_inputs. rename b into oracle_state. rename l0 into oracle_outputs.
-  assert (split_map_fst : forall A B (l : list (A * B)), fst (split l) = map (@fst _ _) l).
-  { induction l as [ | x xs]; intros. simpl. reflexivity. simpl. destruct x.  simpl. destruct (split xs). simpl. simpl in *. subst. reflexivity. }
-
-  rewrite <- split_map_fst in H4.
-  rewrite <- Heqz in H4.
-  simpl in H4.
-  rewrite H4. 
-
-  Transparent hasDups.
-  (* TODO: we need that hypothesis about init = to_list whatever (it doesn't matter b/c init is nil when we apply thm) *)
-  remember (map (to_list (n:=eta)) b1 ++
-         to_list v :: map (fst (B:=Bvector eta)) init) as rest.
-  (* rewrite app_comm_cons. *)
-  unfold hasDups at 1. fold hasDups. *)
-  Opaque hasDups.
-(* former: prove to_list key_input cannot be in the latter list *)
- (* there's still an extra v_update_output in the state, same as below--maybe we forgot it in a postcondition on the right? *)
-(* would it be a loop problem or a theorem statement problem? *)
-
-Admitted. 
-
-Lemma Gi_rb_collisions_inner_eq_general_original : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
-  comp_spec eq
-     (a <-$
-      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
-      [_, init']<-2 a; ret hasInputDups init') 
-      (x <-$
-      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
-        (forNats blocks); 
-        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
-Proof.
-  intuition; simpl.
-  unfold rb_oracle.
-  fcf_inline_first.
-  fcf_irr_l.
-  simplify.
-  (* fcf_skip. (* b here: maybe we just forgot to account for it in some postcondition? *) *)
-  rename a into v_update_output.
-  fcf_skip.
-  (* is (S blocks) really correct? it does make the proof more convenient *)
-
-  (* should `to_list v` be in the oracle state here? maybe if we generalized it to any init? *)
-  Theorem Gen_loop_oc_compMap_eq : forall blocks (v_update_output v_init_input : Bvector eta) init,
-    comp_spec
-      (* (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init)) *)
-
-      (* bits, last element of bits, and oracle state vs. just bits *)
-     (fun (loop_out : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta))
-          (map_out : list (Bvector eta)) =>
-          map (fst (B:=Bvector eta)) (snd loop_out) =         (* inputs to oracle *)
-          to_list v_init_input :: map (to_list (n:=eta)) map_out ++ map (fst (B:=Bvector eta)) init)
-     (* maybe i need In v_update_output loop_out or alternatively the rightmost one should really exclude it due to adam's trick with the S ... *)
-     (* existing first input + generated bits (as blist) + initial inputs *)
-
-     ((Gen_loop_oc v_update_output blocks) (list (Blist * Bvector eta)) (* NOTE: b is the initial input to Gen_loop_oc *)
-        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
-        (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
-         output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-        ((to_list v_init_input, v_update_output) :: init))
-
-     (compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) (forNats blocks)).
-  Proof.
-    induction blocks as [ | blocks']; intuition; simpl in *.
-    - fcf_simp.
-      (* fcf_spec_ret. *)
-      eapply comp_spec_ret.
-      simpl.                    (* simplifies to `to_list v :: map fst init`. should it? it would work w/o to_list v? *)
-      reflexivity.
-
-    - fcf_inline_first.
-      fcf_skip.
-      rename b into sampled_v.
-      specialize (IHblocks' sampled_v v_update_output ((to_list v_init_input, v_update_output) :: init)).
-      (* IH works? what does the IH say? is the postcondition accounting for the new rb_state?*)
-      fcf_skip. apply IHblocks'.
-      simpl in *.
-      rename b1 into compMap_gen_bits.
-      rename a into loop_bits.
-      rename b0 into last_loop_v.
-      rename b into end_loop_state.
-      apply comp_spec_ret.
-      simpl.
-      rewrite H4.
-      (* it's mixing up v_update_output and sampled_v. why? *)
-      f_equal. admit.
-      (* oh there's more *)
-      admit.
-      (* the left and right don't look equal at all? removing the last list, *)
-      (* to_list v_init :: map to_list compmap_gen_bits ++ [to_list v_init_input] =
-         to_list v_init_input :: to_list sampled_v :: map to_list compmap_gen_bits *)
-      (* the order is wrong, and v_init != sampled_v. why is this problem arising? *)
-      (* maybe we need Permutation again *)
-      (* what would cause them to be in a different order? *)
-  (* what's causing this problem? is it the same as the problem I ran into earlier, due to how Gen_loop_oc is defined (which doesn't match the cons definition of Gen_loop)? *)
-
-  (* maybe running into that "different first list item" problem *)
-  Admitted.
-
-  apply Gen_loop_oc_compMap_eq.
-
-  fcf_simp.
-  simpl in *.
-
-  fcf_inline_first.
-  fcf_irr_l.
-  fcf_inline_first. 
-  eapply comp_spec_ret.
-  unfold hasInputDups.
-
-  simpl. remember (split b) as z. destruct z.
-
-  assert (split_map_fst : forall A B (l : list (A * B)), fst (split l) = map (@fst _ _) l).
-  { induction l1 as [ | x xs]; intros. simpl. reflexivity. simpl. destruct x.  simpl. destruct (split xs). simpl. simpl in *. subst. reflexivity. }
-
-  rewrite <- split_map_fst in H3.
-  rewrite <- Heqz in H3.
-  simpl in H3.
-  rewrite H3.
-  simpl.
-  (* well, getting rid of S on S blocks solved that problem--isn't this where I was before? *)
-  Transparent hasDups.
-  (* TODO: we need that hypothesis about init = to_list whatever (it doesn't matter b/c init is nil when we apply thm) *)
-  unfold hasDups at 1. fold hasDups.
-  Opaque hasDups.
-
-
-  (* rename b0 into rest_of_oracle_state. *)
-  (* rename a0 into key_output. *)
-  (* simpl. *)
-  (* remember (split rest_of_oracle_state) as z. *)
-  (* destruct z. *)
-
-  (* (* added *) *)
-  (* simpl. *)
-  (* rename b1 into key_input. *)
-  (* rename b2 into bits_list. *)
-  (* rename l into oracle_inputs. *)
-
-  (* ok, we now have to_list b1 ++ zeroes, should prove that is removable *)
-  (* using H4, why is there the extra `to_list b` on the right? otherwise, everything else matches *)
-  (* how to ue H4? *)
-
-  (* what/where is b0? *)
-  (* how to prove that "separate theorem" and what should the theorem statement be? *)
-  (* did we already use H4? it relates b0 to b2 and init, and Heqz (which we didn't actually use?) relates (l,l0) to b0 (which doesn't appear in the theorem statement)... *)
-  (* does adam mean H2 or H4? *)
-
-  (* From H2, we know that b is correctly related to b0. This can be proved in a separate theorem by induction on blocks *)
-  admit.
-(* ?? *)
-Qed.
-
-(* what is this other proof? *)
-(*  intros k v blocks init.
-  unfold GenUpdate_oc.
-  unfold compMap_v.
-
-  Print rb_oracle.
-
-  induction blocks; intuition; simpl in *.
-  fcf_inline_first.
-  fcf_irr_l.
-  admit.
-  repeat (fcf_inline_first; fcf_simp).
-  simpl.
-  fcf_inline_first.
-  fcf_irr_l.
-  admit.
-  repeat (fcf_inline_first; fcf_simp).
-  unfold rb_oracle in *.
-  repeat simp_in_support.
-  unfold hasInputDups.
-  simpl.
-  unfold compMap_v. simpl.
-Qed. *)
-
-(* ------------ end Adam's version of Gi_rb_collisions_inner_eq *)
+(* ----- *)
 
 Lemma split_out_oracle_call_forall : 
     forall (listLen : nat) (k v v_prev : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
