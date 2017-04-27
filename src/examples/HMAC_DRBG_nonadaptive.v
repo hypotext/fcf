@@ -5906,13 +5906,37 @@ Proof.
   intuition; simpl.
   unfold rb_oracle.
   fcf_inline_first.
-  fcf_skip. (* b here: maybe we just forgot to account for it in some postcondition? *)
-  rename b into v_update_output.
-  fcf_inline_first.
-  fcf_skip.
-  (* is (S blocks) really correct? it does make the proof more convenient *)
 
-  Theorem Gen_loop_oc_compMap_eq_no_v_init : forall blocks (v_init v_init_input : Bvector eta) init,
+  fcf_irr_l. simplify.
+  rename a into v_update_output.
+  (* TODO: INDUCT HERE with new statement *)
+
+  fcf_skip.
+  rename b into v_update_output.
+  simplify.
+
+  (* the problem has already happened--v_update_output now appears on the right hand side as an input when it's still only an output on the left hand side. is there any way i can "shift over" the left loop by one, or use outputs as inputs...?? *)
+  (* i need to "stutter" on the right, or only skip for every two conses...? is that right? or is there a skip for every cons? *)
+  (* note v_update_output is cons'ed onto the output on the right--maybe that should be in the loop theorem statement? *)
+
+  (* in fact, maybe i should fold this first update into the gen_loop, and THEN do the larger induction? will it have the same problem? ok but that's why adam put S blocks there; that's equiv to doing this? but that adds an extra block to the end? *)
+
+  (* fcf_skip. (* b here: maybe we just forgot to account for it in some postcondition? *) *)
+  (* fcf_irr_l. *)
+  (* rename a into v_update_output. *)
+  (* fcf_inline_first. *)
+  (* fcf_skip. *)
+  (* is (S blocks) really correct? it does make the proof more convenient *)
+  (* TODO figure out if doing S blocks here and not skipping in loop lemma helps *)
+
+  (* note that here, it's `(Gen_loop_oc v_update_output blocks) ... ((to_list v, v_update_output) :: init)` *)
+
+Print Gen_loop_oc.
+
+(* gen_loop_oc v 2 = ([bits, v''] <-2 gen_loop_oc (f k v) 1; ret (f k v :: bits, v'')
+   = ret (f k v :: f k (f k v) :: nil, f k (f k v)) *)
+
+  Theorem Gen_loop_oc_compMap_eq_no_v_init : forall blocks (v_update_output v : Bvector eta) init,
     comp_spec
       (* (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init)) *)
 
@@ -5920,32 +5944,53 @@ Proof.
      (fun (loop_out : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta))
           (map_out : list (Bvector eta)) =>
           map (fst (B:=Bvector eta)) (snd loop_out) =         (* inputs to oracle *)
-          map (to_list (n:=eta)) map_out ++ map (fst (B:=Bvector eta)) init)
+          to_list v :: map (to_list (n:=eta)) map_out ++ map (fst (B:=Bvector eta)) init)
      (* existing first input + generated bits (as blist) + initial inputs *)
 
-     ((Gen_loop_oc v_init blocks) (list (Blist * Bvector eta)) (* NOTE: b is the initial input to Gen_loop_oc *)
+     ((Gen_loop_oc v_update_output blocks) (list (Blist * Bvector eta)) (* NOTE: b is the initial input to Gen_loop_oc *)
         (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
         (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
          output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-        init)
+        ((to_list v, v_update_output) :: init))
 
      (compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) (forNats blocks)).
+
   Proof.
     induction blocks as [ | blocks']; intuition; simpl in *.
 
-    - fcf_simp. fcf_spec_ret.
+    - fcf_simp.
+      eapply comp_spec_ret. simpl. reflexivity.
+      (* fcf_spec_ret.  *)
     - fcf_inline_first.
-      fcf_irr_l.
-      simplify.
+      (* the next input that should appear on the right list should actually be v_update_output, NOT skipped_gen *)
+      (* but how do i get that? it's not actually sampled on the left? unless i don't do fcf_irr_l before this lemma? *)
+
+      (* fcf_irr_l. simplify. *)
+
+      fcf_skip. rename b into skipped_gen.
+
+      (* note the states at this point *)
+      (* maybe i should swap the two conses? *)
+      (* maybe i should start with two conses or "one deeper" in the list? *)
+
+      (* fcf_irr_l. *)
+      (* simplify. *)
+      (* fcf_irr_r. *)
+      (* rename b into skipped_r. *)
       (* maybe you shouldn't be skipping? maybe it's the same problem as the earlier skip? *)
-      (* problem is that the right should map to the oracle's inputs, not outputs *)
-      fcf_skip.
-      rename b into sampled_v.
-      fcf_skip.
+      (* problem is that the right should map to the oracle's inputs, not outputs, things are off by one *)
+      (* maybe this is the problem adam was trying to solve with the (S blocks)?? *)
+      (* what worked in PRF_DRBG? do we need another intermediate game? *)
+      (* maybe this should be the induction hypothesis? *)
+      fcf_skip. 
+      (* rename b into sampled_v. *)
+      (* fcf_skip. *)
       simpl in *.
       fcf_spec_ret.
       simpl.
       rewrite H4.
+      (* hmm, yeah, v_init won't align with the skipped_r on the right but they're at least close *)
+      (* how can we create an IH with v_init correctly? *)
       rename a into loop_bits. rename b0 into last_loop_bits. rename b into end_loop_state.
       rename b1 into map_bits.
   (* the order is different *and* there's a difference between v_init and sampled_v *)
@@ -5953,6 +5998,7 @@ Proof.
   Admitted.
 
   simpl.
+(*
   apply Gen_loop_oc_compMap_eq_no_v_init. bv_exist.
   simplify.
   fcf_irr_l. rename a0 into key_output.
@@ -5983,7 +6029,7 @@ Proof.
  (* there's still an extra v_update_output in the state, same as below--maybe we forgot it in a postcondition on the right? *)
 (* would it be a loop problem or a theorem statement problem? *)
 
-Admitted.
+Admitted. *)
 
 Lemma Gi_rb_collisions_inner_eq_general_original : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
   comp_spec eq
