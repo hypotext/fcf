@@ -5891,8 +5891,16 @@ Admitted.
 (* From email: "See compMap_v_eq_h in the file I attached on Apr 22. I think this is what you want. Note that this fact only holds if v and w are both not in init (you can also prove it when both are in init by removing the compMap statements with fcc_irr). *)
 
 (* adding init on the right *)
+
 Opaque hasDups.
-Lemma Gi_rb_collisions_inner_eq_general : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
+
+Lemma split_map_fst : forall A B (l : list (A * B)), fst (split l) = map (@fst _ _) l.
+Proof.
+  induction l as [ | x xs]; intros; simpl; try reflexivity.
+  destruct x. simpl. destruct (split xs). simpl in *. subst. reflexivity.
+Qed.
+
+Lemma Gi_rb_collisions_inner_eq_general_sample : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
   comp_spec eq
      (a <-$
       (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
@@ -5909,7 +5917,94 @@ Proof.
 
   fcf_irr_l. simplify.
   rename a into v_update_output.
-  (* TODO: INDUCT HERE with new statement *)
+
+  eapply comp_spec_eq_trans_l. Focus 2.
+  instantiate (1 :=
+                 x' <-$ (a <-$ { 0 , 1 }^eta;
+                         lsb' <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) (forNats blocks);
+                              ret a :: lsb');
+               
+                  ret hasDups eqdbl
+                      (to_list v
+                               :: map (to_list (n:=eta)) x' ++ map (fst (B:=Bvector eta)) init)).
+  prog_equiv. fcf_spec_ret.
+
+  fcf_skip.
+
+  Theorem Gen_loop_oc_compMap_eq_sample : forall blocks (v_update_output v : Bvector eta) init,
+    comp_spec
+      (* (fun a b => map (@fst _ _) (snd a) = (map (@to_list _ _ ) (v :: b)) ++ (map (@fst _ _) init)) *)
+
+      (* bits, last element of bits, and oracle state vs. just bits *)
+     (fun (loop_out : list (Bvector eta) * Bvector eta * list (Blist * Bvector eta))
+          (map_out : list (Bvector eta)) =>
+          map (fst (B:=Bvector eta)) (snd loop_out) =         (* inputs to oracle *)
+          to_list v :: map (to_list (n:=eta)) map_out ++ map (fst (B:=Bvector eta)) init)
+     (* existing first input + generated bits (as blist) + initial inputs *)
+
+     ((Gen_loop_oc v_update_output blocks) (list (Blist * Bvector eta)) (* NOTE: b is the initial input to Gen_loop_oc *)
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+        (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+         output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+        ((to_list v, v_update_output) :: init))
+
+     (a <-$ {0,1}^eta;
+      lsb' <-$ compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta) (forNats blocks);
+      ret (a :: lsb')).
+
+  Proof.
+    induction blocks as [ | blocks']; intuition; simpl in *.
+    - simplify. fcf_irr_r. simplify. fcf_spec_ret. simpl. f_equal.
+  (* base case doesn't even work... *)
+      admit.
+    - simplify.
+      fcf_skip.
+      simplify.
+    
+  Admitted.
+
+  apply Gen_loop_oc_compMap_eq_sample.
+  simpl in *.
+  simplify.
+  fcf_irr_l. rename a0 into key_output.
+  simplify.
+  fcf_spec_ret.
+  unfold hasInputDups.
+  simpl.
+
+  remember (split b) as z. destruct z.
+  simpl.
+  rename b0 into key_input. rename l into oracle_inputs. rename l0 into oracle_outputs. rename b into oracle_state. 
+
+  rewrite <- split_map_fst in H3.
+  rewrite <- Heqz in H3.
+  simpl in H3.
+  rewrite H3. 
+
+  Transparent hasDups.
+  (* TODO: we need that hypothesis about init = to_list whatever (it doesn't matter b/c init is nil when we apply thm) *)
+  (* remember (to_list v *)
+  (*        :: map (to_list (n:=eta)) b1 ++ map (fst (B:=Bvector eta)) init) as rest. *)
+  (* SearchAbout (_ :: _ :: _). *)
+  unfold hasDups at 1. fold hasDups. (* doesn't quite work on left *)
+  
+
+Admitted.
+
+Lemma Gi_rb_collisions_inner_eq_general : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
+  comp_spec eq
+     (a <-$
+      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+      [_, init']<-2 a; ret hasInputDups init') 
+      (x <-$
+      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats (S blocks)); 
+        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
+Proof.
+  intuition; simpl.
+  unfold rb_oracle.
+  fcf_inline_first.
 
   fcf_skip.
   rename b into v_update_output.
@@ -6016,20 +6111,20 @@ Print Gen_loop_oc.
   rewrite <- split_map_fst in H4.
   rewrite <- Heqz in H4.
   simpl in H4.
-  rewrite H4.
+  rewrite H4. 
 
   Transparent hasDups.
   (* TODO: we need that hypothesis about init = to_list whatever (it doesn't matter b/c init is nil when we apply thm) *)
   remember (map (to_list (n:=eta)) b1 ++
          to_list v :: map (fst (B:=Bvector eta)) init) as rest.
   (* rewrite app_comm_cons. *)
-  unfold hasDups at 1. fold hasDups.
+  unfold hasDups at 1. fold hasDups. *)
   Opaque hasDups.
 (* former: prove to_list key_input cannot be in the latter list *)
  (* there's still an extra v_update_output in the state, same as below--maybe we forgot it in a postcondition on the right? *)
 (* would it be a loop problem or a theorem statement problem? *)
 
-Admitted. *)
+Admitted. 
 
 Lemma Gi_rb_collisions_inner_eq_general_original : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
   comp_spec eq
