@@ -5987,11 +5987,12 @@ Proof.
   (*        :: map (to_list (n:=eta)) b1 ++ map (fst (B:=Bvector eta)) init) as rest. *)
   (* SearchAbout (_ :: _ :: _). *)
   unfold hasDups at 1. fold hasDups. (* doesn't quite work on left *)
-  
+  Opaque hasDups.
 
 Admitted.
 
-Lemma Gi_rb_collisions_inner_eq_general : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
+(* use the strategy below of two irr_l *)
+Lemma Gi_rb_collisions_inner_eq_general_induct_irr_l : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
   comp_spec eq
      (a <-$
       (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
@@ -5999,17 +6000,76 @@ Lemma Gi_rb_collisions_inner_eq_general : forall (blocks : nat) (k v : Bvector e
       [_, init']<-2 a; ret hasInputDups init') 
       (x <-$
       compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
-        (forNats (S blocks)); 
+        (forNats blocks); 
         ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
 Proof.
   intuition; simpl.
   unfold rb_oracle.
   fcf_inline_first.
 
-  fcf_skip.
-  rename b into v_update_output.
-  simplify.
+  
 
+Admitted.
+
+  (* test multiple destructs to see what induction works--this works! *)
+Lemma Gi_rb_collisions_inner_eq_general_multiple_destruct : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
+  comp_spec eq
+     (a <-$
+      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+      [_, init']<-2 a; ret hasInputDups init') 
+      (x <-$
+      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats blocks); 
+        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
+Proof.
+  intuition; simpl.
+  unfold rb_oracle.
+  fcf_inline_first.
+  (* fcf_irr_l. note i did NOT do this, so there is a sampling line on the left *)
+
+  destruct blocks as [ | blocks'].
+  - simplify. fcf_irr_l. rename a into key_input. simplify. fcf_irr_l. simplify. fcf_spec_ret. unfold hasInputDups. simpl.
+    remember (split init) as z. destruct z. simpl.
+    pose proof split_map_fst. rewrite <- H2. rewrite <- Heqz. simpl.
+    admit.
+  - simplify.
+    fcf_skip. rename b into skip_v. simplify.
+    (* note the NEXT sample on left gets fcf_irr_l *)
+    (* fcf_irr_l. rename a into skip_v_output. (* maybe i shouldn't have done this here? *) *)
+    destruct blocks' as [ | blocks''].
+    + simplify.
+      fcf_irr_l. rename a into skip_v_output. simplify.
+      fcf_irr_l. rename a into key_output.
+      simplify. fcf_spec_ret.
+      unfold hasInputDups. simpl.
+      remember (split init) as z. destruct z. simpl.
+      pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
+      (* wait! this works! *)
+      admit.
+    + (* what should this be? can i induct here? i already "used up" the extra sampling on the left? is this a special case, or an instance of the one originally? *)
+      (* also note there are TWO conses on the left, so maybe i can have a better IH? i guess i should work thru it with blocks''' first *)
+      (* so on the right, we've already added skip_v as an input. maybe on the right, blocks should be `pred blocks`? because no more inputs should be added? *)
+      Print GenUpdate_oc.
+      (* the inputs are: v0, loop:{ v0_output, ...,  } *)
+      (* no, on the left it should be blocks, not S blocks or pred blocks (i think) *)
+      (* ok now the extra sampling is back on the left *)
+      (* note in the two cases above, there's a pattern of TWO fcf_irr_ls in the nil case *)
+      simplify.
+      fcf_skip.
+      rename b into skip_v2. simplify.
+      destruct blocks'' as [ | blocks'''].
+      * simplify.
+        fcf_irr_l. rename a into skip_v2_output. simplify.
+        fcf_irr_l. rename a into key_output. simplify.
+        fcf_spec_ret. unfold hasInputDups. simpl.
+        remember (split init) as z. destruct z. simpl.
+        pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
+        (* this works too! *)
+        admit.
+      * admit.
+Qed.
+      
   (* the problem has already happened--v_update_output now appears on the right hand side as an input when it's still only an output on the left hand side. is there any way i can "shift over" the left loop by one, or use outputs as inputs...?? *)
   (* i need to "stutter" on the right, or only skip for every two conses...? is that right? or is there a skip for every cons? *)
   (* note v_update_output is cons'ed onto the output on the right--maybe that should be in the loop theorem statement? *)
