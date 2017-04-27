@@ -6009,7 +6009,6 @@ Proof.
   unfold rb_oracle.
   fcf_inline_first.
   revert k v init inputs_len. clear H.
-  (* what do I do with k ~> Bvector eta *)
 
   induction blocks as [ | blocks']; intros k v init inputs_len.
   - simplify.
@@ -6018,8 +6017,8 @@ Proof.
     fcf_spec_ret. unfold hasInputDups. simpl.
     remember (split init) as z. destruct z. simpl.
     pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
-    (* ah, here's where the key_input stuff went--still need to prove that *)
-    
+
+    (* prove that key-input-extended cannot collide with rest of oracle inputs *)
     Transparent hasDups.
     unfold Blist. (* type synonym was interfering with rewrite *)
     remember (to_list v :: l) as rest.
@@ -6062,12 +6061,10 @@ Proof.
     + reflexivity.
 
   - simplify.
-    (* need to gather the lines to apply IH? is the IH postcondition strong enough?? maybe i should have gathered the lines first *)
     fcf_skip. rename b into skip_v. simplify.
-(* hm, not sure how to apply IH *)
     specialize (H skip_v ((to_list v, skip_v) :: init)).
     eapply comp_spec_eq_trans_r.
-    (* left side of H *)
+    (* clean up left side of H *)
     instantiate (1 := 
        (a <-$ { 0 , 1 }^eta;
          a0 <-$ ret (a, (to_list skip_v, a) :: (to_list v, skip_v) :: init);
@@ -6088,7 +6085,7 @@ Proof.
              output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
             s'0); [_, init']<-2 a1; ret hasInputDups init')).
     { prog_equiv. fcf_spec_ret. }
-(* right side of H *)
+    (* right side of H *)
     eapply comp_spec_eq_trans_l.
     apply H.
     (* prove ind hyp on init *)
@@ -6099,10 +6096,7 @@ Proof.
 
     simplify. prog_equiv. fcf_spec_ret.
     
-(* wait what?? there's no way it can be this easy. what's the catch? where's the key input? etc. *)
-    (* SearchAbout hasDups. *)
     apply Permutation_hasDups.
-    (* SearchAbout (_ :: _ :: _). *)
 
     eapply perm_trans. Focus 2.
     instantiate (1 :=      (to_list skip_v
@@ -6123,66 +6117,6 @@ Proof.
     reflexivity.
 Qed.
 
-  (* test multiple destructs to see what induction works--this works! *)
-Lemma Gi_rb_collisions_inner_eq_general_multiple_destruct : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
-  comp_spec eq
-     (a <-$
-      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
-      [_, init']<-2 a; ret hasInputDups init') 
-      (x <-$
-      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
-        (forNats blocks); 
-        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
-Proof.
-  intuition; simpl.
-  unfold rb_oracle.
-  fcf_inline_first.
-  (* fcf_irr_l. note i did NOT do this, so there is a sampling line on the left *)
-
-  destruct blocks as [ | blocks'].
-  - simplify. fcf_irr_l. rename a into key_input. simplify. fcf_irr_l. simplify. fcf_spec_ret. unfold hasInputDups. simpl.
-    remember (split init) as z. destruct z. simpl.
-    pose proof split_map_fst. rewrite <- H2. rewrite <- Heqz. simpl.
-    admit.
-  - simplify.
-    fcf_skip. rename b into skip_v. simplify.
-    (* note the NEXT sample on left gets fcf_irr_l *)
-    (* fcf_irr_l. rename a into skip_v_output. (* maybe i shouldn't have done this here? *) *)
-    destruct blocks' as [ | blocks''].
-    + simplify.
-      fcf_irr_l. rename a into skip_v_output. simplify.
-      fcf_irr_l. rename a into key_output.
-      simplify. fcf_spec_ret.
-      unfold hasInputDups. simpl.
-      remember (split init) as z. destruct z. simpl.
-      pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
-      (* wait! this works! *)
-      admit.
-    + (* what should this be? can i induct here? i already "used up" the extra sampling on the left? is this a special case, or an instance of the one originally? *)
-      (* also note there are TWO conses on the left, so maybe i can have a better IH? i guess i should work thru it with blocks''' first *)
-      (* so on the right, we've already added skip_v as an input. maybe on the right, blocks should be `pred blocks`? because no more inputs should be added? *)
-      Print GenUpdate_oc.
-      (* the inputs are: v0, loop:{ v0_output, ...,  } *)
-      (* no, on the left it should be blocks, not S blocks or pred blocks (i think) *)
-      (* ok now the extra sampling is back on the left *)
-      (* note in the two cases above, there's a pattern of TWO fcf_irr_ls in the nil case *)
-      simplify.
-      fcf_skip.
-      rename b into skip_v2. simplify.
-      destruct blocks'' as [ | blocks'''].
-      * simplify.
-        fcf_irr_l. rename a into skip_v2_output. simplify.
-        fcf_irr_l. rename a into key_output. simplify.
-        fcf_spec_ret. unfold hasInputDups. simpl.
-        remember (split init) as z. destruct z. simpl.
-        pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
-        (* this works too! *)
-        admit.
-      * admit.
-Qed.
-
-(* ----- *)
 
 Lemma split_out_oracle_call_forall : 
     forall (listLen : nat) (k v v_prev : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
