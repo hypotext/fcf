@@ -6006,10 +6006,73 @@ Proof.
   intuition; simpl.
   unfold rb_oracle.
   fcf_inline_first.
+  revert k v init. clear H.
+  (* what do I do with k ~> Bvector eta *)
 
-  
+  induction blocks as [ | blocks']; intros k v init.
+  - simplify.
+    fcf_irr_l. rename a into key_input. simplify.
+    fcf_irr_l. rename a into key_output. simplify.
+    fcf_spec_ret. unfold hasInputDups. simpl.
+    remember (split init) as z. destruct z. simpl.
+    pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
+    admit.
+  - simplify.
+    (* need to gather the lines to apply IH? is the IH postcondition strong enough?? maybe i should have gathered the lines first *)
+    fcf_skip. rename b into skip_v. simplify.
+(* hm, not sure how to apply IH *)
+    specialize (H skip_v ((to_list v, skip_v) :: init)).
+    eapply comp_spec_eq_trans_r.
+    (* left side of H *)
+    instantiate (1 := 
+       (a <-$ { 0 , 1 }^eta;
+         a0 <-$ ret (a, (to_list skip_v, a) :: (to_list v, skip_v) :: init);
+         a1 <-$
+         ([z, s']<-2 a0;
+          z0 <-$
+          (Gen_loop_oc z blocks') (list (Blist * Bvector eta))
+            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+            s';
+          [z1, s'0]<-2 z0;
+          ([bits, v']<-2 z1;
+           k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
+            (list (Blist * Bvector eta))
+            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+            s'0); [_, init']<-2 a1; ret hasInputDups init')).
+    { prog_equiv. fcf_spec_ret. }
+(* right side of H *)
+    eapply comp_spec_eq_trans_l.
+    apply H.
+    simplify. prog_equiv. fcf_spec_ret.
+    
+(* wait what?? there's no way it can be this easy. what's the catch? where's the key input? etc. *)
+    SearchAbout hasDups.
+    apply Permutation_hasDups.
+    SearchAbout (_ :: _ :: _).
 
-Admitted.
+    eapply perm_trans. Focus 2.
+    instantiate (1 :=      (to_list skip_v
+      :: to_list v
+         :: map (to_list (n:=eta)) a ++ map (fst (B:=Bvector eta)) init)).
+     apply perm_swap. 
+     constructor.
+
+    eapply perm_trans.
+    instantiate (1 :=      ((map (to_list (n:=eta)) a ++
+         (to_list v :: nil)) ++ map (fst (B:=Bvector eta)) init) ).
+    { SearchAbout (_ ++ _ ++ _). rewrite <- app_assoc. apply Permutation_app_head. simpl. reflexivity. }
+
+    SearchAbout (_ :: _ ++ _).
+    rewrite app_comm_cons.
+    apply Permutation_app.
+    apply Permutation_sym.
+    apply Permutation_cons_append.
+    reflexivity.
+Qed.
 
   (* test multiple destructs to see what induction works--this works! *)
 Lemma Gi_rb_collisions_inner_eq_general_multiple_destruct : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
