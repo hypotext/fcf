@@ -6024,33 +6024,39 @@ Proof.
     remember (to_list v :: l) as rest.
     unfold hasDups at 1. fold hasDups. subst.
     Opaque hasDups.
-    Check to_list_length.
     destruct (in_dec (EqDec_dec eqdbl) (to_list key_input ++ zeroes)) as [ is_in | not_in ].
     + assert (not_in : ~ In (to_list key_input ++ zeroes) (to_list v :: l)).
       {
         simpl. unfold not. intros not_in.
         destruct not_in as [ is_first_elem | in_fixed_len_list ].
         {
-          SearchAbout (_ = _ ++ _).
-          (* app_cons_not_nil? *)
+          assert (len_eq : length (to_list v) = length (to_list key_input ++ zeroes)).
+          f_equal; trivial.
+          rewrite app_length in *.
+          
+          repeat rewrite to_list_length in *.
           unfold zeroes in *.
-          assert (eq_or_not : to_list v = to_list key_input \/ ~ (to_list v = to_list key_input)).
-          { (* blist eqdec?? *) admit. }
-          destruct eq_or_not as [ neq_in | eq_in ].
-          { rewrite neq_in in is_first_elem. admit. }
-          { (* l1 <> l2 -> l1 <> l2 ++ c (where c != nil) *) admit.  }
+          rewrite length_replicate in len_eq.
+          rewrite plus_comm in len_eq.
+          simpl in *.
+          discriminate.
         }
 
         (* every element of l has length eta, and zeroes is nonempty *)
         {
           assert (l_eq : l = fst (split init)).
           { rewrite <- Heqz. reflexivity. }
-          rewrite l_eq in in_fixed_len_list.
-          (* different predicate on init? Forall (fun x => len x = eta) (map fst init) *)
-          SearchAbout Forall.
-          (* also try using Forall_forall *)
-                                        
-          admit.
+          subst.
+          rewrite  Forall_forall in inputs_len.
+          destruct (in_split_l_if init _ in_fixed_len_list). eauto.
+          match goal with 
+            | [ H:  In (to_list key_input ++ zeroes, _) init |- _ ] => 
+               apply inputs_len in H; simpl in *; rewrite app_length in H;
+               unfold zeroes in H; rewrite length_replicate in H;
+               rewrite plus_comm in H; simpl in *; discriminate
+          end.
+                                   
+
         }
         (* SearchAbout (~ (_ \/ _)). *)
         (* apply Decidable.not_or. *)
