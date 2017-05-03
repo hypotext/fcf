@@ -5825,10 +5825,14 @@ Proof.
   apply Gi_rb_collisions_inner_eq_general_irr_l.
 Qed.
 
+(* TODO move to top and do casework on whether blocksPerCall = 0 *)
+Hypothesis H_blocksPerCall : blocksPerCall > 0.
+
 (* apply theorem for i=0, GenUpdate_noV_oc *)
 Lemma Gi_rb_collisions_inner_eq_general_i_eq0 : forall (blocks : nat) (k v : Bvector eta)
                                                                    (init : list (Blist * Bvector eta)),
     Forall (fun x => length (fst x) = eta) init ->
+    blocks > 0 ->
     comp_spec eq
               (a <-$
                  (GenUpdate_noV_oc (k, v) blocks) (list (Blist * Bvector eta))
@@ -5841,20 +5845,12 @@ Lemma Gi_rb_collisions_inner_eq_general_i_eq0 : forall (blocks : nat) (k v : Bve
                    (map (to_list (n:=eta)) (v :: x) ++ map (fst (B:=Bvector eta)) init)).
 Proof.
   intuition; simpl.
-  rename H0 into inputs_len.
+  rename H0 into inputs_len. rename H1 into blocks_neq_0.
   unfold rb_oracle.
   fcf_inline_first.
   destruct blocks as [ | blocks']. 
-  - simplify.
-    fcf_irr_l. rename a into key_output.
-    simplify. fcf_spec_ret.
-    unfold hasInputDups. simpl.
-    remember (split init) as z. destruct z. simpl.
-    pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
-(* why isn't this true? maybe only for blocks <> 0? *)
-(* is it because v isn't always an input? if v isn't updated in the front, then v is an input only if blocks isn't 0? *)
-    admit. 
-  - simplify.
+  - omega.
+  - simplify. clear blocks_neq_0.
     (* blocks <> 0 -> reduces to lemma on i <> 0 *)
     (* clean up left side *)
     eapply comp_spec_eq_trans_l.
@@ -5978,6 +5974,7 @@ Lemma split_out_oracle_call_forall :
     forall (listLen : nat) (k v v_prev : Bvector eta) (callsSoFar i blocks : nat) (init : list (Blist * Bvector eta)),
       callsSoFar <= i ->
    Forall (fun x : list bool * Bvector eta => length (fst x) = eta) init ->
+   blocks > 0 ->
    comp_spec eq
      (a <-$
       (oracleCompMap_inner
@@ -5991,7 +5988,7 @@ Lemma split_out_oracle_call_forall :
      (case_on_i_gen i listLen callsSoFar blocks init v_prev).
 Proof.
   unfold case_on_i_gen.
-  induction listLen as [ | listLen']; intros; rename H0 into oracle_input_lengths.
+  induction listLen as [ | listLen']; intros; rename H0 into oracle_input_lengths; rename H1 into blocks_neq_0.
 
    (* base case: empty *)
   - simplify.
@@ -6024,8 +6021,7 @@ Proof.
       eapply comp_spec_eq_trans_r.
       apply simplify_hasDups.
       rewrite plus_n_Sm.
-      eapply IHlistLen'.
-      omega. auto.
+      eapply IHlistLen'; try omega; try auto.
 
     (* calls = i *)
     + (* what's the form of the lemma i should apply here? *)
@@ -6075,8 +6071,7 @@ Proof.
         
         (* apply lemma for i=0 *)
         (* there's probably a nicer way to do it with a lower bound for Gi_rb_collisions_inner_eq_general_induct_irr_l *)
-        apply Gi_rb_collisions_inner_eq_general_ieq0.
-        auto.
+        apply Gi_rb_collisions_inner_eq_general_i_eq0; auto.
       }
       (* i <> 0 *)
       { assert (i_neq_0 : i <> 0) by omega.
@@ -6120,8 +6115,7 @@ Proof.
         }
         clear n n0 IHlistLen'.
         
-        (* TODO apply this same trick to the i=0 case *)
-        apply Gi_rb_collisions_inner_eq_general_induct_irr_l.
+        apply Gi_rb_collisions_inner_eq_general_i_neq0.
         auto.
       } 
 Qed.
@@ -6156,6 +6150,8 @@ Proof.
   eapply split_out_oracle_call_forall. omega.
   (* oracle input length invariant *)
   { apply Forall_nil. }
+  (* nonzero number of blocks per call *)
+  { auto. } 
 
   instantiate (1 := v).
   unfold case_on_i_gen.
