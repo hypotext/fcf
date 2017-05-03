@@ -5666,26 +5666,37 @@ Qed.
 
 Import Permutation.             (* TODO move to top *)
 
-(* use the strategy below of two irr_l *)
-Lemma Gi_rb_collisions_inner_eq_general_induct_irr_l : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
-    Forall (fun x => length (fst x) = eta) init ->
-  comp_spec eq
-     (a <-$
-      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
-        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
-      [_, init']<-2 a; ret hasInputDups init') 
-      (x <-$
+(* simplify GenUpdate_oc or GenUpdate_noV_oc into the simpler compMap version that just samples a list of random bvectors *)
+(* this lemma is a more general version that applies to both i=0 and i<>0 cases (GenUpdate_noV_oc or GenUpdate_oc) (after some simplification in the former) *)
+Lemma Gi_rb_collisions_inner_eq_general_irr_l : forall (blocks : nat) (v : Bvector eta) (init : list (Blist * Bvector eta)),
+   Forall (fun x : list bool * Bvector eta => length (fst x) = eta) init ->
+   comp_spec eq
+     (a <-$ { 0 , 1 }^eta;
+      a0 <-$ ret (a, (to_list v, a) :: init);
+      a1 <-$
+      ([z, s']<-2 a0;
+       z0 <-$
+       (Gen_loop_oc z blocks) (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+         (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+          output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+         s';
+       [z1, s'0]<-2 z0;
+       ([bits, v']<-2 z1;
+        k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
+         (list (Blist * Bvector eta))
+         (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+         (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+          output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+         s'0); [_, init']<-2 a1; ret hasInputDups init')
+     (x <-$
       compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
-        (forNats blocks); 
-        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
+        (forNats blocks);
+      ret hasDups eqdbl
+            (to_list v
+             :: map (to_list (n:=eta)) x ++ map (fst (B:=Bvector eta)) init)).
 Proof.
-  intuition; simpl.
-  rename H0 into inputs_len.
-  unfold rb_oracle.
-  fcf_inline_first.
-  revert k v init inputs_len. clear H.
-
-  induction blocks as [ | blocks']; intros k v init inputs_len.
+  induction blocks as [ | blocks']; intros v init inputs_len.
   - simplify.
     fcf_irr_l. rename a into key_input. simplify.
     fcf_irr_l. rename a into key_output. simplify.
@@ -5737,9 +5748,9 @@ Proof.
 
   - simplify.
     fcf_skip. rename b into skip_v. simplify.
-    specialize (H skip_v ((to_list v, skip_v) :: init)).
+    specialize (IHblocks' skip_v ((to_list v, skip_v) :: init)).
     eapply comp_spec_eq_trans_r.
-    (* clean up left side of H *)
+    (* clean up left side of IH *)
     instantiate (1 := 
        (a <-$ { 0 , 1 }^eta;
          a0 <-$ ret (a, (to_list skip_v, a) :: (to_list v, skip_v) :: init);
@@ -5762,7 +5773,7 @@ Proof.
     { prog_equiv. fcf_spec_ret. }
     (* right side of H *)
     eapply comp_spec_eq_trans_l.
-    apply H.
+    apply IHblocks'.
     (* prove ind hyp on init *)
     {
       apply Forall_cons.
@@ -5792,7 +5803,30 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma Gi_rb_collisions_inner_eq_general_induct_irr_l_ieq0 : forall (blocks : nat) (k v : Bvector eta)
+(* apply above theorem for i <> 0, GenUpdate_oc *)
+Lemma Gi_rb_collisions_inner_eq_general_i_neq0 : forall (blocks : nat) (k v : Bvector eta) (init : list (Blist * Bvector eta)),
+    Forall (fun x => length (fst x) = eta) init ->
+  comp_spec eq
+     (a <-$
+      (GenUpdate_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+      [_, init']<-2 a; ret hasInputDups init') 
+      (x <-$
+      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats blocks); 
+        ret hasDups _ ((map (@to_list _ _) (v :: x)) ++ (map (@fst _ _ ) init))).
+Proof.
+  intuition; simpl.
+  rename H0 into inputs_len.
+  unfold rb_oracle.
+  fcf_inline_first.
+  revert k v init inputs_len. clear H.
+  intros k_irr.
+  apply Gi_rb_collisions_inner_eq_general_irr_l.
+Qed.
+
+(* apply theorem for i=0, GenUpdate_noV_oc *)
+Lemma Gi_rb_collisions_inner_eq_general_i_eq0 : forall (blocks : nat) (k v : Bvector eta)
                                                                    (init : list (Blist * Bvector eta)),
     Forall (fun x => length (fst x) = eta) init ->
     comp_spec eq
@@ -5811,7 +5845,7 @@ Proof.
   unfold rb_oracle.
   fcf_inline_first.
   destruct blocks as [ | blocks']. 
-  { simplify.
+  - simplify.
     fcf_irr_l. rename a into key_output.
     simplify. fcf_spec_ret.
     unfold hasInputDups. simpl.
@@ -5819,141 +5853,36 @@ Proof.
     pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
 (* why isn't this true? maybe only for blocks <> 0? *)
 (* is it because v isn't always an input? if v isn't updated in the front, then v is an input only if blocks isn't 0? *)
-    admit. }
-  { simplify.
-    (* blocks <> 0 -> reduces to lemma on i <> 0. copy-pasted code in *)
+    admit. 
+  - simplify.
+    (* blocks <> 0 -> reduces to lemma on i <> 0 *)
     (* clean up left side *)
     eapply comp_spec_eq_trans_l.
 
-   instantiate (1 := 
-       (a <-$ { 0 , 1 }^eta;
-         a0 <-$ ret (a, (to_list v, a) :: init);
-         a1 <-$
-         ([z, s']<-2 a0;
-          z0 <-$
-          (Gen_loop_oc z blocks') (list (Blist * Bvector eta))
-            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
-            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
-             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-            s';
-          [z1, s'0]<-2 z0;
-          ([bits, v']<-2 z1;
-           k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
-            (list (Blist * Bvector eta))
-            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
-            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
-             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-            s'0); [_, init']<-2 a1; ret hasInputDups init')).
-   { prog_equiv. fcf_spec_ret. }
-
-   revert k v init inputs_len. clear H. rename blocks' into blocks.
-
-  induction blocks as [ | blocks']; intros k v init inputs_len.
-  - simplify.
-    fcf_irr_l. rename a into key_input. simplify.
-    fcf_irr_l. rename a into key_output. simplify.
-    fcf_spec_ret. unfold hasInputDups. simpl.
-    remember (split init) as z. destruct z. simpl.
-    pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
-
-    (* prove that key-input-extended cannot collide with rest of oracle inputs *)
-    Transparent hasDups.
-    unfold Blist. (* type synonym was interfering with rewrite *)
-    remember (to_list v :: l) as rest.
-    unfold hasDups at 1. fold hasDups. subst.
-    Opaque hasDups.
-    destruct (in_dec (EqDec_dec eqdbl) (to_list key_input ++ zeroes)) as [ is_in | not_in ].
-    + assert (not_in : ~ In (to_list key_input ++ zeroes) (to_list v :: l)).
-      {
-        simpl. unfold not. intros not_in.
-        destruct not_in as [ is_first_elem | in_fixed_len_list ].
-        {
-          assert (len_eq : length (to_list v) = length (to_list key_input ++ zeroes)).
-          f_equal; trivial.
-          rewrite app_length in *.
-          
-          repeat rewrite to_list_length in *.
-          unfold zeroes in *.
-          rewrite length_replicate in len_eq.
-          rewrite plus_comm in len_eq.
-          simpl in *.
-          discriminate.
-        }
-
-        (* every element of l has length eta, and zeroes is nonempty *)
-        {
-          assert (l_eq : l = fst (split init)).
-          { rewrite <- Heqz. reflexivity. }
-          subst.
-          rewrite Forall_forall in inputs_len.
-          destruct (in_split_l_if init _ in_fixed_len_list). eauto.
-          match goal with 
-            | [ H:  In (to_list key_input ++ zeroes, _) init |- _ ] => 
-               apply inputs_len in H; simpl in *; rewrite app_length in H;
-               unfold zeroes in H; rewrite length_replicate in H;
-               rewrite plus_comm in H; simpl in *; discriminate
-          end.
-        }
-      }
-      contradiction.
-    + reflexivity.
-
-  - simplify.
-    fcf_skip. rename b into skip_v. simplify.
-    specialize (H skip_v ((to_list v, skip_v) :: init)).
-    eapply comp_spec_eq_trans_r.
-    (* clean up left side of H *)
     instantiate (1 := 
-       (a <-$ { 0 , 1 }^eta;
-         a0 <-$ ret (a, (to_list skip_v, a) :: (to_list v, skip_v) :: init);
-         a1 <-$
-         ([z, s']<-2 a0;
-          z0 <-$
-          (Gen_loop_oc z blocks') (list (Blist * Bvector eta))
-            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
-            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
-             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-            s';
-          [z1, s'0]<-2 z0;
-          ([bits, v']<-2 z1;
-           k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
-            (list (Blist * Bvector eta))
-            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
-            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
-             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
-            s'0); [_, init']<-2 a1; ret hasInputDups init')).
+                   (a <-$ { 0 , 1 }^eta;
+                    a0 <-$ ret (a, (to_list v, a) :: init);
+                    a1 <-$
+                       ([z, s']<-2 a0;
+                        z0 <-$
+                           (Gen_loop_oc z blocks') (list (Blist * Bvector eta))
+                           (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+                           (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+                              output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+                           s';
+                        [z1, s'0]<-2 z0;
+                        ([bits, v']<-2 z1;
+                         k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
+                          (list (Blist * Bvector eta))
+                          (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+                          (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+                             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+                          s'0); [_, init']<-2 a1; ret hasInputDups init')).
     { prog_equiv. fcf_spec_ret. }
-    (* right side of H *)
-    eapply comp_spec_eq_trans_l.
-    apply H.
-    (* prove ind hyp on init *)
-    {
-      apply Forall_cons.
-      simpl. apply to_list_length. auto.
-    }
 
-    simplify. prog_equiv. fcf_spec_ret.
-    
-    apply Permutation_hasDups.
-
-    eapply perm_trans. Focus 2.
-    instantiate (1 :=      (to_list skip_v
-      :: to_list v
-         :: map (to_list (n:=eta)) a ++ map (fst (B:=Bvector eta)) init)).
-     apply perm_swap. 
-     constructor.
-
-    eapply perm_trans.
-    instantiate (1 :=      ((map (to_list (n:=eta)) a ++
-         (to_list v :: nil)) ++ map (fst (B:=Bvector eta)) init) ).
-    { rewrite <- app_assoc. apply Permutation_app_head. simpl. reflexivity. }
-
-    rewrite app_comm_cons.
-    apply Permutation_app.
-    apply Permutation_sym.
-    apply Permutation_cons_append.
-    reflexivity.
-  }
+    revert k v init inputs_len. clear H. rename blocks' into blocks.
+    intros k_irr.
+    apply Gi_rb_collisions_inner_eq_general_irr_l. 
 Qed.
 
 Lemma to_list_injective : forall (T : Set) (n : nat) (a1 a2 : Vector.t T n), @to_list T n a1 = @to_list T n a2 -> a1 = a2.
@@ -6146,7 +6075,7 @@ Proof.
         
         (* apply lemma for i=0 *)
         (* there's probably a nicer way to do it with a lower bound for Gi_rb_collisions_inner_eq_general_induct_irr_l *)
-        apply Gi_rb_collisions_inner_eq_general_induct_irr_l_ieq0.
+        apply Gi_rb_collisions_inner_eq_general_ieq0.
         auto.
       }
       (* i <> 0 *)
