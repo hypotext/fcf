@@ -1338,11 +1338,12 @@ Definition PRF_Advantage_Max := PRF_Advantage_Game (argMax PRF_Advantage_Game nu
 
 (* The theorem above can be used in some of the arguments below, replacing 0 with (argMax PRF_Advantage_Game numCalls *)
 
-(* Step 1 *)
+(* TODO moved to end for testing *)
+(* (* Step 1 *)
 (* Gi_prf 2: RB RB PRF PRF PRF
    Gi_rf 2:  RB RB RF  PRF PRF 
 need to use `Gi_prf i` instead of `Gi_prg i` because this matches the form of 
-`Gi_rf` closer so we can match the form of PRF_Advantage*)
+`Gi_rf` closer so we can match the form of PRF_Advantage*)4
 Lemma Gi_prf_rf_close_i : forall (i : nat),
   | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Game i.
 Proof.
@@ -1354,7 +1355,6 @@ Proof.
   reflexivity. 
 Qed.
 
-(* I guess this should be `exists i`, not `forall i` *)
 Lemma Gi_prf_rf_close : forall (i : nat),
     (i <= numCalls)%nat ->
   | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Max.
@@ -1364,7 +1364,7 @@ Proof.
   apply Gi_prf_rf_close_i.
   apply PRF_Advantage_max_exists.
   auto.
-Qed.
+Qed. *)
 
 (* ------------------------------- *)
 
@@ -5498,6 +5498,37 @@ Proof.
   bv_exist.
 Qed.
 
+(* ---- PRF advantage *)
+(* Step 1 *)
+(* Gi_prf 2: RB RB PRF PRF PRF
+   Gi_rf 2:  RB RB RF  PRF PRF 
+need to use `Gi_prf i` instead of `Gi_prg i` because this matches the form of 
+`Gi_rf` closer so we can match the form of PRF_Advantage*)
+
+Lemma Gi_prf_rf_close_i : forall (i : nat),
+  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Game i.
+Proof.
+  intros i.
+  (* don't need to unfold *)
+  unfold Gi_prf.
+  unfold Gi_rf.
+  unfold PRF_Advantage_Game.
+  reflexivity. 
+Qed.
+
+Lemma Gi_prf_rf_close : forall (i : nat),
+    (i <= numCalls)%nat ->
+  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Max.
+Proof.
+  intros.
+  eapply leRat_trans.
+  apply Gi_prf_rf_close_i.
+  apply PRF_Advantage_max_exists.
+  auto.
+Qed.
+
+(* ------ *)
+
 (* for above, want lemmas saying
 - key updating: calling a RF with an input of longer length whereas all other inputs had same length = randomly sampled <<<
 
@@ -5525,15 +5556,58 @@ Gi_rf  1:  RB  RF PRF *)
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
   forall (n : nat),
+    (n <= numCalls)%nat ->
   | Pr[Gi_prg n] - Pr[Gi_prg (S n)] | <= Gi_Gi_plus_1_bound.
 Proof.
   unfold Gi_Gi_plus_1_bound. intros.
   eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
   rewrite Gi_normal_prf_eq.    (* changed this *)
-  Print Gi_prf.
-  apply Gi_prf_rf_close.        (* Basically already proven via PRF_Advantage magic *)
+  apply Gi_prf_rf_close; auto.        (* Basically already proven via PRF_Advantage magic *)
   apply Gi_rf_rb_close.
 Qed.
+
+Lemma comp_same_after_numCalls : forall len n k v callsSoFar,
+    (n > len)%nat ->
+   comp_spec eq
+     (oracleMap (pair_EqDec nat_EqDec eqDecState)
+        (list_EqDec (Bvector_EqDec eta)) (Oi_prg n) 
+        (callsSoFar, (k, v)) (replicate len blocksPerCall))
+     (oracleMap (pair_EqDec nat_EqDec eqDecState)
+        (list_EqDec (Bvector_EqDec eta)) (Oi_prg (S n)) 
+        (callsSoFar, (k, v)) (replicate len blocksPerCall)).
+Proof.
+  induction len as [ | len']; intros; rename H into n_gt_len.
+  - simplify. Transparent oracleMap.
+    unfold oracleMap. simplify.
+    fcf_spec_ret.
+  - simpl. unfold oracleMap.
+    simplify.
+    (* might need invariant on callsSoFar *)
+    destruct (lt_dec callsSoFar n). Focus 2.
+    (* omega. *)
+    (* simplify. *)
+    (* repeat (try fcf_skip_eq; kv_exist). *)
+    (* apply IHcalls'. *)
+Admitted.
+
+Theorem Gi_Gi_plus_1_close_outofbounds :
+  (* TODO: constructed PRF adversary *)
+  forall (n : nat),
+    (n > numCalls)%nat ->
+   Pr[Gi_prg n] == Pr[Gi_prg (S n)].
+Proof.
+  intros.
+  unfold Gi_prg.
+  fcf_to_prhl_eq.
+  prog_equiv. rename b into k. rename b0 into v.
+  (* unfold Oi_prg. *)
+  (* TODO generalize and pull out *)
+  unfold maxCallsAndBlocks.
+(* it should always be PRF on both sides *)
+
+Admitted.
+
+(* TODO prove theorem for all n *)
 
 (* ------------------------------- *)
 
@@ -5547,6 +5621,7 @@ Proof.
   rewrite G2_Gi_n_equal.
   (* rewrite ratDistance_comm. *)
   Check distance_le_prod_f.
+  Locate distance_le_prod_f.
   (* inductive argument *)
   specialize (distance_le_prod_f (fun i => Pr[Gi_prg i]) Gi_Gi_plus_1_close numCalls).
   intuition.
