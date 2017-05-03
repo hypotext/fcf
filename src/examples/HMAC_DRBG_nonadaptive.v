@@ -5571,7 +5571,7 @@ Definition compMap_v_init (ls : list nat) (v : Bvector eta) (init : list (Blist 
 Definition case_on_i_gen (i listLen callsSoFar nblocks : nat) (init : list (Blist * Bvector eta)) (v : Bvector eta) := 
   if ge_dec i (listLen + callsSoFar) then (ret (hasInputDups init))
   (* i = 0, so the last v is not an input. this case is exactly equivalent to adam’s gen_loop *)
-  else if zerop i then (compMap_v (forNats (pred nblocks)) v)
+  else if zerop i then (compMap_v_init (forNats (pred nblocks)) v init)
   else (compMap_v_init (forNats nblocks) v init).
 
 Definition case_on_i (i ncalls nblocks : nat) (v : Bvector eta) := 
@@ -5792,6 +5792,170 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma Gi_rb_collisions_inner_eq_general_induct_irr_l_ieq0 : forall (blocks : nat) (k v : Bvector eta)
+                                                                   (init : list (Blist * Bvector eta)),
+    Forall (fun x => length (fst x) = eta) init ->
+    comp_spec eq
+              (a <-$
+                 (GenUpdate_noV_oc (k, v) blocks) (list (Blist * Bvector eta))
+                 (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+               [_, init']<-2 a; ret hasInputDups init')
+              (x <-$
+                 compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+                 (forNats (pred blocks));
+               ret hasDups eqdbl
+                   (map (to_list (n:=eta)) (v :: x) ++ map (fst (B:=Bvector eta)) init)).
+Proof.
+  intuition; simpl.
+  rename H0 into inputs_len.
+  unfold rb_oracle.
+  fcf_inline_first.
+  destruct blocks as [ | blocks']. 
+  { simplify.
+    fcf_irr_l. rename a into key_output.
+    simplify. fcf_spec_ret.
+    unfold hasInputDups. simpl.
+    remember (split init) as z. destruct z. simpl.
+    pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
+(* why isn't this true? maybe only for blocks <> 0? *)
+(* is it because v isn't always an input? if v isn't updated in the front, then v is an input only if blocks isn't 0? *)
+    admit. }
+  { simplify.
+    (* blocks <> 0 -> reduces to lemma on i <> 0. copy-pasted code in *)
+    (* clean up left side *)
+    eapply comp_spec_eq_trans_l.
+
+   instantiate (1 := 
+       (a <-$ { 0 , 1 }^eta;
+         a0 <-$ ret (a, (to_list v, a) :: init);
+         a1 <-$
+         ([z, s']<-2 a0;
+          z0 <-$
+          (Gen_loop_oc z blocks') (list (Blist * Bvector eta))
+            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+            s';
+          [z1, s'0]<-2 z0;
+          ([bits, v']<-2 z1;
+           k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
+            (list (Blist * Bvector eta))
+            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+            s'0); [_, init']<-2 a1; ret hasInputDups init')).
+   { prog_equiv. fcf_spec_ret. }
+
+   revert k v init inputs_len. clear H. rename blocks' into blocks.
+
+  induction blocks as [ | blocks']; intros k v init inputs_len.
+  - simplify.
+    fcf_irr_l. rename a into key_input. simplify.
+    fcf_irr_l. rename a into key_output. simplify.
+    fcf_spec_ret. unfold hasInputDups. simpl.
+    remember (split init) as z. destruct z. simpl.
+    pose proof split_map_fst as split_map. rewrite <- split_map. rewrite <- Heqz. simpl.
+
+    (* prove that key-input-extended cannot collide with rest of oracle inputs *)
+    Transparent hasDups.
+    unfold Blist. (* type synonym was interfering with rewrite *)
+    remember (to_list v :: l) as rest.
+    unfold hasDups at 1. fold hasDups. subst.
+    Opaque hasDups.
+    destruct (in_dec (EqDec_dec eqdbl) (to_list key_input ++ zeroes)) as [ is_in | not_in ].
+    + assert (not_in : ~ In (to_list key_input ++ zeroes) (to_list v :: l)).
+      {
+        simpl. unfold not. intros not_in.
+        destruct not_in as [ is_first_elem | in_fixed_len_list ].
+        {
+          assert (len_eq : length (to_list v) = length (to_list key_input ++ zeroes)).
+          f_equal; trivial.
+          rewrite app_length in *.
+          
+          repeat rewrite to_list_length in *.
+          unfold zeroes in *.
+          rewrite length_replicate in len_eq.
+          rewrite plus_comm in len_eq.
+          simpl in *.
+          discriminate.
+        }
+
+        (* every element of l has length eta, and zeroes is nonempty *)
+        {
+          assert (l_eq : l = fst (split init)).
+          { rewrite <- Heqz. reflexivity. }
+          subst.
+          rewrite Forall_forall in inputs_len.
+          destruct (in_split_l_if init _ in_fixed_len_list). eauto.
+          match goal with 
+            | [ H:  In (to_list key_input ++ zeroes, _) init |- _ ] => 
+               apply inputs_len in H; simpl in *; rewrite app_length in H;
+               unfold zeroes in H; rewrite length_replicate in H;
+               rewrite plus_comm in H; simpl in *; discriminate
+          end.
+        }
+      }
+      contradiction.
+    + reflexivity.
+
+  - simplify.
+    fcf_skip. rename b into skip_v. simplify.
+    specialize (H skip_v ((to_list v, skip_v) :: init)).
+    eapply comp_spec_eq_trans_r.
+    (* clean up left side of H *)
+    instantiate (1 := 
+       (a <-$ { 0 , 1 }^eta;
+         a0 <-$ ret (a, (to_list skip_v, a) :: (to_list v, skip_v) :: init);
+         a1 <-$
+         ([z, s']<-2 a0;
+          z0 <-$
+          (Gen_loop_oc z blocks') (list (Blist * Bvector eta))
+            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+            s';
+          [z1, s'0]<-2 z0;
+          ([bits, v']<-2 z1;
+           k' <--$ query to_list v' ++ zeroes; $ ret (bits, (k', v')))
+            (list (Blist * Bvector eta))
+            (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta)))
+            (fun (state : list (Blist * Bvector eta)) (input : Blist) =>
+             output <-$ { 0 , 1 }^eta; ret (output, (input, output) :: state))
+            s'0); [_, init']<-2 a1; ret hasInputDups init')).
+    { prog_equiv. fcf_spec_ret. }
+    (* right side of H *)
+    eapply comp_spec_eq_trans_l.
+    apply H.
+    (* prove ind hyp on init *)
+    {
+      apply Forall_cons.
+      simpl. apply to_list_length. auto.
+    }
+
+    simplify. prog_equiv. fcf_spec_ret.
+    
+    apply Permutation_hasDups.
+
+    eapply perm_trans. Focus 2.
+    instantiate (1 :=      (to_list skip_v
+      :: to_list v
+         :: map (to_list (n:=eta)) a ++ map (fst (B:=Bvector eta)) init)).
+     apply perm_swap. 
+     constructor.
+
+    eapply perm_trans.
+    instantiate (1 :=      ((map (to_list (n:=eta)) a ++
+         (to_list v :: nil)) ++ map (fst (B:=Bvector eta)) init) ).
+    { rewrite <- app_assoc. apply Permutation_app_head. simpl. reflexivity. }
+
+    rewrite app_comm_cons.
+    apply Permutation_app.
+    apply Permutation_sym.
+    apply Permutation_cons_append.
+    reflexivity.
+  }
+Qed.
+
 Lemma to_list_injective : forall (T : Set) (n : nat) (a1 a2 : Vector.t T n), @to_list T n a1 = @to_list T n a2 -> a1 = a2.
 Proof.
   intros.
@@ -5861,6 +6025,24 @@ Proof.
     (* SearchAbout (hasDups (_ ++ _)). *)
     (* SearchAbout hasDups. *)
 
+Admitted.
+
+(* more general version, placeholder without assumptions for the above theorem until adam can prove it *)
+Lemma compMap_v_eq_init_list_placeholder : forall (a b : Bvector eta) init blocks,
+   comp_spec eq 
+     (x <-$
+      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats blocks);
+      ret hasDups eqdbl
+            (map (to_list (n:=eta)) (a :: x) ++
+             map (fst (B:=Bvector eta)) init))
+     (x <-$
+      compMap (Bvector_EqDec eta) (fun _ : nat => { 0 , 1 }^eta)
+        (forNats blocks);
+      ret hasDups eqdbl
+            (map (to_list (n:=eta)) (b :: x) ++
+             map (fst (B:=Bvector eta)) init)).
+Proof.
 Admitted.
 
 Lemma split_out_oracle_call_forall : 
@@ -5938,39 +6120,34 @@ Proof.
         (* replace v_prev with v, since the const vector in front doesn't matter *)
         eapply comp_spec_eq_trans_r.
         Focus 2.
-        eapply (compMap_v_eq (forNats (pred blocks)) v v_prev).
-        Check compMap_v_eq.
-        unfold compMap_v.
 
-        fcf_skip.
-        (* the types even differ here: Blist vs Bvector eta. is it easier to do to_list or from_list? *)
-        Print GenUpdate_noV_oc.
-        instantiate (1 := (fun x y => map (fun c => fst c) (snd x) = map (fun c => to_list c) y)).
-        { admit. }
-        (* is this postcondition (eq on blocks gen) too strong? or is it actually right? *)
-        (* where should the hasDups go? *)
-        (* should i prove hasDups on GenUpdate_noV_oc? rewrite *)
+        eapply (compMap_v_eq_init_list_placeholder v v_prev).
+        (* TODO this needs to be changed when we replace placeholder *)
+        simpl.
 
-        (* induction: prove the oracle is never used in subsequent calls *)
-        (* TODO apply lemma *)
-        (* i = 0, calls = 1 *)
-        simpl in *.
-        simplify.
-
-        (* why doesn't it unify? *)
-        (* eapply comp_spec_eq_trans_r. *)
-        (* eapply simplify_hasDups. *)
-        (* eapply comp_spec_eq_trans_r. *)
-        (* apply rb_oracle_state_same_after_i; omega. *)
-        (* fcf_irr_l. admit. *)
-        (* simplify. *)
-        (* unfold hasInputDups. *)
-
-        (* this is annoying (or impossible) to subst... *)
-        (* how did adam deal with the bvector / blist problem? *)
-        (* is this new goal a good place to induct from? (apply more general lemma with calls > i, inductive invariant H1) *)
-        (* whatever postcondition i prove above will become the inductive invariant for calls > i *)
-        admit.
+        eapply comp_spec_eq_trans_r.
+        instantiate (1 :=
+                       (a <-$
+      (GenUpdate_noV_oc (k, v) blocks) (list (Blist * Bvector eta))
+        (list_EqDec (pair_EqDec eqdbl (Bvector_EqDec eta))) rb_oracle init;
+                        [_, init'] <-2 a;
+                        ret hasInputDups init')).
+        { fcf_skip_eq.
+          simplify.
+          eapply comp_spec_eq_trans_r.
+          destruct b0.
+          simplify.
+          eapply simplify_hasDups.
+          destruct b0.
+          eapply rb_oracle_state_same_after_i.
+          omega.
+        }
+        clear n n0 IHlistLen'.
+        
+        (* apply lemma for i=0 *)
+        (* there's probably a nicer way to do it with a lower bound for Gi_rb_collisions_inner_eq_general_induct_irr_l *)
+        apply Gi_rb_collisions_inner_eq_general_induct_irr_l_ieq0.
+        auto.
       }
       (* i <> 0 *)
       { assert (i_neq_0 : i <> 0) by omega.
@@ -5984,15 +6161,17 @@ Proof.
         eapply comp_spec_eq_trans_r.
         Focus 2.
         unfold compMap_v_init.
+        eapply (compMap_v_eq_init_list_placeholder v v_prev). 
         (* pose proof (compMap_v_eq_init_list v v_prev init blocks nil) as compMap_v_eq_inner. *)
         (* destruct compMap_v_eq_inner as [ l_init compMap_v_eq_inner ]. *)
         (* eapply compMap_v_eq_inner. *)
         (* admit. *)
         (* admit. *)
-        eapply (compMap_v_eq_inner v v_prev init blocks).
+        (* eapply (compMap_v_eq_inner v v_prev init blocks). *)
         
         (* should I replace GenUpdate_oc with something else that doesn't use to_list?? *)
         (* maybe i should replace oracleCompMap inner with hasInputDups (state from Genupdate_oc) first *)
+        simpl.
 
         eapply comp_spec_eq_trans_r.
         instantiate (1 :=
@@ -6057,14 +6236,18 @@ Proof.
   simpl. Opaque hasDups.
   rewrite plus_comm. simpl.
   Opaque map.
-  destruct (ge_dec i numCalls); destruct (zerop i); try fcf_spec_ret; unfold compMap_v; prog_equiv.
-  rewrite app_nil_r.
-  Transparent map.
-  pose proof hasDups_inj_equiv as hasDups_inj.
-  specialize (hasDups_inj _ _ _ _ (v :: a) (to_list (n := eta))).
-  rewrite hasDups_inj.
-  fcf_spec_ret.
-  apply to_list_injective.
+
+  (* preemptively discharge the two last equality cases *)
+  assert (hasDups_map_equiv : forall a, hasDups eqdbl (map (to_list (n:=eta)) (v :: a) ++ map (fst (B:=Bvector eta)) nil) =
+                                        hasDups (Bvector_EqDec eta) (v :: a)).
+  { intros. rewrite app_nil_r.
+    pose proof hasDups_inj_equiv as hasDups_inj.
+    specialize (hasDups_inj _ _ _ _ (v :: a) (to_list (n := eta))).
+    rewrite hasDups_inj.
+    reflexivity.
+    apply to_list_injective. }
+
+  destruct (ge_dec i numCalls); destruct (zerop i); try fcf_spec_ret; unfold compMap_v; prog_equiv; fcf_spec_ret.
 Qed.
 
 (* probability of bad event happening in RB game is bounded by the probability of collisions in a list of length (n+1) of randomly-sampled (Bvector eta) *)
@@ -6119,7 +6302,7 @@ Proof.
   rewrite Gi_rb_bad_eq_1.       (* done *)
   pose proof Gi_rb_bad_eq_2' as select_call.
   specialize (select_call i v).
-  (* sort of weird to have that v quantified but not mentioned in the theorem statement... *)
+  (* sort of weird to have that v quantified but not mentioned in the theorem statement *)
   rewrite select_call. clear select_call.
   unfold case_on_i.
   destruct (ge_dec i) as [ i_ge_nc | i_nge_nc ].
@@ -6131,19 +6314,16 @@ Proof.
   (* i in bounds *)
   - destruct (zerop i).
     (* i = 0 *)
-    + 
-     unfold PRG.compMap_v.
-     rewrite compMap_hasDups_cons_prob.
-     rewrite forNats_length.
-     unfold Pr_collisions.
-     eapply leRat_terms; intuition.
-     eapply Nat.pow_le_mono; omega.
-    + 
-    unfold PRG.compMap_v.
-    rewrite compMap_hasDups_cons_prob.
-     rewrite forNats_length.
-     reflexivity.
-
+    + unfold PRG.compMap_v.
+      rewrite compMap_hasDups_cons_prob.
+      rewrite forNats_length.
+      unfold Pr_collisions.
+      eapply leRat_terms; intuition.
+      eapply Nat.pow_le_mono; omega.
+    + unfold PRG.compMap_v.
+      rewrite compMap_hasDups_cons_prob.
+      rewrite forNats_length.
+      reflexivity.
 Qed.
 
 (* Main theorem (modeled on PRF_DRBG_G3_G4_close) *)
