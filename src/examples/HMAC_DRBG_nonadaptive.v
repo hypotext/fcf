@@ -4816,46 +4816,44 @@ Proof.
   reflexivity. 
 Qed.
 
-Lemma Gi_prf_rf_close : forall (i : nat),
-    (i <= numCalls)%nat ->
-  | Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Max.
+Open Scope nat.
+Lemma comp_same_after_numCalls : forall (len n callsSoFar : nat) (k v : Bvector eta) init,
+    (n > numCalls)%nat ->
+    (callsSoFar + len = numCalls)%nat ->
+
+    comp_spec eq
+     (compFold
+        (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg n s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
+        (init, (callsSoFar, (k, v))) (replicate len blocksPerCall))
+     (compFold
+        (pair_EqDec (list_EqDec (list_EqDec (Bvector_EqDec eta)))
+           (pair_EqDec nat_EqDec eqDecState))
+        (fun (acc : list (list (Bvector eta)) * (nat * KV)) (d : nat) =>
+         [rs, s]<-2 acc;
+         z <-$ Oi_prg (S n) s d; [r, scallsSoFar]<-2 z; ret (rs ++ r :: nil, scallsSoFar))
+        (init, (callsSoFar, (k, v))) (replicate len blocksPerCall)).
 Proof.
-  intros.
-  eapply leRat_trans.
-  apply Gi_prf_rf_close_i.
-  apply PRF_Advantage_max_exists.
-  auto.
+  induction len as [ | len']; intros; rename H into n_gt_len; rename H0 into len_invar.
+  - simplify. fcf_spec_ret.
+  - simpl. 
+    simplify.
+    destruct (lt_dec callsSoFar n) as [calls_lt_n | calls_gte_n].
+    Focus 2. omega. 
+    destruct (lt_dec callsSoFar (S n)) as [calls_lt_Sn | calls_gte_Sn].
+    Focus 2. omega.
+    fcf_skip_eq; kv_exist.
+    simplify. destruct b.
+    apply IHlen'. auto. omega.
 Qed.
 
-Lemma comp_same_after_numCalls : forall len n k v callsSoFar,
-    (n > len)%nat ->
-   comp_spec eq
-     (oracleMap (pair_EqDec nat_EqDec eqDecState)
-        (list_EqDec (Bvector_EqDec eta)) (Oi_prg n) 
-        (callsSoFar, (k, v)) (replicate len blocksPerCall))
-     (oracleMap (pair_EqDec nat_EqDec eqDecState)
-        (list_EqDec (Bvector_EqDec eta)) (Oi_prg (S n)) 
-        (callsSoFar, (k, v)) (replicate len blocksPerCall)).
-Proof.
-  induction len as [ | len']; intros; rename H into n_gt_len.
-  - simplify. Transparent oracleMap.
-    unfold oracleMap. simplify.
-    fcf_spec_ret.
-  - simpl. unfold oracleMap.
-    simplify.
-    (* might need invariant on callsSoFar *)
-    destruct (lt_dec callsSoFar n). Focus 2.
-    (* omega. *)
-    (* simplify. *)
-    (* repeat (try fcf_skip_eq; kv_exist). *)
-    (* apply IHcalls'. *)
-Admitted.
-
 Theorem Gi_Gi_plus_1_close_outofbounds :
-  (* TODO: constructed PRF adversary *)
-  forall (n : nat),
-    (n > numCalls)%nat ->
-   Pr[Gi_prg n] == Pr[Gi_prg (S n)].
+  forall (i : nat),
+    (i > numCalls)%nat ->
+   Pr[Gi_prg i] == Pr[Gi_prg (S i)].
 Proof.
   intros.
   unfold Gi_prg.
@@ -4864,9 +4862,22 @@ Proof.
   (* unfold Oi_prg. *)
   (* TODO generalize and pull out *)
   unfold maxCallsAndBlocks.
+  unfold oracleMap.
 (* it should always be PRF on both sides *)
+  apply comp_same_after_numCalls; auto.
+Qed.
+Close Scope nat.
 
-Admitted.
+Lemma Gi_prf_rf_close : forall (i : nat),
+    (i <= numCalls)%nat ->
+| Pr[Gi_prf i] - Pr[Gi_rf i] | <= PRF_Advantage_Max.
+Proof.
+  intros.
+  eapply leRat_trans.
+  apply Gi_prf_rf_close_i.
+  apply PRF_Advantage_max_exists.
+  auto.
+Qed.
 
 (* TODO prove theorem for all n *)
 
@@ -4882,14 +4893,26 @@ Gi_rf  1:  RB  RF PRF *)
 Theorem Gi_Gi_plus_1_close :
   (* TODO: constructed PRF adversary *)
   forall (n : nat),
-    (n <= numCalls)%nat ->
   | Pr[Gi_prg n] - Pr[Gi_prg (S n)] | <= Gi_Gi_plus_1_bound.
 Proof.
-  unfold Gi_Gi_plus_1_bound. intros.
-  eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
-  rewrite Gi_normal_prf_eq.    (* changed this *)
-  apply Gi_prf_rf_close; auto.        (* Basically already proven via PRF_Advantage magic *)
-  apply Gi_rf_rb_close.
+  intros n.
+  assert (n_dec : (n <= numCalls)%nat \/ (n > numCalls)%nat) by omega.
+  destruct n_dec as [ n_lte | n_gt ].
+
+  -  unfold Gi_Gi_plus_1_bound. intros.
+     eapply ratDistance_le_trans. (* do the PRF advantage and collision bound separately *)
+     rewrite Gi_normal_prf_eq.    (* changed this *)
+     apply Gi_prf_rf_close; auto.        (* Basically already proven via PRF_Advantage magic *)
+     apply Gi_rf_rb_close.
+
+  - rewrite Gi_Gi_plus_1_close_outofbounds.
+    assert (Heq : | Pr  [Gi_prg (S n) ] - Pr  [Gi_prg (S n) ] | == 0).
+    { rewrite <- ratIdentityIndiscernables. reflexivity. }
+    rewrite Heq.
+    unfold Gi_Gi_plus_1_bound. unfold PRF_Advantage_Max. unfold Pr_collisions.
+    admit.
+
+    auto.
 Qed.
 
 (* ------------------------------- *)
@@ -4906,6 +4929,7 @@ Proof.
   Check distance_le_prod_f.
   Locate distance_le_prod_f.
   (* inductive argument *)
+  Check distance_le_prod_f.
   specialize (distance_le_prod_f (fun i => Pr[Gi_prg i]) Gi_Gi_plus_1_close numCalls).
   intuition.
 Qed.
