@@ -4910,8 +4910,7 @@ Proof.
     { rewrite <- ratIdentityIndiscernables. reflexivity. }
     rewrite Heq.
     unfold Gi_Gi_plus_1_bound. unfold PRF_Advantage_Max. unfold Pr_collisions.
-    admit.
-
+    apply rat0_le_all.
     auto.
 Qed.
 
