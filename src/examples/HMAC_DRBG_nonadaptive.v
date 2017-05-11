@@ -4528,7 +4528,7 @@ Proof.
         (* SearchAbout well_formed_comp. *)
         (* unfold Gen_loop_rb_intermediate. *)
         (* TODO *)
-        admit.
+        apply Gen_loop_rb_intermediate_wf.
       }
       (* note the k doesn't change *)
       simplify.
