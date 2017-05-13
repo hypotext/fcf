@@ -325,7 +325,7 @@ Definition G1_prg_original_split : Comp bool :=
 (* use version that's better for induction *)
 
 (* oracleMap hardcodes acc for compFold as nil, so generalize it *)
-Theorem compFold_acc : forall numCalls bits acc state,
+Theorem compFold_acc : forall numCalls0 bits acc state,
    comp_spec
      (fun x y : list (list (Bvector eta)) * KV =>
       hd_error (fst x) = Some bits /\ tl (fst x) = fst y)
@@ -333,15 +333,13 @@ Theorem compFold_acc : forall numCalls bits acc state,
         (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
          [rs, s]<-2 acc;
          z <-$ GenUpdate_original s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
-        (bits :: acc, state) (replicate numCalls blocksPerCall))
+        (bits :: acc, state) (replicate numCalls0 blocksPerCall))
      (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
         (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
          [rs, s]<-2 acc;
          z <-$ GenUpdate_original s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
-        (acc, state) (replicate numCalls blocksPerCall)).
+        (acc, state) (replicate numCalls0 blocksPerCall)).
 Proof.
-  destruct numCalls as [ | numCalls'].
-  inversion H_numCalls.
   intros. revert bits acc state.
   induction numCalls0; intros.
 
@@ -383,7 +381,7 @@ Proof.
 Qed.
 
 (* generalize acc again. could be generalized further for the function on v but oh well *)
-Theorem comp_spec_acc_2 : forall numCalls acc k v,
+Theorem comp_spec_acc_2 : forall numCalls0 acc k v,
  comp_spec (fun x y : list (list (Bvector eta)) * KV => fst x = fst y)
      (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
         (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
@@ -391,20 +389,19 @@ Theorem comp_spec_acc_2 : forall numCalls acc k v,
          z <-$ GenUpdate_original s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
         (acc,
         (k, f k (to_list v)))
-        (replicate numCalls blocksPerCall))
+        (replicate numCalls0 blocksPerCall))
      (compFold (pair_EqDec (list_EqDec (list_EqDec eqdbv)) eqDecState)
         (fun (acc : list (list (Bvector eta)) * KV) (d : nat) =>
          [rs, s]<-2 acc;
          z <-$ GenUpdate s d; [r, s0]<-2 z; ret (rs ++ r :: nil, s0))
         (acc, (k, v))
-        (replicate numCalls blocksPerCall)).
+        (replicate numCalls0 blocksPerCall)).
 Proof.
   intros.
-  destruct numCalls. inversion H_numCalls.
-  revert v k acc. induction numCalls0 as [ | numCalls']; intros.
+  revert v k acc. induction numCalls0 as [ | numCalls0']; intros.
   * simpl. fcf_spec_ret.
   * simpl.
-    fcf_inline_first. fcf_simp. apply IHnumCalls'.
+    fcf_inline_first. fcf_simp. apply IHnumCalls0'.
 Qed.
 
 (* G1_prg_original: calls GenUpdate_original, then GenUpdate_original
