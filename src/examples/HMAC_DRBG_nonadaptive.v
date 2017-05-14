@@ -4918,17 +4918,11 @@ Qed.
 
 (* final theorem *)
 Theorem G1_G2_close :
-  (* TODO: constructed PRF adversary *)
-  (* | Pr[G1_prg] - Pr[G2_prg] | <= (q / 1) * (PRF_Advantage RndK ({0,1}^eta) f _ _ ). *)
-  | Pr[G1_prg] - Pr[G2_prg] | <= (numCalls / 1) * Gi_Gi_plus_1_bound.
+  | Pr[G1_prg_original] - Pr[G2_prg] | <= (numCalls / 1) * Gi_Gi_plus_1_bound.
 Proof.
+  rewrite GenUpdate_v_output_probability.
   rewrite G1_Gi_O_equal.
   rewrite G2_Gi_n_equal.
-  (* rewrite ratDistance_comm. *)
-  Check distance_le_prod_f.
-  Locate distance_le_prod_f.
-  (* inductive argument *)
-  Check distance_le_prod_f.
   specialize (distance_le_prod_f (fun i => Pr[Gi_prg i]) Gi_Gi_plus_1_close numCalls).
   intuition.
 Qed.
